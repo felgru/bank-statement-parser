@@ -17,7 +17,8 @@ def parse_date(d: str) -> date:
 
 def parse_amount(a: str) -> Decimal:
     """ parse a decimal amount like -10,00 """
-    return Decimal(a.replace(',', '.'))
+    a = a.replace(' ', '').replace(',', '.')
+    return Decimal(a)
 
 def parse_meta_data(pdf_pages):
     m = re.search(r'Du (\d{2}\/\d{2}\/\d{4}) au (\d{2}\/\d{2}\/\d{4})',
@@ -69,57 +70,87 @@ class PdfParser:
                 parse_total_and_new_balance(self.transactions_text,
                                             self.credit_start)
         transactions = [t for t in self.generate_transactions(start_pos,
-                                                              end_pos)]
-        # TODO: might need to filter on value date
-        assert sum(t.debit for t in transactions) == total_debit
-        assert sum(t.credit for t in transactions) == total_credit
+                                                              end_pos,
+                                                              total_debit,
+                                                              total_credit)]
         assert old_balance.balance + total_credit - total_debit \
                 == new_balance.balance
         transactions = self.clean_up_transactions(transactions)
         return BankStatement(transactions, old_balance, new_balance)
 
-    def generate_transactions(self, start, end):
-        transaction_header_pattern = re.compile(
+    def generate_transactions(self, start, end, total_debit, total_credit):
+        transaction_block_start_pattern = re.compile(
                 r'^ {30} *(\S.+)\n',
                 flags=re.MULTILINE)
-        first_line_pattern = re.compile(
-                r'\s*(\d{2}\/\d{2}\/\d{4})\s*(\d{2}\/\d{2}\/\d{4}|)'
-                r'\s*(\S.+?)\s+(\d*,\d\d)\n')
-        middle_line_pattern = re.compile(r'\s*(\S.*?)\n')
-        end_line_pattern = re.compile(
-                'Sous total (.+?)\s+(\d*,\d\d)\s*(\d*,\d\d)\n')
+        transaction_block_end_pattern = re.compile(
+                '^ *Sous total (.+?)\s+(\d[ \d]*,\d\d)\s*(\d[ \d]*,\d\d)\n',
+                flags=re.MULTILINE)
+        accumulated_sub_totals = [Decimal('0.00'), Decimal('0.00')]
         while True:
-            m = transaction_header_pattern.search(self.transactions_text, start, end)
+            m = transaction_block_start_pattern.search(self.transactions_text,
+                                                       start, end)
             if m is None:
+                assert accumulated_sub_totals[0] == total_debit
+                assert accumulated_sub_totals[1] == total_credit
                 return
-            start = m.end()
+            block_start = m.end()
             transaction_type = m.group(1)
-            m = first_line_pattern.search(self.transactions_text, start, end)
-            operation_date = parse_date(m.group(1))
-            value_date = parse_date(m.group(2)) if m.group(2) != '' else None
-            description = m.group(3)
-            amount = parse_amount(m.group(4))
-            if m.end(4) - m.start() < self.credit_start:
-                amount = -amount
-            start = m.end()
-            while True:
-                m = middle_line_pattern.search(self.transactions_text,
-                                               start, end)
-                sub_total_text = 'Sous total ' + transaction_type
-                if m is None or m.group(1).startswith(sub_total_text):
-                    break
-                description += ' ' + m.group(1)
-                start = m.end()
-            m = end_line_pattern.search(self.transactions_text, start, end)
+            m = transaction_block_end_pattern.search(self.transactions_text,
+                                                     block_start, end)
+            block_end = m.start()
             assert m.group(1) == transaction_type
             sub_total = parse_amount(m.group(2)), parse_amount(m.group(3))
             start = m.end()
-            if amount >= 0:
-                assert sub_total[1] == amount
-            else:
-                assert sub_total[0] == -amount
+            accumulated_debit = Decimal('0.00')
+            accumulated_credit = Decimal('0.00')
+            for transaction in self.transactions_in_block(transaction_type,
+                                                          block_start,
+                                                          block_end):
+                if transaction.amount < 0:
+                    accumulated_debit -= transaction.amount
+                else:
+                    accumulated_credit += transaction.amount
+                yield transaction
+            assert accumulated_debit == sub_total[0]
+            assert accumulated_credit == sub_total[1]
+            # TODO: might need to filter on value date
+            accumulated_sub_totals[0] += sub_total[0]
+            accumulated_sub_totals[1] += sub_total[1]
+
+    def transactions_in_block(self, transaction_type, start, end):
+        first_line_pattern = re.compile(
+                r'^\s*(\d{2}\/\d{2}\/\d{4})\s*(\d{2}\/\d{2}\/\d{4}|)'
+                r'\s*(\S.+\S)\s+',
+                flags=re.MULTILINE)
+        amount_pattern = re.compile(r'\s*(\d[ \d]*,\d\d)\n')
+        middle_line_pattern = re.compile(r'\s{30}\s*(\S.*?)\n')
+        while True:
+            m = first_line_pattern.search(self.transactions_text, start,
+                                          start+self.debit_start)
+            if m is None:
+                return
+            operation_date = parse_date(m.group(1))
+            value_date = parse_date(m.group(2)) if m.group(2) != '' else None
+            description = m.group(3)
+            m = amount_pattern.search(self.transactions_text,
+                                      start+self.debit_start, end)
+            amount = parse_amount(m.group(1))
+            if m.end(1) - m.start() < self.credit_start - self.debit_start:
+                amount = -amount
+            start = m.end()
+            transaction_end = first_line_pattern.search(self.transactions_text,
+                                                        start, end)
+            transaction_end = transaction_end.start() \
+                              if transaction_end is not None else end
+            while True:
+                m = middle_line_pattern.search(self.transactions_text,
+                                               start, transaction_end)
+                if m is None:
+                    break
+                description += ' ' + m.group(1)
+                start = m.end()
             yield Transaction(transaction_type, description, operation_date,
-                              value_date, amount, sub_total)
+                              value_date, amount)
 
     def clean_up_transactions(self, transactions):
         cleaner = TransactionCleaner(self.xdg)
@@ -150,14 +181,14 @@ def extract_table_from_page(page):
     credit_start = m.start(2) - line_start
     table_start = m.end()
 
-    end_pattern = re.compile(r"\n\n *\* TAEG: Taux Annuel Effectif Global"
+    end_pattern = re.compile(r"\n* *\* TAEG: Taux Annuel Effectif Global"
                              r" sur la période")
     m = end_pattern.search(page)
     table_end = m.start()
-    return page[table_start:table_end]
+    return page[table_start:table_end+1]
 
 def parse_old_balance(transactions_text, credit_start):
-    old_balance = re.compile(r'^\s*Ancien solde au (\d{2}\/\d{2}\/\d{4})\s*(\d*,\d\d)',
+    old_balance = re.compile(r'^\s*Ancien solde au (\d{2}\/\d{2}\/\d{4})\s*(\d[ \d]*,\d\d)',
                              flags=re.MULTILINE)
     m = old_balance.search(transactions_text)
     old_balance = parse_amount(m.group(2))
@@ -166,9 +197,9 @@ def parse_old_balance(transactions_text, credit_start):
     return Balance(old_balance, parse_date(m.group(1))), m.end()
 
 def parse_total_and_new_balance(transactions_text, credit_start):
-    total_pattern = re.compile(r'^ *Total\s*(\d*,\d\d)\s*(\d*,\d\d)\s*'
+    total_pattern = re.compile(r'^ *Total\s*(\d[ \d]*,\d\d)\s*(\d[ \d]*,\d\d)\s*'
                                r'^( *)Nouveau solde au (\d{2}\/\d{2}\/\d{4})'
-                               r'\s*(\d*,\d\d)',
+                               r'\s*(\d[ \d]*,\d\d)',
                                flags=re.MULTILINE)
     m = total_pattern.search(transactions_text)
     total = parse_amount(m.group(1)), parse_amount(m.group(2))
