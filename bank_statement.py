@@ -36,10 +36,11 @@ class BankStatement:
               file=outfile)
 
 class BankStatementMetadata:
-    def __init__(self, account_owner, iban, owner_number, card_number,
+    def __init__(self, account_owner, iban, bic, owner_number, card_number,
                  account_number, start_date, end_date):
         self.account_owner = account_owner
         self.iban = iban
+        self.bic = bic
         self.owner_number = owner_number
         self.card_number = card_number
         self.account_number = account_number
@@ -49,6 +50,7 @@ class BankStatementMetadata:
     def write(self, outfile):
         print(f'account owner: {self.account_owner}', file=outfile)
         print(f'IBAN: {self.iban}', file=outfile)
+        print(f'BIC: {self.bic}', file=outfile)
         print(f'owner number: {self.owner_number}', file=outfile)
         print(f'card number: {self.card_number}', file=outfile)
         print(f'account number: {self.account_number}', file=outfile)

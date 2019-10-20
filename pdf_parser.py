@@ -28,6 +28,8 @@ def parse_meta_data(pdf_pages):
     m = re.search(r'Nom, prénom Titulaire 1 :\n\s*((\S+\s)*)', pdf_pages[0],
                   flags=re.MULTILINE)
     account_owner = m.group(1).strip()
+    m = re.search(r'BIC .+?\n *(.+?)\n', pdf_pages[0])
+    bic = m.group(1)
     m = re.search(r'IBAN\n *(.+?)\n', pdf_pages[0])
     iban = m.group(1)
     m = re.search(r'N° Client Titulaire 1 : (\d+)\s*'
@@ -41,6 +43,7 @@ def parse_meta_data(pdf_pages):
             start_date=start_date,
             end_date=end_date,
             account_owner=account_owner,
+            bic=bic,
             iban=iban,
             owner_number=owner_number,
             card_number=card_number,
