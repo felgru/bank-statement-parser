@@ -5,6 +5,8 @@ import subprocess
 
 from bank_statement import BankStatement
 from transaction import Balance, Transaction
+from transaction_sanitation import TransactionCleaner
+from xdg_dirs import getXDGdirectories
 
 def parse_date(d: str) -> date:
     """ parse a date in "dd/mm/yyyy" format """
@@ -40,6 +42,7 @@ class PdfParser:
         pdf_pages = pdftext.split('\f')[:-1] # There's a trailing \f on the last page
         self.debit_start, self.credit_start = parse_column_starts(pdf_pages[0])
         self.transactions_text = extract_transactions_table(pdf_pages)
+        self.xdg = getXDGdirectories('bank-statement-parser/ing.fr')
 
     def parse(self):
         old_balance, start_pos = \
@@ -50,10 +53,11 @@ class PdfParser:
         transactions = [t for t in self.generate_transactions(start_pos,
                                                               end_pos)]
         # TODO: might need to filter on value date
-        assert sum(t[-1][0] for t in transactions) == total_debit
-        assert sum(t[-1][1] for t in transactions) == total_credit
+        assert sum(t.debit for t in transactions) == total_debit
+        assert sum(t.credit for t in transactions) == total_credit
         assert old_balance.balance + total_credit - total_debit \
                 == new_balance.balance
+        transactions = self.clean_up_transactions(transactions)
         return BankStatement(transactions, old_balance, new_balance)
 
     def generate_transactions(self, start, end):
@@ -98,6 +102,10 @@ class PdfParser:
                 assert sub_total[0] == -amount
             yield Transaction(transaction_type, description, operation_date,
                               value_date, amount, sub_total)
+
+    def clean_up_transactions(self, transactions):
+        cleaner = TransactionCleaner(self.xdg)
+        return [cleaner.clean(t) for t in transactions]
 
 def parse_column_starts(page):
     table_heading = re.compile(r"^\s*Date de\s*Date de\s*Nature de l'opération\s*"
