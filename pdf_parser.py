@@ -1,5 +1,6 @@
 from datetime import date
 from decimal import Decimal
+import os
 import re
 import subprocess
 
@@ -54,6 +55,8 @@ def parse_meta_data(pdf_pages):
 
 class PdfParser:
     def __init__(self, pdf_file):
+        if not os.path.exists(pdf_file):
+            raise IOError('Unknown file: {}'.format(pdf_file))
         # pdftotext is provided by Poppler on Debian
         pdftext = subprocess.run(['pdftotext', '-fixed', '5', pdf_file, '-'],
                                  capture_output=True, encoding='UTF8',
