@@ -22,8 +22,8 @@ class BankStatement:
                      else ''
         print(f'    assets::bank::ING.fr  €{t.amount}{value_date}',
               file=outfile)
-        print('    TODO::assign_account\n',
-              file=outfile)
+        ext_acc = t.external_account or 'TODO::assign_account'
+        print(f'    {ext_acc}\n', file=outfile)
 
     def write_raw(self, outfile):
         print('old balance on {}: €{}\n'.format(self.old_balance.date,

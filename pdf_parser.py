@@ -3,6 +3,7 @@ from decimal import Decimal
 import re
 import subprocess
 
+from account_mapping import AccountMapper
 from bank_statement import BankStatement, BankStatementMetadata
 from transaction import Balance, Transaction
 from transaction_sanitation import TransactionCleaner
@@ -79,6 +80,7 @@ class PdfParser:
         assert old_balance.balance + total_credit - total_debit \
                 == new_balance.balance
         transactions = self.clean_up_transactions(transactions)
+        self.map_accounts(transactions)
         return BankStatement(transactions, old_balance, new_balance)
 
     def generate_transactions(self, start, end, total_debit, total_credit):
@@ -158,6 +160,10 @@ class PdfParser:
     def clean_up_transactions(self, transactions):
         cleaner = TransactionCleaner(self.xdg)
         return [cleaner.clean(t) for t in transactions]
+
+    def map_accounts(self, transactions):
+        mapper = AccountMapper(self.xdg)
+        mapper.map_transactions(transactions)
 
 def parse_column_starts(page):
     table_heading = re.compile(r"^\s*Date de\s*Date de\s*Nature de l'opération\s*"
