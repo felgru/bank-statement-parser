@@ -200,12 +200,20 @@ def parse_old_balance(transactions_text, credit_start):
     return Balance(old_balance, parse_date(m.group(1))), m.end()
 
 def parse_total_and_new_balance(transactions_text, credit_start):
-    total_pattern = re.compile(r'^ *Total\s*(\d[ \d]*,\d\d)\s*(\d[ \d]*,\d\d)\s*'
+    total_pattern = re.compile(r'^ *Total\s*(\d[ \d]*,\d\d)\s*(\d[ \d]*,\d\d|)\s*'
                                r'^( *)Nouveau solde au (\d{2}\/\d{2}\/\d{4})'
                                r'\s*(\d[ \d]*,\d\d)',
                                flags=re.MULTILINE)
     m = total_pattern.search(transactions_text)
-    total = parse_amount(m.group(1)), parse_amount(m.group(2))
+    if m.group(2):
+        total_debit = parse_amount(m.group(1))
+        total_credit = parse_amount(m.group(2))
+    else:
+        total_debit = parse_amount(m.group(1))
+        total_credit = Decimal('0.00')
+        if m.end(1) - m.start() > credit_start:
+            total_debit, total_credit = total_credit, total_debit
+    total = total_debit, total_credit
     new_balance_linestart = m.start(3)
     new_balance_date = parse_date(m.group(4))
     new_balance = parse_amount(m.group(5))
