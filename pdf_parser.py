@@ -3,7 +3,7 @@ from decimal import Decimal
 import re
 import subprocess
 
-from bank_statement import BankStatement
+from bank_statement import BankStatement, BankStatementMetadata
 from transaction import Balance, Transaction
 from transaction_sanitation import TransactionCleaner
 from xdg_dirs import getXDGdirectories
@@ -27,11 +27,25 @@ def parse_meta_data(pdf_pages):
     m = re.search(r'Nom, prénom Titulaire 1 :\n\s*((\S+\s)*)', pdf_pages[0],
                   flags=re.MULTILINE)
     account_owner = m.group(1).strip()
-    return dict(
+    m = re.search(r'IBAN\n *(.+?)\n', pdf_pages[0])
+    iban = m.group(1)
+    m = re.search(r'N° Client Titulaire 1 : (\d+)\s*'
+                  r'N° carte Titulaire 1 : ([0-9*]+)\s*'
+                  r'N° du Compte Courant : (\d+)',
+                  pdf_pages[0])
+    owner_number = m.group(1)
+    card_number = m.group(2)
+    account_number = m.group(3)
+    meta = BankStatementMetadata(
             start_date=start_date,
             end_date=end_date,
             account_owner=account_owner,
+            iban=iban,
+            owner_number=owner_number,
+            card_number=card_number,
+            account_number=account_number,
            )
+    return meta
 
 class PdfParser:
     def __init__(self, pdf_file):
@@ -40,9 +54,13 @@ class PdfParser:
                                  capture_output=True, encoding='UTF8',
                                  check=True).stdout
         pdf_pages = pdftext.split('\f')[:-1] # There's a trailing \f on the last page
+        self.pdf_pages = pdf_pages
         self.debit_start, self.credit_start = parse_column_starts(pdf_pages[0])
         self.transactions_text = extract_transactions_table(pdf_pages)
         self.xdg = getXDGdirectories('bank-statement-parser/ing.fr')
+
+    def parse_metadata(self):
+        return parse_meta_data(self.pdf_pages)
 
     def parse(self):
         old_balance, start_pos = \

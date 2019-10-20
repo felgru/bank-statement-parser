@@ -34,3 +34,23 @@ class BankStatement:
         print('new balance on {}: €{}'.format(self.new_balance.date,
                                               self.new_balance.balance),
               file=outfile)
+
+class BankStatementMetadata:
+    def __init__(self, account_owner, iban, owner_number, card_number,
+                 account_number, start_date, end_date):
+        self.account_owner = account_owner
+        self.iban = iban
+        self.owner_number = owner_number
+        self.card_number = card_number
+        self.account_number = account_number
+        self.start_date = start_date
+        self.end_date = end_date
+
+    def write(self, outfile):
+        print(f'account owner: {self.account_owner}', file=outfile)
+        print(f'IBAN: {self.iban}', file=outfile)
+        print(f'owner number: {self.owner_number}', file=outfile)
+        print(f'card number: {self.card_number}', file=outfile)
+        print(f'account number: {self.account_number}', file=outfile)
+        print(f'start date: {self.start_date}', file=outfile)
+        print(f'end date: {self.end_date}', file=outfile)

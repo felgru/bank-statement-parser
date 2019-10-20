@@ -12,6 +12,9 @@ aparser.add_argument('-o', metavar='OUTFILE', dest='outfile', default=None,
 aparser.add_argument('--raw', dest='raw', default=False,
                      action='store_true',
                      help='write raw parsing results (useful when creating filters)')
+aparser.add_argument('--meta', dest='meta', default=False,
+                     action='store_true',
+                     help='parse only metadata')
 aparser.add_argument('pdf', action='store',
                      help='PDF file of the account statement')
 
@@ -23,8 +26,12 @@ else:
 
 assert args.pdf.endswith('.pdf')
 transactions_parser = PdfParser(args.pdf)
-bank_statement = transactions_parser.parse()
-if not args.raw:
-    bank_statement.write_ledger(args.outfile)
+if args.meta:
+    metadata = transactions_parser.parse_metadata()
+    metadata.write(args.outfile)
 else:
-    bank_statement.write_raw(args.outfile)
+    bank_statement = transactions_parser.parse()
+    if not args.raw:
+        bank_statement.write_ledger(args.outfile)
+    else:
+        bank_statement.write_raw(args.outfile)
