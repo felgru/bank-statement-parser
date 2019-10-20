@@ -33,12 +33,13 @@ class TransactionCleaner:
         return transaction
 
 class TransactionCleanerRule:
-    def __init__(self, condition, cleaner):
+    def __init__(self, condition, cleaner, field='description'):
         self.condition = condition
         self.cleaner = cleaner
+        self.field = field
 
     def applies_to(self, transaction: Transaction) -> bool:
         return self.condition(transaction)
 
-    def clean(self, transaction: Transaction) -> Transaction:
-        return self.cleaner(transaction)
+    def clean(self, t: Transaction) -> Transaction:
+        return t.change_property(self.field, self.cleaner)
