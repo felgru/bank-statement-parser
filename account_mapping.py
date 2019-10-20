@@ -31,3 +31,4 @@ class AccountMapper:
                 account = r(t)
                 if account is not None:
                     t.external_account = account
+                    break
