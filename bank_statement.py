@@ -6,18 +6,31 @@ class BankStatement:
         self.old_balance = old_balance
         self.new_balance = new_balance
 
-    def write_ledger(self):
+    def write_ledger(self, outfile):
         print('; old balance on {}: €{}\n'.format(self.old_balance.date,
-                                                  self.old_balance.balance))
+                                                  self.old_balance.balance),
+              file=outfile)
         for transaction in self.transactions:
-            self.write_ledger_transaction(transaction)
-            print()
+            self.write_ledger_transaction(transaction, outfile)
         print('; new balance on {}: €{}'.format(self.new_balance.date,
-                                                self.new_balance.balance))
+                                                self.new_balance.balance),
+              file=outfile)
 
-    def write_ledger_transaction(self, t):
+    def write_ledger_transaction(self, t, outfile):
         print(f'{t.operation_date} {t.description}')
         value_date = f' ; date:{t.value_date}' if t.value_date is not None \
                      else ''
-        print(f'    assets::bank::ING.fr  €{t.amount}{value_date}')
-        print('    TODO::assign_account')
+        print(f'    assets::bank::ING.fr  €{t.amount}{value_date}',
+              file=outfile)
+        print('    TODO::assign_account\n',
+              file=outfile)
+
+    def write_raw(self, outfile):
+        print('old balance on {}: €{}\n'.format(self.old_balance.date,
+                                                self.old_balance.balance),
+              file=outfile)
+        for transaction in self.transactions:
+            print(transaction, file=outfile)
+        print('new balance on {}: €{}'.format(self.new_balance.date,
+                                              self.new_balance.balance),
+              file=outfile)
