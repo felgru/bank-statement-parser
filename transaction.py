@@ -12,11 +12,16 @@ class Transaction:
         self.amount = amount
         self.external_account = external_account
 
-    def change_property(self, prop: str, f):
-        if prop in ('amount', 'sub_total'):
-            raise Error('Cannot change amount or sub_total of a transaction')
+    def change_property(self, prop, f):
         res = copy(self)
-        setattr(res, prop, f(self))
+        if isinstance(prop, str):
+            if prop in ('amount', 'sub_total'):
+                raise Error('Cannot change amount or sub_total of a transaction')
+            setattr(res, prop, f(self))
+        else:
+            new_vals = f(self)
+            for p, v in zip(prop, new_vals):
+                setattr(res, p, v)
         return res
 
     def __repr__(self):
