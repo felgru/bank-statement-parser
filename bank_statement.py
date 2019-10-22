@@ -26,7 +26,7 @@ class BankStatement:
         if t.external_value_date is None:
             ext_date = ''
         else:
-            ext_date = f' ; date:{t.external_value_date}'
+            ext_date = f'  ; date:{t.external_value_date}'
         print(f'    {ext_acc}{ext_date}\n', file=outfile)
 
     def write_raw(self, outfile):
