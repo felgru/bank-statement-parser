@@ -17,7 +17,7 @@ class BankStatement:
               file=outfile)
 
     def write_ledger_transaction(self, t, outfile):
-        print(f'{t.operation_date} {t.description}')
+        print(f'{t.operation_date} {t.description}', file=outfile)
         value_date = f' ; date:{t.value_date}' if t.value_date is not None \
                      else ''
         print(f'    assets::bank::ING.fr  €{t.amount}{value_date}',
