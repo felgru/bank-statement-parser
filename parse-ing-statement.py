@@ -15,6 +15,9 @@ aparser.add_argument('--raw', dest='raw', default=False,
 aparser.add_argument('--meta', dest='meta', default=False,
                      action='store_true',
                      help='parse only metadata')
+aparser.add_argument('--json', dest='json', default=False,
+                     action='store_true',
+                     help='when coupled with meta, write output as JSON dict')
 aparser.add_argument('pdf', action='store',
                      help='PDF file of the account statement')
 
@@ -28,7 +31,10 @@ assert args.pdf.endswith('.pdf')
 transactions_parser = PdfParser(args.pdf)
 if args.meta:
     metadata = transactions_parser.parse_metadata()
-    metadata.write(args.outfile)
+    if args.json:
+        metadata.write_json(args.outfile)
+    else:
+        metadata.write(args.outfile)
 else:
     bank_statement = transactions_parser.parse()
     if not args.raw:

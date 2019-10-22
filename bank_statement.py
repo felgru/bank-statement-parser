@@ -1,3 +1,5 @@
+import json
+
 from transaction import Balance, Transaction
 
 class BankStatement:
@@ -60,3 +62,9 @@ class BankStatementMetadata:
         print(f'account number: {self.account_number}', file=outfile)
         print(f'start date: {self.start_date}', file=outfile)
         print(f'end date: {self.end_date}', file=outfile)
+
+    def write_json(self, outfile):
+        data = {s: str(getattr(self, s)) for s in [
+                'account_owner', 'iban', 'bic', 'owner_number', 'card_number',
+                'account_number', 'start_date', 'end_date']}
+        print(json.dumps(data), file=outfile)
