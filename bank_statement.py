@@ -22,7 +22,7 @@ class BankStatement:
         print(f'{t.operation_date} {t.description}', file=outfile)
         value_date = f' ; date:{t.value_date}' if t.value_date is not None \
                      else ''
-        print(f'    assets::bank::ING.fr  €{t.amount}{value_date}',
+        print(f'    assets::bank::checking::ING.fr  {t.amount} €{value_date}',
               file=outfile)
         ext_acc = t.external_account or 'TODO::assign_account'
         if t.external_value_date is None:
