@@ -55,6 +55,12 @@ def parse_meta_data(pdf_pages):
 
 class PdfParser:
     def __init__(self, pdf_file):
+        self.pdf_pages = self._parse_file(pdf_file)
+        self.debit_start, self.credit_start = parse_column_starts(pdf_pages[0])
+        self.transactions_text = self.extract_transactions_table()
+        self.xdg = getXDGdirectories('bank-statement-parser/ing.fr')
+
+    def _parse_file(self, pdf_file):
         if not os.path.exists(pdf_file):
             raise IOError('Unknown file: {}'.format(pdf_file))
         # pdftotext is provided by Poppler on Debian
@@ -62,10 +68,10 @@ class PdfParser:
                                  capture_output=True, encoding='UTF8',
                                  check=True).stdout
         pdf_pages = pdftext.split('\f')[:-1] # There's a trailing \f on the last page
-        self.pdf_pages = pdf_pages
-        self.debit_start, self.credit_start = parse_column_starts(pdf_pages[0])
-        self.transactions_text = extract_transactions_table(pdf_pages)
-        self.xdg = getXDGdirectories('bank-statement-parser/ing.fr')
+        return pdf_pages
+
+    def extract_transactions_table(self):
+        return ''.join(extract_table_from_page(p) for p in self.pdf_pages)
 
     def parse_metadata(self):
         return parse_meta_data(self.pdf_pages)
@@ -178,9 +184,6 @@ def parse_column_starts(page):
     debit_start = m.start(1) - line_start
     credit_start = m.start(2) - line_start
     return debit_start, credit_start
-
-def extract_transactions_table(pdf_pages):
-    return ''.join(extract_table_from_page(p) for p in pdf_pages)
 
 def extract_table_from_page(page):
     table_heading = re.compile(r"^\s*Date de\s*Date de\s*Nature de l'opération\s*"
