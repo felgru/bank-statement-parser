@@ -3,7 +3,7 @@
 import argparse
 import sys
 
-from pdf_parser import PdfParser
+from parsers.banks.ing_fr import IngFrPdfParser
 
 aparser = argparse.ArgumentParser(
         description='parse an ING.fr account statement PDF')
@@ -28,7 +28,7 @@ else:
     args.outfile = open(args.outfile, 'w')
 
 assert args.pdf.endswith('.pdf')
-transactions_parser = PdfParser(args.pdf)
+transactions_parser = IngFrPdfParser(args.pdf)
 if args.meta:
     metadata = transactions_parser.parse_metadata()
     if args.json:
