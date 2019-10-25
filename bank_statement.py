@@ -20,8 +20,10 @@ class BankStatement:
 
     def write_ledger_transaction(self, t, outfile):
         print(f'{t.operation_date} {t.description}', file=outfile)
-        value_date = f' ; date:{t.value_date}' if t.value_date is not None \
-                     else ''
+        if t.value_date is not None and t.value_date != t.operation_date:
+            value_date = f' ; date:{t.value_date}'
+        else:
+            value_date = ''
         print(f'    assets::bank::checking::ING.fr  {t.amount} €{value_date}',
               file=outfile)
         ext_acc = t.external_account or 'TODO::assign_account'
