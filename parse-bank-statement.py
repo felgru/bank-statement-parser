@@ -4,6 +4,11 @@ import argparse
 import sys
 
 from parsers.banks.ing_fr import IngFrPdfParser
+from parsers.banks.bnp_paribas import BnpParibasPdfParser
+
+banks = {'ing.fr': IngFrPdfParser,
+         'bnp': BnpParibasPdfParser,
+        }
 
 aparser = argparse.ArgumentParser(
         description='parse an ING.fr account statement PDF')
@@ -18,6 +23,8 @@ aparser.add_argument('--meta', dest='meta', default=False,
 aparser.add_argument('--json', dest='json', default=False,
                      action='store_true',
                      help='when coupled with meta, write output as JSON dict')
+aparser.add_argument('bank', action='store',
+                     help='bank to parse from ({})'.format(', '.join(sorted(banks))))
 aparser.add_argument('pdf', action='store',
                      help='PDF file of the account statement')
 
@@ -26,9 +33,10 @@ if args.outfile is None:
     args.outfile = sys.stdout
 else:
     args.outfile = open(args.outfile, 'w')
+Parser = banks[args.bank]
 
 assert args.pdf.endswith('.pdf')
-transactions_parser = IngFrPdfParser(args.pdf)
+transactions_parser = Parser(args.pdf)
 if args.meta:
     metadata = transactions_parser.parse_metadata()
     if args.json:

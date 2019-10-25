@@ -33,18 +33,16 @@ class PdfParser:
         pass
 
     def parse(self) -> BankStatement:
-        old_balance, start_pos = self.parse_old_balance()
-        (total_debit, total_credit), new_balance, end_pos = \
-                self.parse_total_and_new_balance()
-        transactions = [t for t in self.generate_transactions(start_pos,
-                                                              end_pos,
-                                                              total_debit,
-                                                              total_credit)]
-        assert old_balance.balance + total_credit - total_debit \
-                == new_balance.balance
+        self.parse_balances()
+        transactions = [t for t in self.generate_transactions(
+                                            self.transactions_start,
+                                            self.transactions_end)]
+        assert self.old_balance.balance \
+               + self.total_credit - self.total_debit \
+                == self.new_balance.balance
         transactions = self.clean_up_transactions(transactions)
         self.map_accounts(transactions)
-        return BankStatement(transactions, old_balance, new_balance)
+        return BankStatement(transactions, self.old_balance, self.new_balance)
 
     def clean_up_transactions(self, transactions):
         cleaner = TransactionCleaner(self.xdg)

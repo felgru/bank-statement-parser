@@ -77,6 +77,10 @@ class IngFrPdfParser(PdfParser):
         table_end = m.start()
         return page[table_start:table_end+1]
 
+    def parse_balances(self):
+        self.parse_old_balance()
+        self.parse_total_and_new_balance()
+
     def parse_old_balance(self):
         old_balance = re.compile(r'^\s*Ancien solde au (\d{2}\/\d{2}\/\d{4})\s*(\d[ \d]*,\d\d)',
                                  flags=re.MULTILINE)
@@ -84,7 +88,8 @@ class IngFrPdfParser(PdfParser):
         old_balance = parse_amount(m.group(2))
         if m.end(2) - m.start() < self.credit_start:
             old_balance = -old_balance
-        return Balance(old_balance, parse_date(m.group(1))), m.end()
+        self.old_balance = Balance(old_balance, parse_date(m.group(1)))
+        self.transactions_start = m.end()
 
     def parse_total_and_new_balance(self):
         total_pattern = re.compile(r'^ *Total\s*(\d[ \d]*,\d\d)\s*(\d[ \d]*,\d\d|)\s*'
@@ -100,15 +105,16 @@ class IngFrPdfParser(PdfParser):
             total_credit = Decimal('0.00')
             if m.end(1) - m.start() > self.credit_start:
                 total_debit, total_credit = total_credit, total_debit
-        total = total_debit, total_credit
+        self.total_debit, self.total_credit = total_debit, total_credit
         new_balance_linestart = m.start(3)
         new_balance_date = parse_date(m.group(4))
         new_balance = parse_amount(m.group(5))
         if m.end(5) - new_balance_linestart < self.credit_start:
             new_balance = -new_balance
-        return total, Balance(new_balance, new_balance_date), m.start()
+        self.new_balance = Balance(new_balance, new_balance_date)
+        self.transactions_end = m.start()
 
-    def generate_transactions(self, start, end, total_debit, total_credit):
+    def generate_transactions(self, start, end):
         transaction_block_start_pattern = re.compile(
                 r'^ {30} *(\S.+)\n',
                 flags=re.MULTILINE)
@@ -120,8 +126,8 @@ class IngFrPdfParser(PdfParser):
             m = transaction_block_start_pattern.search(self.transactions_text,
                                                        start, end)
             if m is None:
-                assert accumulated_sub_totals[0] == total_debit
-                assert accumulated_sub_totals[1] == total_credit
+                assert accumulated_sub_totals[0] == self.total_debit
+                assert accumulated_sub_totals[1] == self.total_credit
                 return
             block_start = m.end()
             transaction_type = m.group(1)
