@@ -9,13 +9,13 @@ class BankStatement:
         self.new_balance = new_balance
 
     def write_ledger(self, outfile):
-        print('; old balance on {}: €{}\n'.format(self.old_balance.date,
-                                                  self.old_balance.balance),
+        print('; old balance on {}: {} €\n'.format(self.old_balance.date,
+                                                   self.old_balance.balance),
               file=outfile)
         for transaction in self.transactions:
             self.write_ledger_transaction(transaction, outfile)
-        print('; new balance on {}: €{}'.format(self.new_balance.date,
-                                                self.new_balance.balance),
+        print('; new balance on {}: {} €'.format(self.new_balance.date,
+                                                 self.new_balance.balance),
               file=outfile)
 
     def write_ledger_transaction(self, t, outfile):
@@ -32,13 +32,13 @@ class BankStatement:
         print(f'    {ext_acc}{ext_date}\n', file=outfile)
 
     def write_raw(self, outfile):
-        print('old balance on {}: €{}\n'.format(self.old_balance.date,
-                                                self.old_balance.balance),
+        print('old balance on {}: {} €\n'.format(self.old_balance.date,
+                                                 self.old_balance.balance),
               file=outfile)
         for transaction in self.transactions:
             print(transaction, file=outfile)
-        print('new balance on {}: €{}'.format(self.new_balance.date,
-                                              self.new_balance.balance),
+        print('new balance on {}: {} €'.format(self.new_balance.date,
+                                               self.new_balance.balance),
               file=outfile)
 
 class BankStatementMetadata:
