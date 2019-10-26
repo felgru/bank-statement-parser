@@ -3,11 +3,13 @@
 import argparse
 import sys
 
+from parsers.banks.ing_de import IngDePdfParser
 from parsers.banks.ing_fr import IngFrPdfParser
 from parsers.banks.bnp_paribas import BnpParibasPdfParser
 from parsers.banks.payfit import PayfitPdfParser
 
-banks = {'ing.fr': IngFrPdfParser,
+banks = {'ing.de': IngDePdfParser,
+         'ing.fr': IngFrPdfParser,
          'bnp': BnpParibasPdfParser,
          'payfit': PayfitPdfParser,
         }

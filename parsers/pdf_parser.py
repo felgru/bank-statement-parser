@@ -37,13 +37,16 @@ class PdfParser:
         transactions = [t for t in self.generate_transactions(
                                             self.transactions_start,
                                             self.transactions_end)]
-        assert self.old_balance.balance \
-               + self.total_credit - self.total_debit \
-                == self.new_balance.balance
+        self.check_transactions_consistency()
         transactions = self.clean_up_transactions(transactions)
         self.map_accounts(transactions)
         return BankStatement(self.account, transactions,
                              self.old_balance, self.new_balance)
+
+    def check_transactions_consistency(self):
+        assert self.old_balance.balance \
+               + self.total_credit - self.total_debit \
+                == self.new_balance.balance
 
     def clean_up_transactions(self, transactions):
         cleaner = TransactionCleaner(self.xdg)

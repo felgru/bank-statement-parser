@@ -10,27 +10,39 @@ class BankStatement:
 
     def write_ledger(self, outfile):
         if self.old_balance is not None:
-            print('; old balance on {}: {} €\n'
-                  .format(self.old_balance.date, self.old_balance.balance),
+            date = self._format_date(self.old_balance.date)
+            print('; old balance{}: {} €\n'.format(date,
+                                                   self.old_balance.balance),
                   file=outfile)
         for t in self.transactions:
             print(t.format_as_ledger_transaction(self.account), file=outfile)
         if self.new_balance is not None:
-            print('; new balance on {}: {} €'.format(self.new_balance.date,
-                                                     self.new_balance.balance),
+            date = self._format_date(self.new_balance.date)
+            print('; new balance{}: {} €'.format(date,
+                                                 self.new_balance.balance),
                   file=outfile)
 
     def write_raw(self, outfile):
         if self.old_balance is not None:
-            print('old balance on {}: {} €\n'.format(self.old_balance.date,
-                                                     self.old_balance.balance),
+            date = self._format_date(self.old_balance.date)
+            print('old balance{}: {} €\n'.format(date,
+                                                 self.old_balance.balance),
                   file=outfile)
         for transaction in self.transactions:
             print(transaction, file=outfile)
         if self.new_balance is not None:
-            print('new balance on {}: {} €'.format(self.new_balance.date,
-                                                   self.new_balance.balance),
+            date = self._format_date(self.new_balance.date)
+            print('new balance{}: {} €'.format(date,
+                                               self.new_balance.balance),
                   file=outfile)
+
+    @staticmethod
+    def _format_date(d) -> str:
+            if d is not None:
+                d = f' on {d}'
+            else:
+                d = ''
+            return d
 
 class BankStatementMetadata:
     def __init__(self, start_date, end_date,
