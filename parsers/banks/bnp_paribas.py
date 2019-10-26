@@ -9,6 +9,7 @@ from ..pdf_parser import PdfParser
 
 class BnpParibasPdfParser(PdfParser):
     bank_folder = 'bnp'
+    account = 'assets::bank::checking::BNP'
 
     def __init__(self, pdf_file):
         super().__init__(pdf_file)
@@ -48,6 +49,8 @@ class BnpParibasPdfParser(PdfParser):
     @classmethod
     def extract_table_from_page(cls, page):
         m = cls.table_heading.search(page)
+        if m is None:
+            return ''
         line_start = m.start()
         debit_start = m.start(1) - line_start
         credit_start = m.start(2) - line_start

@@ -42,7 +42,8 @@ class PdfParser:
                 == self.new_balance.balance
         transactions = self.clean_up_transactions(transactions)
         self.map_accounts(transactions)
-        return BankStatement(transactions, self.old_balance, self.new_balance)
+        return BankStatement(self.account, transactions,
+                             self.old_balance, self.new_balance)
 
     def clean_up_transactions(self, transactions):
         cleaner = TransactionCleaner(self.xdg)

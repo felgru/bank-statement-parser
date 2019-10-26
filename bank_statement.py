@@ -3,7 +3,8 @@ import json
 from transaction import Balance, Transaction
 
 class BankStatement:
-    def __init__(self, transactions, old_balance, new_balance):
+    def __init__(self, account, transactions, old_balance, new_balance):
+        self.account = account
         self.transactions = transactions
         self.old_balance = old_balance
         self.new_balance = new_balance
@@ -24,7 +25,7 @@ class BankStatement:
             value_date = f' ; date:{t.value_date}'
         else:
             value_date = ''
-        print(f'    assets::bank::checking::ING.fr  {t.amount} €{value_date}',
+        print(f'    {self.account}  {t.amount} €{value_date}',
               file=outfile)
         ext_acc = t.external_account or 'TODO::assign_account'
         if t.external_value_date is None:
