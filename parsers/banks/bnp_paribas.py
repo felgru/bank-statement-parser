@@ -135,7 +135,7 @@ def parse_verbose_date(d: str) -> date:
     day, month, year = d.split()
     day = int(day)
     month = {'janvier': 1,
-             'fevrier': 2,
+             'février': 2,
              'mars': 3,
              'avril': 4,
              'mai': 5,
