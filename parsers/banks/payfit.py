@@ -1,3 +1,4 @@
+from copy import copy
 from datetime import date
 from decimal import Decimal
 import os
@@ -15,17 +16,33 @@ class PayfitPdfParser:
         if not os.path.exists(pdf_file):
             raise IOError('Unknown file: {}'.format(pdf_file))
         self.pdf_file = pdf_file
+        self.num_pages = self._num_pdf_pages()
         self.extract_main_transactions_table()
-        self.extract_summary_table()
         self.extract_dates_table()
         self.xdg = getXDGdirectories('bank-statement-parser/'
                                      + self.bank_folder)
 
-    def extract_main_transactions_table(self):
-        self.transactions_text = self.extract_table(1, (32, 347), (532, 625), 4)
+    def _num_pdf_pages(self):
+        info = subprocess.run(['pdfinfo', self.pdf_file],
+                              capture_output=True, encoding='UTF8',
+                              check=True).stdout
+        for line in info.split('\n'):
+            if line.startswith('Pages:'):
+                return int(line.split()[-1])
 
-    def extract_summary_table(self):
-        self.summary_text = self.extract_table(1, (32, 983), (532, 127), 4)
+    def extract_main_transactions_table(self):
+        upper_left = (32, 347)
+        if self.num_pages > 1:
+            main_tables = self.extract_table(1, upper_left, (532, 763), 4)
+        else:
+            main_tables = self.extract_table(1, upper_left, (532, 709), 4)
+        m = self.net_before_taxes_pattern.search(main_tables)
+        self.transactions_text = main_tables[:m.start()]
+        self.summary_text = main_tables[m.start():]
+
+    net_before_taxes_pattern = re.compile(
+            r'^ *NET À PAYER AVANT IMPÔT SUR LE REVENU *(\d[ \d]*,\d\d)',
+            flags=re.MULTILINE)
 
     def extract_dates_table(self):
         self.dates_text = self.extract_table(1, (432, 62), (321, 88), 2)
@@ -68,31 +85,22 @@ class PayfitPdfParser:
         gross_salary = self._parse_gross_salary()
 
         misc_expenses = self._parse_misc_expenses()
-        transportation_total, transportation_reimbursed \
-                = self._parse_public_transportation_fees()
-        transportation_remaining = transportation_total \
-                                 - transportation_reimbursed
+        transportation_postings, transportation_reimbursed \
+                = self._parse_travel_reimbursement()
         meal_vouchers = self._parse_meal_vouchers()
 
-        m = re.search(r'NET À PAYER AVANT IMPÔT SUR LE REVENU *'
-                      r'(\d[ \d]*,\d\d)', self.summary_text)
+        m = self.net_before_taxes_pattern.search(self.summary_text)
         net_before_taxes = parse_amount(m.group(1))
         payment = self._parse_payment()
 
-        simplified_gross_salary = payment + meal_vouchers \
-                                          - transportation_reimbursed
+        simplified_gross_salary = payment.amount + meal_vouchers.amount \
+                                                 - transportation_reimbursed
         transaction.add_posting(Posting('income::salary',
                                         -simplified_gross_salary))
-        transaction.add_posting(Posting('equity::receivable::salary', payment))
-        transaction.add_posting(Posting('expenses::food::meal_vouchers',
-                                        meal_vouchers))
-        transaction.add_posting(
-                Posting('expenses::reimbursable::transportation',
-                        -transportation_total))
-        transaction.add_posting(
-                Posting('expenses::transportation::public_transportation',
-                        transportation_remaining,
-                        comment='nonreimbursed public transportation fees'))
+        transaction.add_posting(payment)
+        transaction.add_posting(meal_vouchers)
+        for p in transportation_postings:
+            transaction.add_posting(p)
         return BankStatement(None, [transaction])
 
     def _parse_gross_salary(self):
@@ -106,29 +114,52 @@ class PayfitPdfParser:
                       self.transactions_text)
         return parse_amount(m.group(1))
 
-    def _parse_public_transportation_fees(self):
+    def _parse_travel_reimbursement(self):
         m = re.search(r'Frais transport public *(\d[ \d]*,\d\d) *(\d,\d{4}) *'
                       r'(\d[ \d]*,\d\d)', self.transactions_text)
+        if m is None:
+            return ([], Decimal('0.00'))
         transportation_total = parse_amount(m.group(1))
         transportation_reimbursement_rate = parse_amount(m.group(2))
         transportation_reimbursed = parse_amount(m.group(3))
+        total_reimbursed = copy(transportation_reimbursed)
+        transportation_remaining = transportation_total \
+                                 - transportation_reimbursed
         assert(transportation_total * transportation_reimbursement_rate
                 == transportation_reimbursed)
+        postings = [Posting('expenses::reimbursable::transportation',
+                            -transportation_total),
+                    Posting('expenses::transportation::public_transportation',
+                            transportation_remaining,
+                            comment='nonreimbursed public transportation fees')
+                   ]
+        travel_reimbursement = re.search(
+                r'Remboursement de notes de frais *(\d[ \d]*,\d\d)',
+                self.transactions_text)
+        if travel_reimbursement is not None:
+            travel_reimbursement = parse_amount(travel_reimbursement.group(1))
+            total_reimbursed += travel_reimbursement
+            postings.append(Posting('expenses::reimbursable::transportation',
+                                    -travel_reimbursement))
+            postings.append(Posting('income::travel reimbursement',
+                                    travel_reimbursement))
         m = re.search(r'Indemnités non soumises \(2\) *(\d[ \d]*,\d\d)',
                       self.transactions_text)
-        assert(parse_amount(m.group(1)) == transportation_reimbursed)
-        return transportation_total, transportation_reimbursed
+        assert(parse_amount(m.group(1)) == total_reimbursed)
+        return (postings, transportation_reimbursed)
 
     def _parse_meal_vouchers(self):
         m = re.search(r'Titres Restaurant *\d*,\d\d *\d,\d{3} *(\d*,\d\d)',
                       self.transactions_text)
-        return parse_amount(m.group(1))
+        return Posting('expenses::food::meal_vouchers',
+                       parse_amount(m.group(1)))
 
     def _parse_payment(self):
         m = re.search(r'NET PAYÉ\s*(\(\d\)( [+-] \(\d\))*) *'
                       r'VIREMENT *(\d[ \d]*,\d\d)',
                       self.summary_text)
-        return parse_amount(m.group(3))
+        payment = parse_amount(m.group(3))
+        return Posting('equity::receivable::salary', payment)
 
 def parse_amount(a: str) -> Decimal:
     """ parse a decimal amount like -10,00 """
