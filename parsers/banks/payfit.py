@@ -82,7 +82,7 @@ class PayfitPdfParser:
         payment_date = parse_verbose_date(m.group(1))
         transaction = MultiTransaction('Salaire', payment_date)
 
-        gross_salary = self._parse_gross_salary()
+        gross_salary, bonus = self._parse_salary()
 
         misc_expenses = self._parse_misc_expenses()
         transportation_postings, transportation_reimbursed \
@@ -95,6 +95,9 @@ class PayfitPdfParser:
 
         simplified_gross_salary = payment.amount + meal_vouchers.amount \
                                                  - transportation_reimbursed
+        if bonus is not None:
+            transaction.add_posting(bonus)
+            simplified_gross_salary += bonus.amount
         transaction.add_posting(Posting('income::salary',
                                         -simplified_gross_salary))
         transaction.add_posting(payment)
@@ -103,10 +106,17 @@ class PayfitPdfParser:
             transaction.add_posting(p)
         return BankStatement(None, [transaction])
 
-    def _parse_gross_salary(self):
+    def _parse_salary(self):
+        m = re.search(r'Prime sur objectifs *(\d[ \d]*,\d\d)',
+                      self.transactions_text)
+        if m is not None:
+            bonus = parse_amount(m.group(1))
+            bonus = Posting('income::salary::bonus', -bonus)
+        else:
+            bonus = None
         m = re.search(r'Rémunération brute \(1\) *(\d[ \d]*,\d\d)',
                       self.transactions_text)
-        return parse_amount(m.group(1))
+        return parse_amount(m.group(1)), bonus
 
     def _parse_misc_expenses(self):
         m = re.search(r'TOTAL COTISATIONS ET CONTRIBUTIONS SALARIALES \(4\)'
@@ -141,7 +151,7 @@ class PayfitPdfParser:
             total_reimbursed += travel_reimbursement
             postings.append(Posting('expenses::reimbursable::transportation',
                                     -travel_reimbursement))
-            postings.append(Posting('income::travel reimbursement',
+            postings.append(Posting('equity::travel reimbursement',
                                     travel_reimbursement))
         m = re.search(r'Indemnités non soumises \(2\) *(\d[ \d]*,\d\d)',
                       self.transactions_text)
