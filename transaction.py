@@ -24,6 +24,22 @@ class Transaction:
                 setattr(res, p, v)
         return res
 
+    def format_as_ledger_transaction(self, account):
+        t = self
+        result = f'{t.operation_date} {t.description}\n'
+        if t.value_date is not None and t.value_date != t.operation_date:
+            value_date = f' ; date:{t.value_date}'
+        else:
+            value_date = ''
+        result += f'    {account}  {t.amount} €{value_date}\n'
+        ext_acc = t.external_account or 'TODO::assign_account'
+        if t.external_value_date is None:
+            ext_date = ''
+        else:
+            ext_date = f'  ; date:{t.external_value_date}'
+        result += f'    {ext_acc}{ext_date}\n'
+        return result
+
     def __repr__(self):
         s = self
         if s.external_account is not None:

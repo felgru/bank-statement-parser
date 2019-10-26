@@ -1,48 +1,36 @@
 import json
 
-from transaction import Balance, Transaction
-
 class BankStatement:
-    def __init__(self, account, transactions, old_balance, new_balance):
+    def __init__(self, account, transactions,
+                 old_balance=None, new_balance=None):
         self.account = account
         self.transactions = transactions
         self.old_balance = old_balance
         self.new_balance = new_balance
 
     def write_ledger(self, outfile):
-        print('; old balance on {}: {} €\n'.format(self.old_balance.date,
-                                                   self.old_balance.balance),
-              file=outfile)
-        for transaction in self.transactions:
-            self.write_ledger_transaction(transaction, outfile)
-        print('; new balance on {}: {} €'.format(self.new_balance.date,
-                                                 self.new_balance.balance),
-              file=outfile)
-
-    def write_ledger_transaction(self, t, outfile):
-        print(f'{t.operation_date} {t.description}', file=outfile)
-        if t.value_date is not None and t.value_date != t.operation_date:
-            value_date = f' ; date:{t.value_date}'
-        else:
-            value_date = ''
-        print(f'    {self.account}  {t.amount} €{value_date}',
-              file=outfile)
-        ext_acc = t.external_account or 'TODO::assign_account'
-        if t.external_value_date is None:
-            ext_date = ''
-        else:
-            ext_date = f'  ; date:{t.external_value_date}'
-        print(f'    {ext_acc}{ext_date}\n', file=outfile)
+        if self.old_balance is not None:
+            print('; old balance on {}: {} €\n'
+                  .format(self.old_balance.date, self.old_balance.balance),
+                  file=outfile)
+        for t in self.transactions:
+            print(t.format_as_ledger_transaction(self.account), file=outfile)
+        if self.new_balance is not None:
+            print('; new balance on {}: {} €'.format(self.new_balance.date,
+                                                     self.new_balance.balance),
+                  file=outfile)
 
     def write_raw(self, outfile):
-        print('old balance on {}: {} €\n'.format(self.old_balance.date,
-                                                 self.old_balance.balance),
-              file=outfile)
+        if self.old_balance is not None:
+            print('old balance on {}: {} €\n'.format(self.old_balance.date,
+                                                     self.old_balance.balance),
+                  file=outfile)
         for transaction in self.transactions:
             print(transaction, file=outfile)
-        print('new balance on {}: {} €'.format(self.new_balance.date,
-                                               self.new_balance.balance),
-              file=outfile)
+        if self.new_balance is not None:
+            print('new balance on {}: {} €'.format(self.new_balance.date,
+                                                   self.new_balance.balance),
+                  file=outfile)
 
 class BankStatementMetadata:
     def __init__(self, start_date, end_date, iban, bic,
