@@ -5,9 +5,11 @@ import sys
 
 from parsers.banks.ing_fr import IngFrPdfParser
 from parsers.banks.bnp_paribas import BnpParibasPdfParser
+from parsers.banks.payfit import PayfitPdfParser
 
 banks = {'ing.fr': IngFrPdfParser,
          'bnp': BnpParibasPdfParser,
+         'payfit': PayfitPdfParser,
         }
 
 aparser = argparse.ArgumentParser(

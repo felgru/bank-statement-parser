@@ -55,4 +55,63 @@ class Transaction:
                 f'value_date={s.value_date!r}, amount={s.amount!r}'
                 f'{ext_account}{ext_date})')
 
+class MultiTransaction:
+    def __init__(self, description, transaction_date, postings=None):
+        self.description = description
+        self.date = transaction_date
+        if postings is None:
+            self.postings = []
+        else:
+            self.postings = postings
+
+    def add_posting(self, posting):
+        self.postings.append(posting)
+
+    def format_as_ledger_transaction(self, _account):
+        t = self
+        result = f'{t.date} {t.description}\n'
+        result += ''.join(p.format_as_ledger_transaction()
+                          for p in t.postings)
+        return result
+
+    def __repr__(self):
+        s = self
+        return f'MultiTransaction({s.description}, {s.date}, {s.postings})'
+
+class Posting:
+    def __init__(self, account, amount, posting_date=None, comment=None):
+        self.account = account
+        self.amount = amount
+        self.date = posting_date
+        self.comment = comment
+
+    def format_as_ledger_transaction(self):
+        t = self
+        if t.amount is None:
+            amount = ''
+        else:
+            amount = f'{t.amount} €'
+        comments = []
+        if t.date is not None:
+            comments.append(f'date:{t.date}')
+        if t.comment is not None:
+            comments.append(t.comment)
+        if comments:
+            comments = ' ; ' + ', '.join(comments)
+        else:
+            comments = ''
+        return f'    {t.account}  {amount}{comments}\n'
+
+    def __repr__(self):
+        s = self
+        if s.date is not None:
+            date = f', posting_date={s.date!r}'
+        else:
+            date = ''
+        if s.comment is not None:
+            comment = f', comment={s.comment!r}'
+        else:
+            comment = ''
+        return f'Posting({s.account}{date}{comment})'
+
 Balance = namedtuple('Balance', 'balance date')

@@ -33,7 +33,8 @@ class BankStatement:
                   file=outfile)
 
 class BankStatementMetadata:
-    def __init__(self, start_date, end_date, iban, bic,
+    def __init__(self, start_date, end_date,
+                 iban=None, bic=None,
                  account_owner=None, owner_number=None,
                  card_number=None, account_number=None):
         self.account_owner = account_owner
