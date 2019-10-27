@@ -3,7 +3,8 @@ from collections import namedtuple
 
 class Transaction:
     def __init__(self, type, description, operation_date, value_date, amount,
-                 external_account=None, external_value_date=None):
+                 external_account=None, external_value_date=None,
+                 metadata=None):
         self.type = type
         self.description = description
         self.operation_date = operation_date
@@ -11,6 +12,9 @@ class Transaction:
         self.external_value_date = external_value_date
         self.amount = amount
         self.external_account = external_account
+        if metadata is None:
+            metadata = {}
+        self.metadata = metadata
 
     def change_property(self, prop, f):
         res = copy(self)
@@ -50,10 +54,14 @@ class Transaction:
             ext_date = f', external_value_date={s.external_value_date!r}'
         else:
             ext_date = ''
+        if s.metadata:
+            meta = f', metadata={s.metadata!r}'
+        else:
+            meta = ''
         return (f'Transaction(type={s.type!r}, description={s.description!r}, '
                 f'operation_date={s.operation_date!r}, '
                 f'value_date={s.value_date!r}, amount={s.amount!r}'
-                f'{ext_account}{ext_date})')
+                f'{ext_account}{ext_date}{meta})')
 
 class MultiTransaction:
     def __init__(self, description, transaction_date, postings=None):
