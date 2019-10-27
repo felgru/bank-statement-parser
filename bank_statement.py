@@ -48,7 +48,8 @@ class BankStatementMetadata:
     def __init__(self, start_date, end_date,
                  iban=None, bic=None,
                  account_owner=None, owner_number=None,
-                 card_number=None, account_number=None):
+                 card_number=None, account_number=None,
+                 **extra):
         self.account_owner = account_owner
         self.iban = iban
         self.bic = bic
@@ -57,6 +58,10 @@ class BankStatementMetadata:
         self.account_number = account_number
         self.start_date = start_date
         self.end_date = end_date
+        self.extra = dict(extra)
+
+    def __getattr__(self, key):
+        return self.extra[key]
 
     def write(self, outfile):
         print(f'account owner: {self.account_owner}', file=outfile)
@@ -67,9 +72,12 @@ class BankStatementMetadata:
         print(f'account number: {self.account_number}', file=outfile)
         print(f'start date: {self.start_date}', file=outfile)
         print(f'end date: {self.end_date}', file=outfile)
+        for key, value in sorted(self.extra.items()):
+            print(f'{key}: {value}', file=outfile)
 
     def write_json(self, outfile):
         data = {s: str(getattr(self, s)) for s in [
                 'account_owner', 'iban', 'bic', 'owner_number', 'card_number',
                 'account_number', 'start_date', 'end_date']}
+        data.update(self.extra)
         print(json.dumps(data), file=outfile)
