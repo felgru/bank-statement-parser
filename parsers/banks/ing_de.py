@@ -15,9 +15,6 @@ class IngDePdfParser(PdfParser):
 
     def __init__(self, pdf_file):
         super().__init__(pdf_file)
-        self.transactions_start = 0
-        self.transactions_end = len(self.transactions_text)
-        print(self.transactions_text)
         self._parse_description_start()
         self.transaction_description_pattern = re.compile(
                 '^' + ' ' * self.description_start + ' *(\S.*)\n',
@@ -35,7 +32,7 @@ class IngDePdfParser(PdfParser):
         return pdf_pages
 
     table_heading = re.compile(r'^ *Buchung *(Buchung / Verwendungszweck) *'
-                               r'Betrag \(EUR\)\n *Valuta',
+                               r'Betrag \(EUR\)\n *Valuta\n*',
                                flags=re.MULTILINE)
 
     def _parse_description_start(self):
@@ -49,7 +46,7 @@ class IngDePdfParser(PdfParser):
                              r'60486 Frankfurt am Main · '
                              r'Vorsitzender des Aufsichtsrates:')
     transaction_pattern = re.compile(
-            r'^ *(\d{2}.\d{2}.\d{4}) +(\S+) +(.*?) +(-?\d[.\d]*,\d\d)\n'
+            r'^ *(\d{2}.\d{2}.\d{4}) +(\S+) +(.*?) +(-?\d[.\d]*,\d\d)\d?\n'
             r' *(\d{2}.\d{2}.\d{4}) +([^\n]*)\n',
             flags=re.MULTILINE)
 
@@ -64,8 +61,10 @@ class IngDePdfParser(PdfParser):
                           r' +Vorliegender Freistellungsauftrag',
                           page)
         table_end = m.start()
-        # TODO: remove garbage string from left margin, containing account number
-        return page[table_start:table_end+1]
+        # remove garbage string from left margin, containing account number
+        page = page[table_start:table_end+1]
+        page = re.sub(r'\s* \d\dGIRO\d{10}_T\n\n*', '\n', page)
+        return page
 
     def parse_balances(self):
         date = parse_date(re.search('Datum +(\d{2}.\d{2}.\d{4})',
@@ -76,6 +75,12 @@ class IngDePdfParser(PdfParser):
                                      self.pdf_pages[0]).group(1))
         self.old_balance = Balance(old, None)
         self.new_balance = Balance(new, date)
+
+        self.transactions_start = 0
+        m = re.search('\S*Neuer Saldo *(-?\d[.\d]*,\d\d)',
+                      self.transactions_text)
+        assert parse_amount(m.group(1)) == new
+        self.transactions_end = m.start()
 
     def generate_transactions(self, start, end):
         m = self.transaction_pattern.search(self.transactions_text, start, end)
@@ -99,8 +104,9 @@ class IngDePdfParser(PdfParser):
             m = self.transaction_pattern.search(self.transactions_text,
                                                 start, end)
 
-    def check_transactions_consistency(self):
-        pass
+    def check_transactions_consistency(self, transactions):
+        assert self.old_balance.balance + sum(t.amount for t in transactions) \
+               == self.new_balance.balance
 
 def parse_date(d: str) -> date:
     """ parse a date in "dd.mm.yyyy" format """
