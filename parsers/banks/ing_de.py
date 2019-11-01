@@ -15,7 +15,6 @@ class IngDePdfParser(PdfParser):
 
     def __init__(self, pdf_file):
         super().__init__(pdf_file)
-        self._parse_description_start()
         self.transaction_description_pattern = re.compile(
                 '^' + ' ' * self.description_start + ' *(\S.*)\n',
                 flags=re.MULTILINE)
@@ -72,29 +71,32 @@ class IngDePdfParser(PdfParser):
                )
         self.metadata = meta
 
-    end_pattern = re.compile(r'\n* *ING-DiBa AG · Theodor-Heuss-Allee 2 · '
-                             r'60486 Frankfurt am Main · '
-                             r'Vorsitzender des Aufsichtsrates:')
     transaction_pattern = re.compile(
             r'^ *(\d{2}.\d{2}.\d{4}) +(\S+) +(.*?) +(-?\d[.\d]*,\d\d)\d?\n'
             r' *(\d{2}.\d{2}.\d{4}) +([^\n]*)\n',
             flags=re.MULTILINE)
 
+    def extract_transactions_table(self):
+        self._parse_description_start()
+        self.footer_start_pattern = re.compile(
+                '\n*^ {{0,{}}}[^ \d]'.format(self.description_start - 1),
+                flags=re.MULTILINE)
+        return super().extract_transactions_table()
+
     def extract_table_from_page(self, page):
+        # remove garbage string from left margin, containing account number
+        account_number = self.metadata.account_number
+        page = re.sub(r'\s* \d\d[A-Z]{4}'+account_number+'_T\n\n*', '\n', page)
         m = self.table_heading.search(page)
         if m is None:
             return ''
         table_start = m.end()
-        m = self.end_pattern.search(page)
-        if m is None:
-            m = re.search(r'\s+Kunden-Information\n'
-                          r' +Vorliegender Freistellungsauftrag',
-                          page)
-        table_end = m.start()
-        # remove garbage string from left margin, containing account number
-        page = page[table_start:table_end+1]
-        account_number = self.metadata.account_number
-        page = re.sub(r'\s* \d\d[A-Z]{4}'+account_number+'_T\n\n*', '\n', page)
+        m = self.footer_start_pattern.search(page, table_start)
+        if m is not None:
+            table_end = m.start() + 1
+            page = page[table_start:table_end]
+        else:
+            page = page[table_start:]
         return page
 
     def _parse_balances(self):
