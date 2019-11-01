@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 import os
 import re
@@ -19,6 +19,7 @@ class IngDePdfParser(PdfParser):
         self.transaction_description_pattern = re.compile(
                 '^' + ' ' * self.description_start + ' *(\S.*)\n',
                 flags=re.MULTILINE)
+        self._parse_metadata()
 
     def _parse_file(self, pdf_file):
         if not os.path.exists(pdf_file):
@@ -28,8 +29,9 @@ class IngDePdfParser(PdfParser):
                                   '-fixed', '3', pdf_file, '-'],
                                  capture_output=True, encoding='UTF8',
                                  check=True).stdout
-        pdf_pages = pdftext.split('\f')[:-1] # There's a trailing \f on the last page
-        return pdf_pages
+        # Careful: There's a trailing \f on the last page
+        self.pdf_pages = pdftext.split('\f')[:-1]
+        self._parse_metadata()
 
     table_heading = re.compile(r'^ *Buchung *(Buchung / Verwendungszweck) *'
                                r'Betrag \(EUR\)\n *Valuta\n*',
@@ -40,7 +42,35 @@ class IngDePdfParser(PdfParser):
         self.description_start = m.start(1) - m.start()
 
     def parse_metadata(self):
-        self.parse_balances()
+        return self.metadata
+
+    def parse(self):
+        if self.metadata.account_type != 'Girokonto':
+            raise NotImplementedError('parsing of %s not supported.'
+                                      % self.metadata.account_type)
+        return super().parse()
+
+    def _parse_metadata(self):
+        self._parse_balances()
+        end_date = self.new_balance.date
+        # Approximate starting date
+        start_date = end_date - timedelta(days=30)
+        m = re.search(r'IBAN +(DE[\d ]+?)\n', self.pdf_pages[0])
+        iban = m.group(1)
+        m = re.search(r'BIC +([A-Z]+?)\n', self.pdf_pages[0])
+        bic = m.group(1)
+        m = re.search(r'(\w+) Nummer (\d{10})\n', self.pdf_pages[0])
+        account_type = m.group(1)
+        account_number = m.group(2)
+        meta = BankStatementMetadata(
+                start_date=start_date,
+                end_date=end_date,
+                bic=bic,
+                iban=iban,
+                account_type=account_type,
+                account_number=account_number,
+               )
+        self.metadata = meta
 
     end_pattern = re.compile(r'\n* *ING-DiBa AG · Theodor-Heuss-Allee 2 · '
                              r'60486 Frankfurt am Main · '
@@ -50,12 +80,12 @@ class IngDePdfParser(PdfParser):
             r' *(\d{2}.\d{2}.\d{4}) +([^\n]*)\n',
             flags=re.MULTILINE)
 
-    def extract_table_from_page(cls, page):
-        m = cls.table_heading.search(page)
+    def extract_table_from_page(self, page):
+        m = self.table_heading.search(page)
         if m is None:
             return ''
         table_start = m.end()
-        m = cls.end_pattern.search(page)
+        m = self.end_pattern.search(page)
         if m is None:
             m = re.search(r'\s+Kunden-Information\n'
                           r' +Vorliegender Freistellungsauftrag',
@@ -63,10 +93,11 @@ class IngDePdfParser(PdfParser):
         table_end = m.start()
         # remove garbage string from left margin, containing account number
         page = page[table_start:table_end+1]
-        page = re.sub(r'\s* \d\dGIRO\d{10}_T\n\n*', '\n', page)
+        account_number = self.metadata.account_number
+        page = re.sub(r'\s* \d\d[A-Z]{4}'+account_number+'_T\n\n*', '\n', page)
         return page
 
-    def parse_balances(self):
+    def _parse_balances(self):
         date = parse_date(re.search('Datum +(\d{2}.\d{2}.\d{4})',
                                     self.pdf_pages[0]).group(1))
         old = parse_amount(re.search('Alter Saldo +(-?\d[.\d]*,\d\d)',
@@ -76,10 +107,11 @@ class IngDePdfParser(PdfParser):
         self.old_balance = Balance(old, None)
         self.new_balance = Balance(new, date)
 
+    def parse_balances(self):
         self.transactions_start = 0
         m = re.search('\S*Neuer Saldo *(-?\d[.\d]*,\d\d)',
                       self.transactions_text)
-        assert parse_amount(m.group(1)) == new
+        assert parse_amount(m.group(1)) == self.new_balance.balance
         self.transactions_end = m.start()
 
     def generate_transactions(self, start, end):

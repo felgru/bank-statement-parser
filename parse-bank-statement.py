@@ -33,23 +33,37 @@ aparser.add_argument('pdf', action='store',
                      help='PDF file of the account statement')
 
 args = aparser.parse_args()
-if args.outfile is None:
-    args.outfile = sys.stdout
-else:
-    args.outfile = open(args.outfile, 'w')
+
+def open_outfile():
+    if args.outfile is None:
+        outfile = sys.stdout
+    else:
+        outfile = open(args.outfile, 'w')
+    return outfile
+
 Parser = banks[args.bank]
 
 assert args.pdf.endswith('.pdf')
 transactions_parser = Parser(args.pdf)
 if args.meta:
-    metadata = transactions_parser.parse_metadata()
+    try:
+        metadata = transactions_parser.parse_metadata()
+    except NotImplementedError as e:
+        print(f'Warning: couldn\'t parse {args.pdf}:', e.args(),
+              file=sys.stderr)
+        exit(0)
     if args.json:
-        metadata.write_json(args.outfile)
+        metadata.write_json(open_outfile())
     else:
-        metadata.write(args.outfile)
+        metadata.write(open_outfile())
 else:
-    bank_statement = transactions_parser.parse()
+    try:
+        bank_statement = transactions_parser.parse()
+    except NotImplementedError as e:
+        print(f'Warning: couldn\'t parse {args.pdf}:', e.args(),
+              file=sys.stderr)
+        exit(0)
     if not args.raw:
-        bank_statement.write_ledger(args.outfile)
+        bank_statement.write_ledger(open_outfile())
     else:
-        bank_statement.write_raw(args.outfile)
+        bank_statement.write_raw(open_outfile())

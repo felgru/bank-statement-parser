@@ -31,7 +31,7 @@ class Parser:
                                   encoding='UTF8',
                                   check=True)
 
-known_banks = {'ing.fr', 'bnp', 'payfit'}
+known_banks = {'ing.de', 'ing.fr', 'bnp', 'payfit'}
 
 def import_incoming_statements(dirs, force):
     incoming_dir = dirs['incoming']
