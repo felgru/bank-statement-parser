@@ -2,36 +2,11 @@
 
 import argparse
 import configparser
-from datetime import date, timedelta
-import json
+from datetime import timedelta
 import os
-import subprocess
 import sys
 
-class Parser:
-    pdf_parser = 'parse-bank-statement'
-
-    def __init__(self, bank, file_name):
-        self.bank = bank
-        self.file_name = file_name
-
-    def parse_metadata(self):
-        metadata = subprocess.run([self.pdf_parser, '--meta', '--json',
-                                   self.bank, self.file_name],
-                                  capture_output=True, encoding='UTF8',
-                                  check=True).stdout
-        metadata = json.loads(metadata)
-        for d in 'start_date', 'end_date':
-            metadata[d] = date.fromisoformat(metadata[d])
-        return metadata
-
-    def parse_to(self, dest_file):
-        metadata = subprocess.run([self.pdf_parser, '-o', dest_file,
-                                   self.bank, self.file_name],
-                                  encoding='UTF8',
-                                  check=True)
-
-known_banks = {'ing.de', 'ing.fr', 'bnp', 'payfit'}
+from parsers.banks import parsers
 
 def import_incoming_statements(dirs, force):
     incoming_dir = dirs['incoming']
@@ -39,39 +14,29 @@ def import_incoming_statements(dirs, force):
         if dirpath == incoming_dir:
             continue
         bank = os.path.basename(dirpath)
-        if bank not in known_banks:
+        if bank not in parsers:
             print('unknown bank:', bank, file=sys.stderr)
             continue
+        Parser = parsers[bank]
         if filenames:
             print('importing bank statements from', bank)
         dateranges = []
         filenames.sort()
         for f in filenames:
             src_file = os.path.join(dirpath, f)
-            parser = Parser(bank, src_file)
+            parser = Parser(src_file)
             m = parser.parse_metadata()
-            print('{start_date} → {end_date}: {src_file}'
-                  .format(src_file=src_file, **m))
-            mid_date = m['start_date'] + (m['end_date'] - m['start_date']) / 2
+            print('{m.start_date} → {m.end_date}: {src_file}'
+                  .format(src_file=src_file, m=m))
+            mid_date = m.start_date + (m.end_date - m.start_date) / 2
             year = str(mid_date.year)
             month = str(mid_date.month).zfill(2)
             dest_dir = os.path.join(dirs['ledgers'], year, month, bank)
             os.makedirs(dest_dir, exist_ok=True)
             dest_file = os.path.join(dest_dir,
                                      os.path.splitext(f)[0] + '.hledger')
-            if force:
-                if os.path.exists(dest_file):
-                    print(f'WARNING: existing {dest_file} will be overwritten',
-                          file=sys.stderr)
-                parser.parse_to(dest_file)
-            else:
-                if os.path.exists(dest_file):
-                    print('WARNING: skipping import of already imported '
-                          f'{src_file}',
-                          file=sys.stderr)
-                else:
-                    parser.parse_to(dest_file)
-            dateranges.append((m['start_date'], m['end_date']))
+            parse_and_write_bank_statement(parser, src_file, dest_file, force)
+            dateranges.append((m.start_date, m.end_date))
         dateranges.sort(key=lambda t: t[0])
         for i in range(len(dateranges)-1, 0, -1):
             if dateranges[i-1][1] + timedelta(days=1) == dateranges[i][0]:
@@ -79,6 +44,24 @@ def import_incoming_statements(dirs, force):
                 dateranges.pop(i)
         dateranges = ', '.join('{} → {}'.format(*d) for d in dateranges)
         print(f'imported {bank} bank statements for {dateranges}')
+
+def parse_and_write_bank_statement(parser, src_file, dest_file, force):
+    if os.path.exists(dest_file):
+        if force:
+            print(f'WARNING: existing {dest_file} will be overwritten',
+                  file=sys.stderr)
+        else:
+            print(f'WARNING: skipping import of already imported {src_file}',
+                  file=sys.stderr)
+            return
+    try:
+        bank_statement = parser.parse()
+    except NotImplementedError as e:
+        print(f'Warning: couldn\'t parse {src_file}:', e.args,
+              file=sys.stderr)
+        return
+    with open(dest_file, 'w') as f:
+        bank_statement.write_ledger(f)
 
 def write_include_files(ledger_root):
     ledger_name = 'journal.hledger'
