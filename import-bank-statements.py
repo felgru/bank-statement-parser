@@ -42,11 +42,7 @@ def import_incoming_statements(dirs, force):
                                      os.path.splitext(f)[0] + '.hledger')
             parse_and_write_bank_statement(parser, src_file, dest_file, force)
             dateranges.append((m.start_date, m.end_date))
-        dateranges.sort(key=lambda t: t[0])
-        for i in range(len(dateranges)-1, 0, -1):
-            if dateranges[i-1][1] + timedelta(days=1) == dateranges[i][0]:
-                dateranges[i-1] = (dateranges[i-1][0], dateranges[i][1])
-                dateranges.pop(i)
+        merge_dateranges(dateranges)
         dateranges = ', '.join('{} → {}'.format(*d) for d in dateranges)
         print(f'imported {bank} bank statements for {dateranges}')
 
@@ -67,6 +63,13 @@ def parse_and_write_bank_statement(parser, src_file, dest_file, force):
         return
     with open(dest_file, 'w') as f:
         bank_statement.write_ledger(f)
+
+def merge_dateranges(dateranges):
+    dateranges.sort(key=lambda t: t[0])
+    for i in reversed(range(len(dateranges)-1)):
+        if 0 <= (dateranges[i+1][0] - dateranges[i][1]).days <= 1:
+            dateranges[i] = (dateranges[i][0], dateranges[i+1][1])
+            dateranges.pop(i+1)
 
 def write_include_files(ledger_root):
     ledger_name = 'journal.hledger'
