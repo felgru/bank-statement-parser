@@ -15,12 +15,16 @@ class Parsers(dict):
             for elem in dir(mod):
                 elem = getattr(mod, elem)
                 if (inspect.isclass(elem)
-                    and getattr(elem, 'bank_folder', None) is not None):
+                    and getattr(elem, 'bank_folder', None) is not None
+                    and getattr(elem, 'file_extension', None) is not None):
                         self.add_format(elem)
 
     def add_format(self, format_class):
-        key = format_class.bank_folder
-        self[key] = format_class
+        bank = format_class.bank_folder
+        if bank not in self:
+            self[bank] = {}
+        ext = format_class.file_extension
+        self[bank][ext] = format_class
 
 parsers = Parsers()
 

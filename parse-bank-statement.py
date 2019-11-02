@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 
 import argparse
+import os
 import sys
 
 from parsers.banks import parsers
@@ -32,7 +33,18 @@ def open_outfile():
         outfile = open(args.outfile, 'w')
     return outfile
 
-Parser = parsers[args.bank]
+try:
+    bank_parsers = parsers[args.bank]
+except KeyError:
+    print(f'Unknown bank: {args.bank}', file=sys.stderr)
+    exit(1)
+
+try:
+    extension = os.path.splitext(args.pdf)[1]
+    Parser = bank_parsers[extension]
+except KeyError:
+    print(f"Don't know how to parse file of type {extension}", file=sys.stderr)
+    exit(1)
 
 assert args.pdf.endswith('.pdf')
 transactions_parser = Parser(args.pdf)

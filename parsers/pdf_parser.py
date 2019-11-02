@@ -9,6 +9,7 @@ from xdg_dirs import getXDGdirectories
 
 class PdfParser:
     bank_folder = None
+    file_extension = '.pdf'
 
     def __init__(self, pdf_file):
         self._parse_file(pdf_file)

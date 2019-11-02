@@ -17,12 +17,17 @@ def import_incoming_statements(dirs, force):
         if bank not in parsers:
             print('unknown bank:', bank, file=sys.stderr)
             continue
-        Parser = parsers[bank]
+        bank_parsers = parsers[bank]
         if filenames:
             print('importing bank statements from', bank)
         dateranges = []
         filenames.sort()
         for f in filenames:
+            try:
+                extension = os.path.splitext(f)[1]
+                Parser = bank_parsers[extension]
+            except KeyError:
+                continue
             src_file = os.path.join(dirpath, f)
             parser = Parser(src_file)
             m = parser.parse_metadata()

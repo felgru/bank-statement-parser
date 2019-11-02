@@ -11,6 +11,7 @@ from xdg_dirs import getXDGdirectories
 
 class PayfitPdfParser:
     bank_folder = 'payfit'
+    file_extension = '.pdf'
 
     def __init__(self, pdf_file):
         if not os.path.exists(pdf_file):
