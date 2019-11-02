@@ -40,7 +40,7 @@ if args.meta:
     try:
         metadata = transactions_parser.parse_metadata()
     except NotImplementedError as e:
-        print(f'Warning: couldn\'t parse {args.pdf}:', e.args(),
+        print(f'Warning: couldn\'t parse {args.pdf}:', e.args,
               file=sys.stderr)
         exit(0)
     if args.json:
@@ -51,7 +51,7 @@ else:
     try:
         bank_statement = transactions_parser.parse()
     except NotImplementedError as e:
-        print(f'Warning: couldn\'t parse {args.pdf}:', e.args(),
+        print(f'Warning: couldn\'t parse {args.pdf}:', e.args,
               file=sys.stderr)
         exit(0)
     if not args.raw:
