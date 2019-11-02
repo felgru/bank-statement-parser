@@ -58,7 +58,8 @@ class IngDePdfParser(PdfParser):
         iban = m.group(1)
         m = re.search(r'BIC +([A-Z]+?)\n', self.pdf_pages[0])
         bic = m.group(1)
-        m = re.search(r'(\w+) Nummer (\d{10})\n', self.pdf_pages[0])
+        m = re.search(r'^ *(\w.*?) Nummer (\d{10})\n', self.pdf_pages[0],
+                      flags=re.MULTILINE)
         account_type = m.group(1)
         account_number = m.group(2)
         meta = BankStatementMetadata(
