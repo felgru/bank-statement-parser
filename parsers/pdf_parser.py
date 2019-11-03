@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2019 Felix Gruber <felgru@posteo.net>
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 from datetime import date
 import os
 import subprocess

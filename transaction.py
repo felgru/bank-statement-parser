@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2019 Felix Gruber <felgru@posteo.net>
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 from copy import copy
 from collections import namedtuple
 

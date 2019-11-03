@@ -1,5 +1,9 @@
 #!/usr/bin/python3
 
+# SPDX-FileCopyrightText: 2019 Felix Gruber <felgru@posteo.net>
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 import argparse
 import os
 import sys

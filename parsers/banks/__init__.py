@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2019 Felix Gruber <felgru@posteo.net>
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 class Parsers(dict):
     def __init__(self):
         from importlib import import_module
