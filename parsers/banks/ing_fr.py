@@ -79,8 +79,11 @@ class IngFrPdfParser(PdfParser):
         table_start = m.end()
 
         m = cls.end_pattern.search(page)
-        table_end = m.start()
-        return page[table_start:table_end+1]
+        if m is not None:
+            table_end = m.start() + 1
+        else:
+            table_end = len(page)
+        return page[table_start:table_end]
 
     def parse_balances(self):
         self.parse_old_balance()
