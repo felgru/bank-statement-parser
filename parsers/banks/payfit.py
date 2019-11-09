@@ -155,7 +155,8 @@ class PayfitPdfParser:
             travel_reimbursement = parse_amount(travel_reimbursement.group(1))
             total_reimbursed += travel_reimbursement
             postings.append(Posting('expenses::reimbursable::transportation',
-                                    -travel_reimbursement))
+                                    -travel_reimbursement,
+                                    comment='trip: TODO'))
             postings.append(Posting('equity::travel reimbursement',
                                     travel_reimbursement))
         m = re.search(r'Indemnités non soumises \(2\) *(\d[ \d]*,\d\d)',
