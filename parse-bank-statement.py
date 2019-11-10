@@ -11,7 +11,7 @@ import sys
 from parsers.banks import parsers
 
 aparser = argparse.ArgumentParser(
-        description='parse an ING.fr account statement PDF')
+        description='parse a bank statement into hledger format')
 aparser.add_argument('-o', metavar='OUTFILE', dest='outfile', default=None,
                      help='write to OUTFILE instead of stdout')
 aparser.add_argument('--raw', dest='raw', default=False,
@@ -25,8 +25,9 @@ aparser.add_argument('--json', dest='json', default=False,
                      help='when coupled with meta, write output as JSON dict')
 aparser.add_argument('bank', action='store',
                      help='bank to parse from ({})'.format(', '.join(sorted(parsers))))
-aparser.add_argument('pdf', action='store',
-                     help='PDF file of the account statement')
+aparser.add_argument('infile', action='store',
+                     help='the account statement file downloaded from your bank'
+                          ' (probably a pdf of csv file)')
 
 args = aparser.parse_args()
 
@@ -44,19 +45,18 @@ except KeyError:
     exit(1)
 
 try:
-    extension = os.path.splitext(args.pdf)[1]
+    extension = os.path.splitext(args.infile)[1].lower()
     Parser = bank_parsers[extension]
 except KeyError:
     print(f"Don't know how to parse file of type {extension}", file=sys.stderr)
     exit(1)
 
-assert args.pdf.endswith('.pdf')
-transactions_parser = Parser(args.pdf)
+transactions_parser = Parser(args.infile)
 if args.meta:
     try:
         metadata = transactions_parser.parse_metadata()
     except NotImplementedError as e:
-        print(f'Warning: couldn\'t parse {args.pdf}:', e.args,
+        print(f'Warning: couldn\'t parse {args.infile}:', e.args,
               file=sys.stderr)
         exit(0)
     if args.json:
@@ -67,7 +67,7 @@ else:
     try:
         bank_statement = transactions_parser.parse()
     except NotImplementedError as e:
-        print(f'Warning: couldn\'t parse {args.pdf}:', e.args,
+        print(f'Warning: couldn\'t parse {args.infile}:', e.args,
               file=sys.stderr)
         exit(0)
     if not args.raw:

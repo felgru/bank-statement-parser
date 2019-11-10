@@ -28,7 +28,7 @@ def import_incoming_statements(dirs, force):
         filenames.sort()
         for f in filenames:
             try:
-                extension = os.path.splitext(f)[1]
+                extension = os.path.splitext(f)[1].lower()
                 Parser = bank_parsers[extension]
             except KeyError:
                 continue
