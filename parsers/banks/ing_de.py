@@ -8,6 +8,7 @@ import os
 import re
 import subprocess
 
+from .cleaning_rules import ing_de as cleaning_rules
 from bank_statement import BankStatementMetadata
 from transaction import Balance, Transaction
 
@@ -16,6 +17,7 @@ from ..pdf_parser import PdfParser
 class IngDePdfParser(PdfParser):
     bank_folder = 'ing.de'
     account = 'assets::bank::checking::ING.de' # TODO: actually depends on metadata
+    cleaning_rules = cleaning_rules.rules
 
     def __init__(self, pdf_file):
         super().__init__(pdf_file)

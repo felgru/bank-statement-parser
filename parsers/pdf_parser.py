@@ -14,6 +14,7 @@ from xdg_dirs import getXDGdirectories
 class PdfParser:
     bank_folder = None
     file_extension = '.pdf'
+    cleaning_rules = None
 
     def __init__(self, pdf_file):
         self._parse_file(pdf_file)
@@ -54,7 +55,8 @@ class PdfParser:
                 == self.new_balance.balance
 
     def clean_up_transactions(self, transactions):
-        cleaner = TransactionCleaner(self.xdg)
+        cleaner = TransactionCleaner(self.xdg,
+                                     builtin_rules=self.cleaning_rules)
         return [cleaner.clean(t) for t in transactions]
 
     def map_accounts(self, transactions):
