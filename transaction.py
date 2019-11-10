@@ -7,6 +7,7 @@ from collections import namedtuple
 
 class Transaction:
     def __init__(self, type, description, operation_date, value_date, amount,
+                 currency='€',
                  external_account=None, external_value_date=None,
                  metadata=None):
         self.type = type
@@ -15,6 +16,7 @@ class Transaction:
         self.value_date = value_date
         self.external_value_date = external_value_date
         self.amount = amount
+        self.currency = currency
         self.external_account = external_account
         if metadata is None:
             metadata = {}
@@ -22,13 +24,16 @@ class Transaction:
 
     def change_property(self, prop, f):
         res = copy(self)
+        const_properties = ('amount', 'currency', 'sub_total')
         if isinstance(prop, str):
-            if prop in ('amount', 'sub_total'):
-                raise Error('Cannot change amount or sub_total of a transaction')
+            if prop in const_properties:
+                raise Error(f'Cannot change {prop} of a transaction')
             setattr(res, prop, f(self))
         else:
             new_vals = f(self)
             for p, v in zip(prop, new_vals):
+                if prop in const_properties:
+                    raise Error(f'Cannot change {prop} of a transaction')
                 setattr(res, p, v)
         return res
 
@@ -39,7 +44,7 @@ class Transaction:
             value_date = f' ; date:{t.value_date}'
         else:
             value_date = ''
-        result += f'    {account}  {t.amount} €{value_date}\n'
+        result += f'    {account}  {t.amount} {t.currency}{value_date}\n'
         ext_acc = t.external_account or 'TODO::assign_account'
         if t.external_value_date is None:
             ext_date = ''
@@ -91,9 +96,11 @@ class MultiTransaction:
         return f'MultiTransaction({s.description}, {s.date}, {s.postings})'
 
 class Posting:
-    def __init__(self, account, amount, posting_date=None, comment=None):
+    def __init__(self, account, amount, currency='€',
+                 posting_date=None, comment=None):
         self.account = account
         self.amount = amount
+        self.currency = currency
         self.date = posting_date
         self.comment = comment
 
@@ -102,7 +109,7 @@ class Posting:
         if t.amount is None:
             amount = ''
         else:
-            amount = f'{t.amount} €'
+            amount = f'{t.amount} {t.currency}'
         comments = []
         if t.date is not None:
             comments.append(f'date:{t.date}')
