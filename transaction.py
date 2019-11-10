@@ -84,6 +84,16 @@ class MultiTransaction:
     def add_posting(self, posting):
         self.postings.append(posting)
 
+    def change_property(self, prop, f):
+        res = copy(self)
+        if isinstance(prop, str):
+            setattr(res, prop, f(self))
+        else:
+            new_vals = f(self)
+            for p, v in zip(prop, new_vals):
+                setattr(res, p, v)
+        return res
+
     def format_as_ledger_transaction(self, _account):
         t = self
         result = f'{t.date} {t.description}\n'

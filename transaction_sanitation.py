@@ -7,12 +7,14 @@ import os
 from transaction import Transaction
 
 class TransactionCleaner:
-    def __init__(self, xdg_dirs):
+    def __init__(self, xdg_dirs, builtin_rules=None):
         conf_file = xdg_dirs['config'] + '/cleaning_rules.py'
         if not os.path.exists(conf_file):
             conf_file = None
         self.conf_file = conf_file
         self._read_rules()
+        if builtin_rules is not None:
+            self.rules[0:0] = builtin_rules
 
     def _read_rules(self):
         if self.conf_file is None:
