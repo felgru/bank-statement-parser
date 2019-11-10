@@ -106,6 +106,7 @@ class Posting:
 
     def format_as_ledger_transaction(self):
         t = self
+        account = t.account or 'TODO::assign_account'
         if t.amount is None:
             amount = ''
         else:
@@ -119,7 +120,7 @@ class Posting:
             comments = ' ; ' + ', '.join(comments)
         else:
             comments = ''
-        return f'    {t.account}  {amount}{comments}\n'
+        return f'    {account}  {amount}{comments}\n'
 
     def __repr__(self):
         s = self
