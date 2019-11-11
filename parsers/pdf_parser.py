@@ -8,19 +8,17 @@ import subprocess
 
 from account_mapping import AccountMapper
 from bank_statement import BankStatement, BankStatementMetadata
+from .parser import Parser
 from transaction_sanitation import TransactionCleaner
 from xdg_dirs import getXDGdirectories
 
-class PdfParser:
-    bank_folder = None
+class PdfParser(Parser):
     file_extension = '.pdf'
-    cleaning_rules = None
 
     def __init__(self, pdf_file):
+        super().__init__(pdf_file)
         self._parse_file(pdf_file)
         self.transactions_text = self.extract_transactions_table()
-        self.xdg = getXDGdirectories('bank-statement-parser/'
-                                     + self.bank_folder)
 
     def extract_transactions_table(self):
         return ''.join(self.extract_table_from_page(p) for p in self.pdf_pages)
@@ -53,12 +51,3 @@ class PdfParser:
         assert self.old_balance.balance \
                + self.total_credit - self.total_debit \
                 == self.new_balance.balance
-
-    def clean_up_transactions(self, transactions):
-        cleaner = TransactionCleaner(self.xdg,
-                                     builtin_rules=self.cleaning_rules)
-        return [cleaner.clean(t) for t in transactions]
-
-    def map_accounts(self, transactions):
-        mapper = AccountMapper(self.xdg)
-        mapper.map_transactions(transactions)

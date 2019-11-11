@@ -9,19 +9,20 @@ from decimal import Decimal
 import os
 import re
 
+from .cleaning_rules import paypal as cleaning_rules
 from bank_statement import BankStatement, BankStatementMetadata
+from ..parser import Parser
 from transaction import MultiTransaction, Posting
-from transaction_sanitation import TransactionCleaner, TransactionCleanerRule
 from xdg_dirs import getXDGdirectories
 
-class PayPalCsvParser:
+class PayPalCsvParser(Parser):
     bank_folder = 'paypal'
     account = 'assets::online::paypal'
     file_extension = '.csv'
+    cleaning_rules = cleaning_rules.rules
 
     def __init__(self, csv_file):
-        self.xdg = getXDGdirectories('bank-statement-parser/'
-                                     + self.bank_folder)
+        super().__init__(csv_file)
         self._parse_file(csv_file)
 
     def _parse_file(self, csv_file):
@@ -99,10 +100,6 @@ class PayPalCsvParser:
         #self.map_accounts(transactions)
         return BankStatement(self.account, transactions)
 
-    def clean_up_transactions(self, transactions):
-        cleaner = TransactionCleaner(self.xdg, builtin_rules=cleaning_rules)
-        return [cleaner.clean(t) for t in transactions]
-
 def parse_date(d: str) -> date:
     """ parse a date in "dd.mm.yyyy" format """
     day = int(d[:2])
@@ -120,16 +117,3 @@ def translate_currency(currency: str) -> str:
         return '€'
     else:
         return currency
-
-transaction_id_pattern = re.compile(r' \(transaction id: .+?\)$')
-
-def remove_transaction_id_from_description(t):
-    m = transaction_id_pattern.search(t.description)
-    return t.description[:m.start()]
-
-cleaning_rules = [
-        TransactionCleanerRule(lambda t: transaction_id_pattern
-                                             .search(t.description),
-                               remove_transaction_id_from_description,
-                              ),
-        ]

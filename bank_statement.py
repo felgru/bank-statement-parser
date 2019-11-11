@@ -19,7 +19,7 @@ class BankStatement:
                                                    self.old_balance.balance),
                   file=outfile)
         for t in self.transactions:
-            print(t.format_as_ledger_transaction(self.account), file=outfile)
+            print(t.format_as_ledger_transaction(), file=outfile)
         if self.new_balance is not None:
             date = self._format_date(self.new_balance.date)
             print('; new balance{}: {} €'.format(date,

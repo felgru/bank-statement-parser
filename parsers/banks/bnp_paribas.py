@@ -116,7 +116,7 @@ class BnpParibasPdfParser(PdfParser):
                     for l in self.transactions_text[start:transaction_end]
                                                               .split('\n'))
             description = ' '.join(l for l in description if l)
-            yield Transaction(None, description, transaction_date,
+            yield Transaction(self.account, description, transaction_date,
                               value_date, amount)
 
     def parse_short_date(self, d: str) -> date:

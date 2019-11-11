@@ -3,8 +3,9 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import os
+from typing import Union
 
-from transaction import Transaction
+from transaction import MultiTransaction, Transaction
 
 class TransactionCleaner:
     def __init__(self, xdg_dirs, builtin_rules=None):
@@ -32,7 +33,8 @@ class TransactionCleaner:
                     raise Error(f'{self.conf_file} didn\'t contain any rules.')
                 self.rules = parse_globals['rules']
 
-    def clean(self, transaction: Transaction) -> Transaction:
+    def clean(self, transaction: Union[Transaction, MultiTransaction]) \
+                                    -> Union[Transaction, MultiTransaction]:
         for r in self.rules:
             if r.applies_to(transaction):
                 transaction = r.clean(transaction)
@@ -44,8 +46,23 @@ class TransactionCleanerRule:
         self.cleaner = cleaner
         self.field = field
 
-    def applies_to(self, transaction: Transaction) -> bool:
-        return self.condition(transaction)
+    def applies_to(self, transaction: Union[Transaction, MultiTransaction]) \
+                                                                    -> bool:
+        return (isinstance(transaction, Transaction)
+                and self.condition(transaction))
 
     def clean(self, t: Transaction) -> Transaction:
         return t.change_property(self.field, self.cleaner)
+
+class ToMultiTransactionRule:
+    def __init__(self, condition, cleaner):
+        self.condition = condition
+        self.cleaner = cleaner
+
+    def applies_to(self, transaction: Union[Transaction, MultiTransaction]) \
+                                                                    -> bool:
+        return (isinstance(transaction, Transaction)
+                and self.condition(transaction))
+
+    def clean(self, t: Transaction) -> MultiTransaction:
+        return self.cleaner(t)

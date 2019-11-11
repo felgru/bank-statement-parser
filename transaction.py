@@ -6,11 +6,11 @@ from copy import copy
 from collections import namedtuple
 
 class Transaction:
-    def __init__(self, type, description, operation_date, value_date, amount,
-                 currency='€',
+    def __init__(self, account, description,
+                 operation_date, value_date, amount, currency='€',
                  external_account=None, external_value_date=None,
-                 metadata=None):
-        self.type = type
+                 type=None, metadata=None):
+        self.account = account
         self.description = description
         self.operation_date = operation_date
         self.value_date = value_date
@@ -18,6 +18,7 @@ class Transaction:
         self.amount = amount
         self.currency = currency
         self.external_account = external_account
+        self.type = type
         if metadata is None:
             metadata = {}
         self.metadata = metadata
@@ -37,14 +38,24 @@ class Transaction:
                 setattr(res, p, v)
         return res
 
-    def format_as_ledger_transaction(self, account):
+    def to_multi_transaction(self):
+        mt = MultiTransaction(description=self.description,
+                              transaction_date=self.operation_date,
+                              metadata=self.metadata)
+        mt.add_posting(Posting(self.account, self.amount, self.currency,
+                               self.value_date))
+        mt.add_posting(Posting(self.external_account, -self.amount,
+                               self.currency, self.external_value_date))
+        return mt
+
+    def format_as_ledger_transaction(self):
         t = self
         result = f'{t.operation_date} {t.description}\n'
         if t.value_date is not None and t.value_date != t.operation_date:
             value_date = f' ; date:{t.value_date}'
         else:
             value_date = ''
-        result += f'    {account}  {t.amount} {t.currency}{value_date}\n'
+        result += f'    {t.account}  {t.amount} {t.currency}{value_date}\n'
         ext_acc = t.external_account or 'TODO::assign_account'
         if t.external_value_date is None:
             ext_date = ''
@@ -63,23 +74,32 @@ class Transaction:
             ext_date = f', external_value_date={s.external_value_date!r}'
         else:
             ext_date = ''
+        if s.type:
+            type = f', type={s.type!r}'
+        else:
+            type = ''
         if s.metadata:
             meta = f', metadata={s.metadata!r}'
         else:
             meta = ''
-        return (f'Transaction(type={s.type!r}, description={s.description!r}, '
+        return (f'Transaction(account={s.account!r}, '
+                f'description={s.description!r}, '
                 f'operation_date={s.operation_date!r}, '
                 f'value_date={s.value_date!r}, amount={s.amount!r}'
-                f'{ext_account}{ext_date}{meta})')
+                f'{ext_account}{ext_date}{type}{meta})')
 
 class MultiTransaction:
-    def __init__(self, description, transaction_date, postings=None):
+    def __init__(self, description, transaction_date, postings=None,
+                 metadata=None):
         self.description = description
         self.date = transaction_date
         if postings is None:
             self.postings = []
         else:
             self.postings = postings
+        if metadata is None:
+            metadata = {}
+        self.metadata = metadata
 
     def add_posting(self, posting):
         self.postings.append(posting)
@@ -94,7 +114,7 @@ class MultiTransaction:
                 setattr(res, p, v)
         return res
 
-    def format_as_ledger_transaction(self, _account):
+    def format_as_ledger_transaction(self):
         t = self
         result = f'{t.date} {t.description}\n'
         result += ''.join(p.format_as_ledger_transaction()
@@ -103,7 +123,12 @@ class MultiTransaction:
 
     def __repr__(self):
         s = self
-        return f'MultiTransaction({s.description}, {s.date}, {s.postings})'
+        if s.metadata:
+            meta = f', metadata={s.metadata!r}'
+        else:
+            meta = ''
+        return (f'MultiTransaction({s.description}, {s.date},'
+                f' {s.postings}{meta})')
 
 class Posting:
     def __init__(self, account, amount, currency='€',
@@ -142,6 +167,7 @@ class Posting:
             comment = f', comment={s.comment!r}'
         else:
             comment = ''
-        return f'Posting({s.account}{date}{comment})'
+        return (f'Posting({s.account!r}, {s.amount!r}, {s.currency!r}'
+                f'{date}{comment})')
 
 Balance = namedtuple('Balance', 'balance date')
