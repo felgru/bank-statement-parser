@@ -27,7 +27,7 @@ aparser.add_argument('bank', action='store',
                      help='bank to parse from ({})'.format(', '.join(sorted(parsers))))
 aparser.add_argument('infile', action='store',
                      help='the account statement file downloaded from your bank'
-                          ' (probably a pdf of csv file)')
+                          ' (probably a pdf or csv file)')
 
 args = aparser.parse_args()
 
