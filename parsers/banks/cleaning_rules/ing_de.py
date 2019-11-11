@@ -7,7 +7,6 @@ from decimal import Decimal
 import re
 
 from transaction_sanitation import TransactionCleanerRule as Rule
-from transaction_sanitation import ToMultiTransactionRule as ToMultiRule
 
 def is_card_transaction(t):
     return (t.type == 'Lastschrift' and
@@ -144,27 +143,10 @@ def clean_giro_transfer_description(t):
         description = description[0]
     return description, metadata
 
-def is_foreign_currency_transaction(t):
-    return ('exchange_rate' in t.metadata
-            and 'foreign_amount' in t.metadata)
-
-def to_multi_currency(t):
-    mt = t.to_multi_transaction()
-    external = mt.postings[1]
-    external.currency = get_currency_symbol(mt.metadata['country'])
-    external.amount = mt.metadata['foreign_amount']
-    return mt
-
-def get_currency_symbol(country: str) -> str:
-    if country == 'US':
-        return 'USD'
-    raise RuntimeError(f'Don\'t know currency for country {country}')
-
 rules = [
         Rule(is_card_transaction, parse_card_metadata, field=('description', 'external_value_date', 'metadata')),
         Rule(is_direct_debit, parse_direct_debit_metadata, field=('description', 'metadata')),
         Rule(is_standing_order, clean_standing_order_description),
         Rule(is_card_exchange_fee, parse_card_exchange_fee_metadata, field=('description', 'metadata')),
         Rule(is_giro_transfer, clean_giro_transfer_description, field=('description', 'metadata')),
-        ToMultiRule(is_foreign_currency_transaction, to_multi_currency),
         ]

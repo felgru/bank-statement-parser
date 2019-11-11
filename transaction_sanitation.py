@@ -25,6 +25,7 @@ class TransactionCleaner:
                 f = f.read()
                 parse_globals = {
                     'Rule': TransactionCleanerRule,
+                    'ToMultiRule': ToMultiTransactionRule,
                     'Transaction': Transaction,
                     **globals(),
                     }
