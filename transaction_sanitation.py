@@ -48,10 +48,10 @@ class TransactionCleanerRule:
 
     def applies_to(self, transaction: Union[Transaction, MultiTransaction]) \
                                                                     -> bool:
-        return (isinstance(transaction, Transaction)
-                and self.condition(transaction))
+        return self.condition(transaction)
 
-    def clean(self, t: Transaction) -> Transaction:
+    def clean(self, t: Union[Transaction, MultiTransaction]) \
+                                    -> Union[Transaction, MultiTransaction]:
         return t.change_property(self.field, self.cleaner)
 
 class ToMultiTransactionRule:
