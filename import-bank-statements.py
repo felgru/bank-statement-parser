@@ -39,8 +39,11 @@ def import_incoming_statements(dirs, force):
                   .format(src_file=src_file, m=m))
             mid_date = m.start_date + (m.end_date - m.start_date) / 2
             year = str(mid_date.year)
-            month = str(mid_date.month).zfill(2)
-            dest_dir = os.path.join(dirs['ledgers'], year, month, bank)
+            if m.end_date - m.start_date <= timedelta(weeks=6):
+                month = str(mid_date.month).zfill(2)
+                dest_dir = os.path.join(dirs['ledgers'], year, month, bank)
+            else:
+                dest_dir = os.path.join(dirs['ledgers'], year, bank)
             os.makedirs(dest_dir, exist_ok=True)
             dest_file = os.path.join(dest_dir,
                                      os.path.splitext(f)[0] + '.hledger')
