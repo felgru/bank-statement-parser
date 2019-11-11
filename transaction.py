@@ -128,7 +128,7 @@ class MultiTransaction:
     def format_as_ledger_transaction(self):
         t = self
         result = f'{t.date} {t.description}\n'
-        result += ''.join(p.format_as_ledger_transaction()
+        result += ''.join(p.format_as_ledger_transaction(t.date)
                           for p in t.postings)
         return result
 
@@ -150,7 +150,7 @@ class Posting:
         self.date = posting_date
         self.comment = comment
 
-    def format_as_ledger_transaction(self):
+    def format_as_ledger_transaction(self, transaction_date):
         t = self
         account = t.account or 'TODO::assign_account'
         if t.amount is None:
@@ -158,7 +158,7 @@ class Posting:
         else:
             amount = f'{t.amount} {t.currency}'
         comments = []
-        if t.date is not None:
+        if t.date is not None and t.date != transaction_date:
             comments.append(f'date:{t.date}')
         if t.comment is not None:
             comments.append(t.comment)
