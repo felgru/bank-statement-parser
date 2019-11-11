@@ -50,7 +50,6 @@ class AccountMapper:
 
 def extract_unmapped_transactions(mt: MultiTransaction) \
                                     -> Iterator[Tuple[int, Transaction]]:
-    type_ = mt.metadata.get('type')
     transactions = []
     for i, posting in enumerate(mt.postings):
         if posting.account is None:
@@ -61,6 +60,5 @@ def extract_unmapped_transactions(mt: MultiTransaction) \
                                   amount=-posting.amount,
                                   currency=posting.currency,
                                   external_value_date=posting.date,
-                                  type=type_,
                                   metadata=mt.metadata))
     return transactions

@@ -188,7 +188,8 @@ class IngFrPdfParser(PdfParser):
                 description += ' ' + m.group(1)
                 start = m.end()
             yield Transaction(self.account, description, operation_date,
-                              value_date, amount, type=transaction_type)
+                              value_date, amount,
+                              metadata=dict(type=transaction_type))
 
 def parse_date(d: str) -> date:
     """ parse a date in "dd/mm/yyyy" format """

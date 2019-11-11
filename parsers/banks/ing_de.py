@@ -141,7 +141,8 @@ class IngDePdfParser(PdfParser):
                                 self.transactions_text, start, end)
             description = '\n'.join(l for l in description)
             yield Transaction(self.account, description, transaction_date,
-                              value_date, amount, type=transaction_type)
+                              value_date, amount,
+                              metadata=dict(type=transaction_type))
             m = self.transaction_pattern.search(self.transactions_text,
                                                 start, end)
 

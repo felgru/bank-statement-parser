@@ -9,7 +9,7 @@ class Transaction:
     def __init__(self, account, description,
                  operation_date, value_date, amount, currency='€',
                  external_account=None, external_value_date=None,
-                 type=None, metadata=None):
+                 metadata=None):
         self.account = account
         self.description = description
         self.operation_date = operation_date
@@ -18,7 +18,6 @@ class Transaction:
         self.amount = amount
         self.currency = currency
         self.external_account = external_account
-        self.type = type
         if metadata is None:
             metadata = {}
         self.metadata = metadata
@@ -37,6 +36,14 @@ class Transaction:
                     raise Error(f'Cannot change {prop} of a transaction')
                 setattr(res, p, v)
         return res
+
+    @property
+    def type(self):
+        try:
+            return self.metadata['type']
+        except KeyError:
+            raise AttributeError("'{}' object has no attribute 'type'"
+                                 .format(self.__class__.__name__))
 
     def to_multi_transaction(self):
         mt = MultiTransaction(description=self.description,
@@ -74,10 +81,6 @@ class Transaction:
             ext_date = f', external_value_date={s.external_value_date!r}'
         else:
             ext_date = ''
-        if s.type:
-            type = f', type={s.type!r}'
-        else:
-            type = ''
         if s.metadata:
             meta = f', metadata={s.metadata!r}'
         else:
@@ -86,7 +89,7 @@ class Transaction:
                 f'description={s.description!r}, '
                 f'operation_date={s.operation_date!r}, '
                 f'value_date={s.value_date!r}, amount={s.amount!r}'
-                f'{ext_account}{ext_date}{type}{meta})')
+                f'{ext_account}{ext_date}{meta})')
 
 class MultiTransaction:
     def __init__(self, description, transaction_date, postings=None,
@@ -113,6 +116,14 @@ class MultiTransaction:
             for p, v in zip(prop, new_vals):
                 setattr(res, p, v)
         return res
+
+    @property
+    def type(self):
+        try:
+            return self.metadata['type']
+        except KeyError:
+            raise AttributeError("'{}' object has no attribute 'type'"
+                                 .format(self.__class__.__name__))
 
     def format_as_ledger_transaction(self):
         t = self

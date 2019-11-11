@@ -17,10 +17,11 @@ def parse_card_metadata(t):
     m = re.search(r'(.*)\n(\bNR\d{10}\b)\s*(.*?)\s*(\bARN\d+\b)',
                   t.description, flags=re.DOTALL)
     description = m.group(1).replace('\n', ' ')
-    metadata = dict(
+    metadata = dict(t.metadata)
+    metadata.update(dict(
             NR_number = m.group(2),
             ARN_number = m.group(4),
-            )
+            ))
     rest = m.group(3).replace('\n', ' ')
     m = re.search(r'(.*?) (\w+) (\d\d\.\d\d)(.*)$', rest)
     card_transaction_type = m.group(2)
@@ -82,7 +83,7 @@ def is_direct_debit(t):
 def parse_direct_debit_metadata(t):
     lines = t.description.split('\n')
     description = []
-    metadata = {}
+    metadata = dict(t.metadata)
     key_value_pattern = re.compile('(\w+): (.*)')
     for l in lines:
         m = key_value_pattern.fullmatch(l)
@@ -112,7 +113,7 @@ def is_card_exchange_fee(t):
 
 def parse_card_exchange_fee_metadata(t):
     lines = t.description.split('\n')
-    metadata = {'fee_type': 'AUSLANDSEINSATZENTGELT'}
+    metadata = {'fee_type': 'AUSLANDSEINSATZENTGELT', **t.metadata}
     m = re.match(r'VISA (\d{4} X{4} X{4} \d{4}) '
                  r'(\d,\d\d)%AUSLANDSEINSATZENTGELT',
                  lines[-2])
