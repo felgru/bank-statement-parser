@@ -97,7 +97,7 @@ class PayPalCsvParser(Parser):
         transactions = self.transactions
         #self.check_transactions_consistency(transactions)
         transactions = self.clean_up_transactions(transactions)
-        #self.map_accounts(transactions)
+        self.map_accounts(transactions)
         return BankStatement(self.account, transactions)
 
 def parse_date(d: str) -> date:
