@@ -151,3 +151,14 @@ rules = [
         Rule(is_card_exchange_fee, parse_card_exchange_fee_metadata, field=('description', 'metadata')),
         Rule(is_giro_transfer, clean_giro_transfer_description, field=('description', 'metadata')),
         ]
+
+def is_interest(t):
+    return t.type == 'Zinsertrag'
+
+def create_interest_description(t):
+    return t.type
+
+extra_konto_rules = [
+        Rule(is_giro_transfer, clean_giro_transfer_description, field=('description', 'metadata')),
+        Rule(is_interest, create_interest_description),
+        ]

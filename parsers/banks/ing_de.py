@@ -10,14 +10,13 @@ import subprocess
 
 from .cleaning_rules import ing_de as cleaning_rules
 from bank_statement import BankStatementMetadata
-from transaction import Balance, Transaction
+from transaction import Balance, MultiTransaction, Posting, Transaction
 
 from ..pdf_parser import PdfParser
 
 class IngDePdfParser(PdfParser):
     bank_folder = 'ing.de'
-    account = 'assets::bank::checking::ING.de' # TODO: actually depends on metadata
-    cleaning_rules = cleaning_rules.rules
+    account = 'assets::bank::TODO::ING.de' # exact account is set in __init__
 
     def __init__(self, pdf_file):
         super().__init__(pdf_file)
@@ -25,6 +24,12 @@ class IngDePdfParser(PdfParser):
                 '^' + ' ' * self.description_start + ' *(\S.*)\n',
                 flags=re.MULTILINE)
         self._parse_metadata()
+        if self.metadata.account_type == 'Girokonto':
+            self.account = 'assets::bank::checking::ING.de'
+            self.cleaning_rules = cleaning_rules.rules
+        elif self.metadata.account_type == 'Extra-Konto':
+            self.account = 'assets::bank::saving::ING.de'
+            self.cleaning_rules = cleaning_rules.extra_konto_rules
 
     def _parse_file(self, pdf_file):
         if not os.path.exists(pdf_file):
@@ -50,16 +55,39 @@ class IngDePdfParser(PdfParser):
         return self.metadata
 
     def parse(self):
-        if self.metadata.account_type != 'Girokonto':
+        if self.metadata.account_type not in ('Girokonto', 'Extra-Konto'):
             raise NotImplementedError('parsing of %s not supported.'
                                       % self.metadata.account_type)
-        return super().parse()
+        bank_statement = super().parse()
+        self._add_interest_details(bank_statement)
+        return bank_statement
+
+    def _add_interest_details(self, bank_statement):
+        interests = self.parse_interest_postings()
+        interest_transaction = bank_statement.transactions[-1]
+        assert interest_transaction.type == 'Zinsertrag'
+        interests_sum = sum(i.amount for i in interests)
+        assert interest_transaction.amount + interests_sum == 0
+        interest_transaction.to_multi_transaction()
+
+        mt = MultiTransaction(
+                description=interest_transaction.description,
+                transaction_date=interest_transaction.operation_date,
+                metadata=interest_transaction.metadata)
+        mt.add_posting(Posting(
+                        interest_transaction.account,
+                        interest_transaction.amount,
+                        interest_transaction.currency,
+                        interest_transaction.value_date))
+        for posting in interests:
+            mt.add_posting(posting)
+
+        bank_statement.transactions[-1] = mt
+
 
     def _parse_metadata(self):
         self._parse_balances()
         end_date = self.new_balance.date
-        # Approximate starting date
-        start_date = end_date - timedelta(days=30)
         m = re.search(r'IBAN +(DE[\d ]+?)\n', self.pdf_pages[0])
         iban = m.group(1)
         m = re.search(r'BIC +([A-Z]+?)\n', self.pdf_pages[0])
@@ -68,6 +96,11 @@ class IngDePdfParser(PdfParser):
                       flags=re.MULTILINE)
         account_type = m.group(1)
         account_number = m.group(2)
+        # Approximate starting date
+        if account_type == 'Extra-Konto':
+            start_date = end_date - timedelta(days=365)
+        else:
+            start_date = end_date - timedelta(days=30)
         meta = BankStatementMetadata(
                 start_date=start_date,
                 end_date=end_date,
@@ -80,7 +113,7 @@ class IngDePdfParser(PdfParser):
 
     transaction_pattern = re.compile(
             r'^ *(\d{2}.\d{2}.\d{4}) +(\S+) +(.*?) +(-?\d[.\d]*,\d\d)\d?\n'
-            r' *(\d{2}.\d{2}.\d{4}) +([^\n]*)\n',
+            r' *(\d{2}.\d{2}.\d{4}) *([^\n]*)\n',
             flags=re.MULTILINE)
 
     def extract_transactions_table(self):
@@ -88,13 +121,52 @@ class IngDePdfParser(PdfParser):
         self.footer_start_pattern = re.compile(
                 '\n*^ {{0,{}}}[^ \d]'.format(self.description_start - 1),
                 flags=re.MULTILINE)
-        return super().extract_transactions_table()
+        return ''.join(self.extract_table_from_page(p) for p in self.pdf_pages)
 
     def extract_table_from_page(self, page):
         # remove garbage string from left margin, containing account number
         account_number = self.metadata.account_number
         page = re.sub(r'\s* \d\d[A-Z]{4}'+account_number+'_T\n\n*', '\n', page)
         m = self.table_heading.search(page)
+        if m is None:
+            return ''
+        table_start = m.end()
+        m = self.footer_start_pattern.search(page, table_start)
+        if m is not None:
+            table_end = m.start() + 1
+            page = page[table_start:table_end]
+        else:
+            page = page[table_start:]
+        return page
+
+    def parse_interest_postings(self):
+        interest_table = self.extract_interest_table()
+        postings = []
+        for m in re.finditer(r'^  +(.+?)  +(.+?%)  +(.+?)  +(.+,\d\d)$',
+                             interest_table, flags=re.MULTILINE):
+            description = ' '.join(m.group(i) for i in (1, 2, 3))
+            postings.append(Posting('income::bank::interest::ING.de',
+                                    -parse_amount(m.group(4)),
+                                    comment=description))
+        return postings
+
+    def extract_interest_table(self):
+        self._parse_description_start()
+
+        self.interest_table_heading = re.compile(
+                r'^ *Zeitraum *Zins p\.a\. *Ertrag',
+                flags=re.MULTILINE)
+        self.footer_start_pattern = re.compile(
+                '\n*^ {{0,{}}}[^ \d]'.format(self.description_start - 1),
+                flags=re.MULTILINE)
+        return ''.join(self.extract_interest_table_from_page(p)
+                       for p in self.pdf_pages)
+
+    def extract_interest_table_from_page(self, page):
+        # remove garbage string from left margin, containing account number
+        account_number = self.metadata.account_number
+        page = re.sub(r'\s* \d\d[A-Z]{4}'+account_number+'_T\n\n*', '\n', page)
+        m = self.interest_table_heading.search(page)
         if m is None:
             return ''
         table_start = m.end()
