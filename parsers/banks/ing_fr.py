@@ -13,7 +13,7 @@ from ..pdf_parser import PdfParser
 
 class IngFrPdfParser(PdfParser):
     bank_folder = 'ing.fr'
-    account = 'assets::bank::checking::ING.fr'
+    account = 'assets:bank:checking:ING.fr'
 
     def __init__(self, pdf_file):
         super().__init__(pdf_file)

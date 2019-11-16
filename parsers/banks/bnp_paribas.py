@@ -13,7 +13,7 @@ from ..pdf_parser import PdfParser
 
 class BnpParibasPdfParser(PdfParser):
     bank_folder = 'bnp'
-    account = 'assets::bank::checking::BNP'
+    account = 'assets:bank:checking:BNP'
 
     def __init__(self, pdf_file):
         super().__init__(pdf_file)

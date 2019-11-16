@@ -103,7 +103,7 @@ class PayfitPdfParser:
         if bonus is not None:
             transaction.add_posting(bonus)
             simplified_gross_salary += bonus.amount
-        transaction.add_posting(Posting('income::salary',
+        transaction.add_posting(Posting('income:salary',
                                         -simplified_gross_salary))
         transaction.add_posting(payment)
         transaction.add_posting(meal_vouchers)
@@ -116,7 +116,7 @@ class PayfitPdfParser:
                       self.transactions_text)
         if m is not None:
             bonus = parse_amount(m.group(1))
-            bonus = Posting('income::salary::bonus', -bonus)
+            bonus = Posting('income:salary:bonus', -bonus)
         else:
             bonus = None
         m = re.search(r'Rémunération brute \(1\) *(\d[ \d]*,\d\d)',
@@ -142,9 +142,9 @@ class PayfitPdfParser:
                                  - transportation_reimbursed
         assert(transportation_total * transportation_reimbursement_rate
                 == transportation_reimbursed)
-        postings = [Posting('expenses::reimbursable::transportation',
+        postings = [Posting('expenses:reimbursable:transportation',
                             -transportation_total),
-                    Posting('expenses::transportation::public_transportation',
+                    Posting('expenses:transportation:public_transportation',
                             transportation_remaining,
                             comment='nonreimbursed public transportation fees')
                    ]
@@ -154,10 +154,10 @@ class PayfitPdfParser:
         if travel_reimbursement is not None:
             travel_reimbursement = parse_amount(travel_reimbursement.group(1))
             total_reimbursed += travel_reimbursement
-            postings.append(Posting('expenses::reimbursable::transportation',
+            postings.append(Posting('expenses:reimbursable:transportation',
                                     -travel_reimbursement,
                                     comment='trip: TODO'))
-            postings.append(Posting('equity::travel reimbursement',
+            postings.append(Posting('equity:travel reimbursement',
                                     travel_reimbursement))
         m = re.search(r'Indemnités non soumises \(2\) *(\d[ \d]*,\d\d)',
                       self.transactions_text)
@@ -167,7 +167,7 @@ class PayfitPdfParser:
     def _parse_meal_vouchers(self):
         m = re.search(r'Titres Restaurant *\d*,\d\d *\d,\d{3} *(\d*,\d\d)',
                       self.transactions_text)
-        return Posting('expenses::food::meal_vouchers',
+        return Posting('expenses:food:meal_vouchers',
                        parse_amount(m.group(1)))
 
     def _parse_payment(self):
@@ -175,7 +175,7 @@ class PayfitPdfParser:
                       r'VIREMENT *(\d[ \d]*,\d\d)',
                       self.summary_text)
         payment = parse_amount(m.group(3))
-        return Posting('equity::receivable::salary', payment)
+        return Posting('equity:receivable:salary', payment)
 
 def parse_amount(a: str) -> Decimal:
     """ parse a decimal amount like -10,00 """

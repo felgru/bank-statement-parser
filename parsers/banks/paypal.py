@@ -17,7 +17,7 @@ from xdg_dirs import getXDGdirectories
 
 class PayPalCsvParser(Parser):
     bank_folder = 'paypal'
-    account = 'assets::online::paypal'
+    account = 'assets:online:paypal'
     file_extension = '.csv'
     cleaning_rules = cleaning_rules.rules
 
@@ -58,7 +58,7 @@ class PayPalCsvParser(Parser):
                     ))
                 type_ = row['Typ']
                 if type_.startswith('Allgemeine Gutschrift'):
-                    account2 = 'equity::balancing::paypal'
+                    account2 = 'equity:balancing:paypal'
                 else:
                     account2 = None
                 transaction.add_posting(Posting(

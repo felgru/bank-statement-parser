@@ -16,7 +16,7 @@ from ..pdf_parser import PdfParser
 
 class IngDePdfParser(PdfParser):
     bank_folder = 'ing.de'
-    account = 'assets::bank::TODO::ING.de' # exact account is set in __init__
+    account = 'assets:bank:TODO:ING.de' # exact account is set in __init__
 
     def __init__(self, pdf_file):
         super().__init__(pdf_file)
@@ -25,10 +25,10 @@ class IngDePdfParser(PdfParser):
                 flags=re.MULTILINE)
         self._parse_metadata()
         if self.metadata.account_type == 'Girokonto':
-            self.account = 'assets::bank::checking::ING.de'
+            self.account = 'assets:bank:checking:ING.de'
             self.cleaning_rules = cleaning_rules.rules
         elif self.metadata.account_type == 'Extra-Konto':
-            self.account = 'assets::bank::saving::ING.de'
+            self.account = 'assets:bank:saving:ING.de'
             self.cleaning_rules = cleaning_rules.extra_konto_rules
 
     def _parse_file(self, pdf_file):
@@ -145,7 +145,7 @@ class IngDePdfParser(PdfParser):
         for m in re.finditer(r'^  +(.+?)  +(.+?%)  +(.+?)  +(.+,\d\d)$',
                              interest_table, flags=re.MULTILINE):
             description = ' '.join(m.group(i) for i in (1, 2, 3))
-            postings.append(Posting('income::bank::interest::ING.de',
+            postings.append(Posting('income:bank:interest:ING.de',
                                     -parse_amount(m.group(4)),
                                     comment=description))
         return postings

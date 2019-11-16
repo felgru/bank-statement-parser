@@ -63,7 +63,7 @@ class Transaction:
         else:
             value_date = ''
         result += f'    {t.account}  {t.amount} {t.currency}{value_date}\n'
-        ext_acc = t.external_account or 'TODO::assign_account'
+        ext_acc = t.external_account or 'TODO:assign_account'
         if t.external_value_date is None:
             ext_date = ''
         else:
@@ -152,7 +152,7 @@ class Posting:
 
     def format_as_ledger_transaction(self, transaction_date):
         t = self
-        account = t.account or 'TODO::assign_account'
+        account = t.account or 'TODO:assign_account'
         if t.amount is None:
             amount = ''
         else:
