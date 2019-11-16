@@ -59,7 +59,8 @@ class IngDePdfParser(PdfParser):
             raise NotImplementedError('parsing of %s not supported.'
                                       % self.metadata.account_type)
         bank_statement = super().parse()
-        self._add_interest_details(bank_statement)
+        if self.metadata.account_type == 'Extra-Konto':
+            self._add_interest_details(bank_statement)
         return bank_statement
 
     def _add_interest_details(self, bank_statement):
