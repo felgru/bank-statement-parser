@@ -144,7 +144,7 @@ class PayfitPdfParser:
                 == transportation_reimbursed)
         postings = [Posting('expenses:reimbursable:transportation',
                             -transportation_total),
-                    Posting('expenses:transportation:public_transportation',
+                    Posting('expenses:transportation:public transportation',
                             transportation_remaining,
                             comment='nonreimbursed public transportation fees')
                    ]
