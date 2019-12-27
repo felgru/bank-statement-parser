@@ -149,7 +149,7 @@ def parse_verbose_date(d: str) -> date:
              'septembre': 9,
              'octobre': 10,
              'novembre': 11,
-             'decembre': 12}[month]
+             'décembre': 12}[month]
     year = int(year)
     return date(year, month, day)
 
