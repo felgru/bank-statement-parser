@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2019 Felix Gruber <felgru@posteo.net>
+# SPDX-FileCopyrightText: 2019–2020 Felix Gruber <felgru@posteo.net>
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
@@ -6,6 +6,7 @@ from datetime import date
 from decimal import Decimal
 import re
 
+from .cleaning_rules import ing_fr as cleaning_rules
 from bank_statement import BankStatementMetadata
 from transaction import Balance, Transaction
 
@@ -13,10 +14,18 @@ from ..pdf_parser import PdfParser
 
 class IngFrPdfParser(PdfParser):
     bank_folder = 'ing.fr'
-    account = 'assets:bank:checking:ING.fr'
+    account = 'assets:bank:TODO:ING.fr' # exact account is set in __init__
 
     def __init__(self, pdf_file):
         super().__init__(pdf_file)
+        m = re.search('RELEVE ([A-Z ]+)', self.pdf_pages[0])
+        self.account_type = m.group(1)
+        if self.account_type == 'COMPTE COURANT':
+            self.account_type = 'Compte Courant'
+            self.account = 'assets:bank:checking:ING.fr'
+        if self.account_type == 'LDD':
+            self.account = 'assets:bank:saving:ING.fr'
+            self.cleaning_rules = cleaning_rules.ldd_rules
         self.debit_start, self.credit_start = self.parse_column_starts()
 
     table_heading = re.compile(r"^\s*Date de\s*Date de\s*Nature de l'opération\s*"
@@ -51,13 +60,26 @@ class IngFrPdfParser(PdfParser):
         bic = m.group(1)
         m = re.search(r'IBAN\n *(.+?)\n', self.pdf_pages[0])
         iban = m.group(1)
-        m = re.search(r'N° Client Titulaire 1 : (\d+)\s*'
-                      r'N° carte Titulaire 1 : ([0-9*]+)\s*'
-                      r'N° du Compte Courant : (\d+)',
-                      self.pdf_pages[0])
-        owner_number = m.group(1)
-        card_number = m.group(2)
-        account_number = m.group(3)
+        if self.account_type == 'Compte Courant':
+            m = re.search(r'N° Client Titulaire 1 : (\d+)\s*'
+                          r'N° carte Titulaire 1 : ([0-9*]+)\s*'
+                          r'N° du Compte Courant : (\d+)',
+                          self.pdf_pages[0])
+            owner_number = m.group(1)
+            card_number = m.group(2)
+            account_number = m.group(3)
+        elif self.account_type == 'LDD':
+            m = re.search(r'N° Client Titulaire 1 : (\d+)\s*'
+                          r'Total des intérêts (acquis|payés)'
+                          r' au (\d{2}/\d{2}/\d{4}) : +([0-9,]+) *€\s*'
+                          r'N° du LDD : (\d+)\s*'
+                          r'Taux en vigueur au (\d{2}/\d{2}/\d{4}) \* : (\d+,\d\d) %',
+                          self.pdf_pages[0])
+            owner_number = m.group(1)
+            card_number = None
+            interest_date = m.group(3)
+            interest = m.group(4)
+            account_number = m.group(5)
         meta = BankStatementMetadata(
                 start_date=start_date,
                 end_date=end_date,
@@ -70,15 +92,14 @@ class IngFrPdfParser(PdfParser):
                )
         return meta
 
-    @classmethod
-    def extract_table_from_page(cls, page):
-        m = cls.table_heading.search(page)
+    def extract_table_from_page(self, page):
+        m = self.table_heading.search(page)
         line_start = m.start()
         debit_start = m.start(1) - line_start
         credit_start = m.start(2) - line_start
         table_start = m.end()
 
-        m = cls.end_pattern.search(page)
+        m = self.end_pattern.search(page)
         if m is not None:
             table_end = m.start() + 1
         else:
@@ -123,6 +144,12 @@ class IngFrPdfParser(PdfParser):
         self.transactions_end = m.start()
 
     def generate_transactions(self, start, end):
+        if self.account_type == 'Compte Courant':
+            yield from self.generate_transactions_compte_courant(start, end)
+        elif self.account_type == 'LDD':
+            yield from self.generate_transactions_ldd(start, end)
+
+    def generate_transactions_compte_courant(self, start, end):
         transaction_block_start_pattern = re.compile(
                 r'^ {30} *(\S.+)\n',
                 flags=re.MULTILINE)
@@ -160,6 +187,20 @@ class IngFrPdfParser(PdfParser):
             # TODO: might need to filter on value date
             accumulated_sub_totals[0] += sub_total[0]
             accumulated_sub_totals[1] += sub_total[1]
+
+    def generate_transactions_ldd(self, start, end):
+        accumulated_debit = Decimal('0.00')
+        accumulated_credit = Decimal('0.00')
+        for transaction in self.transactions_in_block(None,
+                                                      start,
+                                                      end):
+            if transaction.amount < 0:
+                accumulated_debit -= transaction.amount
+            else:
+                accumulated_credit += transaction.amount
+            yield transaction
+        assert accumulated_debit == self.total_debit
+        assert accumulated_credit == self.total_credit
 
     def transactions_in_block(self, transaction_type, start, end):
         while True:
