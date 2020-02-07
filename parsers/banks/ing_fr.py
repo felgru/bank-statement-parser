@@ -94,6 +94,9 @@ class IngFrPdfParser(PdfParser):
 
     def extract_table_from_page(self, page):
         m = self.table_heading.search(page)
+        if m is None:
+            # There can be pages without a table
+            return ""
         line_start = m.start()
         debit_start = m.start(1) - line_start
         credit_start = m.start(2) - line_start
