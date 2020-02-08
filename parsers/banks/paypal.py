@@ -57,7 +57,8 @@ class PayPalCsvParser(Parser):
                     currency=currency,
                     ))
                 type_ = row['Typ']
-                if type_.startswith('Allgemeine Gutschrift'):
+                if (type_.startswith('Allgemeine Gutschrift')
+                        or type_ == 'Bankgutschrift auf PayPal-Konto'):
                     account2 = 'equity:balancing:paypal'
                 else:
                     account2 = None
