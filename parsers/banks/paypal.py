@@ -57,16 +57,19 @@ class PayPalCsvParser(Parser):
                     currency=currency,
                     ))
                 type_ = row['Typ']
-                if (type_.startswith('Allgemeine Gutschrift')
-                        or type_ == 'Bankgutschrift auf PayPal-Konto'):
-                    account2 = 'equity:balancing:paypal'
+                if type_ == 'Allgemeine Währungsumrechnung':
+                    transaction.postings[0].comment = type_
                 else:
-                    account2 = None
-                transaction.add_posting(Posting(
-                    account=account2,
-                    amount=-net_amount,
-                    currency=currency,
-                    ))
+                    if (type_.startswith('Allgemeine Gutschrift')
+                            or type_ == 'Bankgutschrift auf PayPal-Konto'):
+                        account2 = 'equity:balancing:paypal'
+                    else:
+                        account2 = None
+                    transaction.add_posting(Posting(
+                        account=account2,
+                        amount=-net_amount,
+                        currency=currency,
+                        ))
                 transactions[transaction_code] = transaction
                 related_transaction = row['Zugehöriger Transaktionscode']
                 if related_transaction != '':
