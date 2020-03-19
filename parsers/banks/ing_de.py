@@ -20,6 +20,7 @@ class IngDePdfParser(PdfParser):
 
     def __init__(self, pdf_file):
         super().__init__(pdf_file)
+        self._parse_description_start()
         self.transaction_description_pattern = re.compile(
                 '^' + ' ' * self.description_start + ' *(\S.*)\n',
                 flags=re.MULTILINE)
@@ -118,7 +119,6 @@ class IngDePdfParser(PdfParser):
             flags=re.MULTILINE)
 
     def extract_transactions_table(self):
-        self._parse_description_start()
         self.footer_start_pattern = re.compile(
                 '\n*^ {{0,{}}}[^ \d]'.format(self.description_start - 1),
                 flags=re.MULTILINE)
@@ -152,8 +152,6 @@ class IngDePdfParser(PdfParser):
         return postings
 
     def extract_interest_table(self):
-        self._parse_description_start()
-
         self.interest_table_heading = re.compile(
                 r'^ *Zeitraum *Zins p\.a\. *Ertrag',
                 flags=re.MULTILINE)

@@ -18,10 +18,6 @@ class PdfParser(Parser):
     def __init__(self, pdf_file):
         super().__init__(pdf_file)
         self._parse_file(pdf_file)
-        self.transactions_text = self.extract_transactions_table()
-
-    def extract_transactions_table(self):
-        return ''.join(self.extract_table_from_page(p) for p in self.pdf_pages)
 
     def _parse_file(self, pdf_file):
         if not os.path.exists(pdf_file):
@@ -37,6 +33,7 @@ class PdfParser(Parser):
         pass
 
     def parse(self) -> BankStatement:
+        self.transactions_text = self.extract_transactions_table()
         self.parse_balances()
         transactions = [t for t in self.generate_transactions(
                                             self.transactions_start,
@@ -46,6 +43,9 @@ class PdfParser(Parser):
         self.map_accounts(transactions)
         return BankStatement(self.account, transactions,
                              self.old_balance, self.new_balance)
+
+    def extract_transactions_table(self):
+        return ''.join(self.extract_table_from_page(p) for p in self.pdf_pages)
 
     def check_transactions_consistency(self, transactions):
         assert self.old_balance.balance \

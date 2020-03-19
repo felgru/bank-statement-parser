@@ -13,10 +13,22 @@ from ..pdf_parser import PdfParser
 
 class BnpParibasPdfParser(PdfParser):
     bank_folder = 'bnp'
-    account = 'assets:bank:checking:BNP'
+    account = 'assets:bank:TODO:BNP' # exact account is set in __init__
 
     def __init__(self, pdf_file):
         super().__init__(pdf_file)
+        m = re.search('RELEVE DE ([A-Z ]+?) +P.', self.pdf_pages[0])
+        self.account_type = m.group(1).title()
+        if self.account_type == 'Compte Cheques':
+            self.account = 'assets:bank:checking:BNP'
+            self.end_pattern = re.compile(
+                    r"^ *\* Commissions sur services et opérations "
+                    r"bancaires. Total", flags=re.MULTILINE)
+        if self.account_type == 'Livret A':
+            self.account = 'assets:bank:saving:BNP'
+            self.end_pattern = re.compile(
+                    r"^ *détail *rémunération *en EUR *de ",
+                    flags=re.MULTILINE)
         self.debit_start, self.credit_start = self.parse_column_starts()
 
     def parse_column_starts(self):
@@ -45,14 +57,11 @@ class BnpParibasPdfParser(PdfParser):
 
     table_heading = re.compile('^ *Date *Nature des opérations *Valeur *'
                                '(Débit) *(Crédit)', flags=re.MULTILINE)
-    end_pattern = re.compile(r"^ *\* Commissions sur services et opérations "
-                             r"bancaires. Total", flags=re.MULTILINE)
     balance_pattern = re.compile(r'^ *SOLDE CREDITEUR AU (\d{2}.\d{2}.\d{4})'
                                  r' *(\d[ \d]*,\d\d)', flags=re.MULTILINE)
 
-    @classmethod
-    def extract_table_from_page(cls, page):
-        m = cls.table_heading.search(page)
+    def extract_table_from_page(self, page):
+        m = self.table_heading.search(page)
         if m is None:
             return ''
         line_start = m.start()
@@ -60,7 +69,7 @@ class BnpParibasPdfParser(PdfParser):
         credit_start = m.start(2) - line_start
         table_start = m.end()
 
-        m = cls.end_pattern.search(page)
+        m = self.end_pattern.search(page)
         table_end = m.start()
         return page[table_start:table_end+1]
 
@@ -80,11 +89,20 @@ class BnpParibasPdfParser(PdfParser):
 
     def parse_total_and_new_balance(self):
         total_pattern = re.compile(r'^ *TOTAL DES OPERATIONS\s*'
-                                   r'(\d[ \d]*,\d\d)\s*(\d[ \d]*,\d\d|)',
+                                   r'(\d[ \d]*,\d\d) *(\d[ \d]*,\d\d|)',
                                    flags=re.MULTILINE)
         m = total_pattern.search(self.transactions_text)
-        total_debit = parse_amount(m.group(1))
-        total_credit = parse_amount(m.group(2))
+        if m.group(2) != '':
+            total_debit = parse_amount(m.group(1))
+            total_credit = parse_amount(m.group(2))
+        else:
+            amount = parse_amount(m.group(1))
+            if m.end(1) - m.start() < self.credit_start:
+                total_debit = amount
+                total_credit = Decimal('0.00')
+            else:
+                total_debit = Decimal('0.00')
+                total_credit = amount
         self.total_debit, self.total_credit = total_debit, total_credit
         self.transactions_end = m.start()
         m = self.balance_pattern.search(self.transactions_text, m.end())
@@ -131,7 +149,7 @@ class BnpParibasPdfParser(PdfParser):
         year = start_date.year
         d = date(year, month, day)
         if d < start_date:
-            d.year = end_date.year
+            d = d.replace(year=end_date.year)
         assert start_date <= d <= end_date
         return d
 
