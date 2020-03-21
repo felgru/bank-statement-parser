@@ -45,13 +45,16 @@ class Git:
     def add_file(self, file):
         self._run_git_command(['add', file])
 
-    def add_file_to_annex(self, file):
-        if not self.has_annex():
+    def add_files_to_annex(self, files):
+        if not (self.has_annex() and files):
             return
-        self._run_git_command(['annex', 'add', '--force-large'])
+        self._run_git_command(['annex', 'add', '--force-large'] + files)
 
     def commit(self, message):
         self._run_git_command(['commit', '--file=-'], input=message)
+
+    def reset_index_and_working_directory(self):
+        self._run_git_command(['reset', '--hard', 'HEAD'])
 
 
 class FakeGit:
@@ -74,5 +77,11 @@ class FakeGit:
     def add_file(self, file):
         pass
 
+    def add_files_to_annex(self, files):
+        pass
+
     def commit(self, message):
+        pass
+
+    def reset_index_and_working_directory(self):
         pass

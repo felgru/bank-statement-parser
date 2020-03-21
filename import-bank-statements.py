@@ -11,65 +11,68 @@ import os
 import sys
 
 from git import FakeGit, Git
+from import_transaction import import_transaction
 from parsers.banks import parsers
 
-def import_incoming_statements(dirs, git, force):
-    incoming_dir = dirs['incoming']
-    import_summary = dict()
-    for (dirpath, dirnames, filenames) in os.walk(incoming_dir):
-        if dirpath == incoming_dir:
-            continue
-        bank = os.path.basename(dirpath)
-        if bank not in parsers:
-            print('unknown bank:', bank, file=sys.stderr)
-            continue
-        bank_parsers = parsers[bank]
-        if filenames:
-            print('importing bank statements from', bank)
-        dateranges = []
-        imported_files = []
-        filenames.sort()
-        for f in filenames:
-            try:
-                extension = os.path.splitext(f)[1].lower()
-                Parser = bank_parsers[extension]
-            except KeyError:
+def import_incoming_statements(dirs, git, import_branch, force):
+    with import_transaction(git, import_branch) as transaction:
+        incoming_dir = dirs['incoming']
+        import_summary = dict()
+        for (dirpath, dirnames, filenames) in os.walk(incoming_dir):
+            if dirpath == incoming_dir:
                 continue
-            src_file = os.path.join(dirpath, f)
-            parser = Parser(src_file)
-            m = parser.parse_metadata()
-            print('{m.start_date} → {m.end_date}: {src_file}'
-                  .format(src_file=src_file, m=m))
-            mid_date = m.start_date + (m.end_date - m.start_date) / 2
-            year = str(mid_date.year)
-            if m.end_date - m.start_date <= timedelta(weeks=6):
-                month = str(mid_date.month).zfill(2)
-                dest_dir = os.path.join(dirs['ledgers'], year, month, bank)
-            else:
-                dest_dir = os.path.join(dirs['ledgers'], year, bank)
-            os.makedirs(dest_dir, exist_ok=True)
-            dest_file = os.path.join(dest_dir,
-                                     os.path.splitext(f)[0] + '.hledger')
-            if parse_and_write_bank_statement(parser, src_file, dest_file,
-                                              git, force):
-                imported_files.append((f, m.start_date, m.end_date))
-                dateranges.append((m.start_date, m.end_date))
-        merge_dateranges(dateranges)
-        dateranges = ', '.join('{} → {}'.format(*d) for d in dateranges)
-        if dateranges:
-            print(f'imported {bank} bank statements for {dateranges}')
-            summary = f'{bank}:\n{dateranges}\n\n' \
-                      + '\n'.join('* {1} → {2}: {0}'.format(*im)
-                                  for im in imported_files)
-            import_summary[bank] = summary
-    write_include_files(config['dirs']['ledgers'], git)
-    if git.has_staged_files():
-        commit_message = 'import bank statements\n\n'
-        commit_message += '\n\n'.join(s for _, s in sorted(import_summary
-                                                           .items()))
-        git.commit(commit_message)
+            bank = os.path.basename(dirpath)
+            if bank not in parsers:
+                print('unknown bank:', bank, file=sys.stderr)
+                continue
+            bank_parsers = parsers[bank]
+            if filenames:
+                print('importing bank statements from', bank)
+            dateranges = []
+            imported_files = []
+            filenames.sort()
+            for f in filenames:
+                try:
+                    extension = os.path.splitext(f)[1].lower()
+                    Parser = bank_parsers[extension]
+                except KeyError:
+                    continue
+                src_file = os.path.join(dirpath, f)
+                parser = Parser(src_file)
+                m = parser.parse_metadata()
+                print('{m.start_date} → {m.end_date}: {src_file}'
+                      .format(src_file=src_file, m=m))
+                mid_date = m.start_date + (m.end_date - m.start_date) / 2
+                year = str(mid_date.year)
+                if m.end_date - m.start_date <= timedelta(weeks=6):
+                    month = str(mid_date.month).zfill(2)
+                    dest_dir = os.path.join(dirs['ledgers'], year, month, bank)
+                else:
+                    dest_dir = os.path.join(dirs['ledgers'], year, bank)
+                os.makedirs(dest_dir, exist_ok=True)
+                dest_file = os.path.join(dest_dir,
+                                         os.path.splitext(f)[0] + '.hledger')
+                if parse_and_write_bank_statement(parser, src_file, dest_file,
+                                                  transaction, force):
+                    imported_files.append((f, m.start_date, m.end_date))
+                    dateranges.append((m.start_date, m.end_date))
+            merge_dateranges(dateranges)
+            dateranges = ', '.join('{} → {}'.format(*d) for d in dateranges)
+            if dateranges:
+                print(f'imported {bank} bank statements for {dateranges}')
+                summary = f'{bank}:\n{dateranges}\n\n' \
+                          + '\n'.join('* {1} → {2}: {0}'.format(*im)
+                                      for im in imported_files)
+                import_summary[bank] = summary
+        write_include_files(config['dirs']['ledgers'], transaction)
+        if import_summary:
+            commit_message = 'import bank statements\n\n'
+            commit_message += '\n\n'.join(s for _, s in sorted(import_summary
+                                                               .items()))
+            transaction.set_commit_message(commit_message)
 
-def parse_and_write_bank_statement(parser, src_file, dest_file, git, force):
+def parse_and_write_bank_statement(parser, src_file, dest_file,
+                                   import_transaction, force):
     if os.path.exists(dest_file):
         if force:
             print(f'WARNING: existing {dest_file} will be overwritten',
@@ -86,11 +89,10 @@ def parse_and_write_bank_statement(parser, src_file, dest_file, git, force):
         return False
     with open(dest_file, 'w') as f:
         bank_statement.write_ledger(f)
-    git.add_file(dest_file)
+    import_transaction.add_file(dest_file)
     src_ext = os.path.splitext(src_file)[1]
     moved_src = os.path.splitext(dest_file)[0] + src_ext
-    os.rename(src_file, moved_src)
-    git.add_file_to_annex(moved_src)
+    import_transaction.move_file_to_annex(src_file, moved_src)
     return True
 
 def merge_dateranges(dateranges):
@@ -167,14 +169,10 @@ if __name__ == '__main__':
     else:
         git = FakeGit
         import_branch = git.current_branch()
-    default_branch = git.current_branch()
 
     if args.regenerate_includes:
         write_include_files(config['dirs']['ledgers'], git)
     else:
-        assert git.working_directory_is_clean()
-        git.change_branch(import_branch)
-        import_incoming_statements(config['dirs'], git, args.force)
-        if git.current_branch() != default_branch:
-            git.change_branch(default_branch)
-            # TODO: merge iport_branch into default_branch
+        import_incoming_statements(config['dirs'], git, import_branch,
+                                   args.force)
+        # TODO: merge iport_branch into default_branch
