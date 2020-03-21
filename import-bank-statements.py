@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 
-# SPDX-FileCopyrightText: 2019 Felix Gruber <felgru@posteo.net>
+# SPDX-FileCopyrightText: 2019–2020 Felix Gruber <felgru@posteo.net>
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
@@ -10,10 +10,12 @@ from datetime import timedelta
 import os
 import sys
 
+from git import FakeGit, Git
 from parsers.banks import parsers
 
-def import_incoming_statements(dirs, force):
+def import_incoming_statements(dirs, git, force):
     incoming_dir = dirs['incoming']
+    import_summary = dict()
     for (dirpath, dirnames, filenames) in os.walk(incoming_dir):
         if dirpath == incoming_dir:
             continue
@@ -25,6 +27,7 @@ def import_incoming_statements(dirs, force):
         if filenames:
             print('importing bank statements from', bank)
         dateranges = []
+        imported_files = []
         filenames.sort()
         for f in filenames:
             try:
@@ -47,13 +50,26 @@ def import_incoming_statements(dirs, force):
             os.makedirs(dest_dir, exist_ok=True)
             dest_file = os.path.join(dest_dir,
                                      os.path.splitext(f)[0] + '.hledger')
-            parse_and_write_bank_statement(parser, src_file, dest_file, force)
-            dateranges.append((m.start_date, m.end_date))
+            if parse_and_write_bank_statement(parser, src_file, dest_file,
+                                              git, force):
+                imported_files.append((f, m.start_date, m.end_date))
+                dateranges.append((m.start_date, m.end_date))
         merge_dateranges(dateranges)
         dateranges = ', '.join('{} → {}'.format(*d) for d in dateranges)
-        print(f'imported {bank} bank statements for {dateranges}')
+        if dateranges:
+            print(f'imported {bank} bank statements for {dateranges}')
+            summary = f'{bank}:\n{dateranges}\n\n' \
+                      + '\n'.join('* {1} → {2}: {0}'.format(*im)
+                                  for im in imported_files)
+            import_summary[bank] = summary
+    write_include_files(config['dirs']['ledgers'], git)
+    if git.has_staged_files():
+        commit_message = 'import bank statements\n\n'
+        commit_message += '\n\n'.join(s for _, s in sorted(import_summary
+                                                           .items()))
+        git.commit(commit_message)
 
-def parse_and_write_bank_statement(parser, src_file, dest_file, force):
+def parse_and_write_bank_statement(parser, src_file, dest_file, git, force):
     if os.path.exists(dest_file):
         if force:
             print(f'WARNING: existing {dest_file} will be overwritten',
@@ -61,15 +77,17 @@ def parse_and_write_bank_statement(parser, src_file, dest_file, force):
         else:
             print(f'WARNING: skipping import of already imported {src_file}',
                   file=sys.stderr)
-            return
+            return False
     try:
         bank_statement = parser.parse()
     except NotImplementedError as e:
         print(f'Warning: couldn\'t parse {src_file}:', e.args,
               file=sys.stderr)
-        return
+        return False
     with open(dest_file, 'w') as f:
         bank_statement.write_ledger(f)
+    git.add_file(dest_file)
+    return True
 
 def merge_dateranges(dateranges):
     dateranges.sort(key=lambda t: t[0])
@@ -78,7 +96,7 @@ def merge_dateranges(dateranges):
             dateranges[i] = (dateranges[i][0], dateranges[i+1][1])
             dateranges.pop(i+1)
 
-def write_include_files(ledger_root):
+def write_include_files(ledger_root, git):
     ledger_name = 'journal.hledger'
     for(dirpath, dirnames, filenames) in os.walk(ledger_root):
         if dirpath == ledger_root:
@@ -99,6 +117,7 @@ def write_include_files(ledger_root):
             filenames = sorted(f for f in filenames if f.endswith('.hledger'))
             for filename in filenames:
                 print('include', filename, file=f)
+        git.add_file(ledger)
 
 def read_config():
     config = configparser.ConfigParser()
@@ -113,6 +132,15 @@ def read_config():
         dirs['incoming'] = os.path.join(dirs['ledgers'], 'incoming')
     dirs['incoming'] = os.path.expanduser(dirs['incoming'])
     assert os.path.exists(dirs['incoming'])
+    if 'git' not in config:
+        config['git'] = {}
+    git_config = config['git']
+    if 'git_dir' not in git_config:
+        git_config['git_dir'] = os.path.join(dirs['ledgers'], '.git')
+    if 'import_branch' not in git_config:
+        git_config['import_branch'] = 'import'
+    if not os.path.exists(git_config['git_dir']):
+        del config['git']
     return config
 
 if __name__ == '__main__':
@@ -129,7 +157,20 @@ if __name__ == '__main__':
     args = aparser.parse_args()
 
     config = read_config()
+    if 'git' in config:
+        git = Git(config['git']['git_dir'])
+        import_branch = config['git']['import_branch']
+    else:
+        git = FakeGit
+        import_branch = git.current_branch()
+    default_branch = git.current_branch()
 
-    if not args.regenerate_includes:
-        import_incoming_statements(config['dirs'], args.force)
-    write_include_files(config['dirs']['ledgers'])
+    if args.regenerate_includes:
+        write_include_files(config['dirs']['ledgers'], git)
+    else:
+        assert git.working_directory_is_clean()
+        git.change_branch(import_branch)
+        import_incoming_statements(config['dirs'], git, args.force)
+        if git.current_branch() != default_branch:
+            git.change_branch(default_branch)
+            # TODO: merge iport_branch into default_branch
