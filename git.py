@@ -45,6 +45,9 @@ class Git:
     def add_file(self, file):
         self._run_git_command(['add', file])
 
+    def add_files(self, files):
+        self._run_git_command(['add'] + files)
+
     def add_files_to_annex(self, files):
         if not (self.has_annex() and files):
             return
@@ -75,6 +78,9 @@ class FakeGit:
         pass
 
     def add_file(self, file):
+        pass
+
+    def add_files(self, files):
         pass
 
     def add_files_to_annex(self, files):
