@@ -163,6 +163,8 @@ if __name__ == '__main__':
     args = aparser.parse_args()
 
     config = read_config()
+    # change working directory for git status to work correctly
+    os.chdir(config['dirs']['ledgers'])
     if 'git' in config:
         git = Git(config['git']['git_dir'])
         import_branch = config['git']['import_branch']
