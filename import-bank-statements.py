@@ -87,6 +87,10 @@ def parse_and_write_bank_statement(parser, src_file, dest_file, git, force):
     with open(dest_file, 'w') as f:
         bank_statement.write_ledger(f)
     git.add_file(dest_file)
+    src_ext = os.path.splitext(src_file)[1]
+    moved_src = os.path.splitext(dest_file)[0] + src_ext
+    os.rename(src_file, moved_src)
+    git.add_file_to_annex(moved_src)
     return True
 
 def merge_dateranges(dateranges):

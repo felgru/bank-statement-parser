@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
+import os
 import subprocess
 
 
@@ -9,6 +10,11 @@ class Git:
 
     def __init__(self, git_dir):
         self.git_command = ['git', f'--git-dir={git_dir}']
+        # was git annex initialized in the Git repository?
+        self._has_annex = os.path.exists(os.path.join(git_dir, 'annex'))
+
+    def has_annex(self):
+        return self._has_annex
 
     def _run_git_command(self, args, input=None):
         return subprocess.run(self.git_command + args,
@@ -38,6 +44,11 @@ class Git:
 
     def add_file(self, file):
         self._run_git_command(['add', file])
+
+    def add_file_to_annex(self, file):
+        if not self.has_annex():
+            return
+        self._run_git_command(['annex', 'add', '--force-large'])
 
     def commit(self, message):
         self._run_git_command(['commit', '--file=-'], input=message)
