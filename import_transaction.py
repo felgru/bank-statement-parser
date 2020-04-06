@@ -56,8 +56,9 @@ def import_transaction(git, import_branch):
     transaction.begin(import_branch)
     try:
         yield transaction
-    except:
+    except Exception as e:
         transaction.rollback()
+        raise e
     else:
         if hasattr(transaction, 'commit_message'):
             transaction.commit()
