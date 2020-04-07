@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
+from datetime import date
 import re
 
 from transaction_sanitation import TransactionCleanerRule as Rule
@@ -38,10 +39,33 @@ def clean_sepa_giro_transfer(t):
         rest = 'v' + rest[1:]
     return f'Virement SEPA {direction} {rest}'
 
+def is_card_transaction(t):
+    return t.type.startswith('CARTE ')
+
+value_date_pattern = re.compile(r'(.*?) (\d{2}\/\d{2}\/\d{4}) (.*)')
+
+def is_card_transaction_with_date(t):
+    return (is_card_transaction(t)
+            and bool(value_date_pattern.match(t.description)))
+
+def move_date(t):
+    m = value_date_pattern.match(t.description)
+    description = m.group(1) + ': ' + m.group(3)
+    value_date = parse_date(m.group(2))
+    return description, value_date
+
+def parse_date(d: str) -> date:
+    """ parse a date in "dd/mm/yyyy" format """
+    day = int(d[:2])
+    month = int(d[3:5])
+    year = int(d[6:])
+    return date(year, month, day)
+
 checkings_rules = [
         Rule(lambda _: True, lambda t: t.description.title()),
         Rule(is_sepa_direct_debit, clean_sepa_direct_debit),
         Rule(is_sepa_giro_transfer, clean_sepa_giro_transfer),
+        Rule(is_card_transaction_with_date, move_date, field=('description', 'external_value_date')),
         ]
 
 ldd_rules = [
