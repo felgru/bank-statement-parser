@@ -23,6 +23,7 @@ class IngFrPdfParser(PdfParser):
         if self.account_type == 'COMPTE COURANT':
             self.account_type = 'Compte Courant'
             self.account = 'assets:bank:checking:ING.fr'
+            self.cleaning_rules = cleaning_rules.checkings_rules
         if self.account_type == 'LDD':
             self.account = 'assets:bank:saving:ING.fr'
             self.cleaning_rules = cleaning_rules.ldd_rules
