@@ -41,6 +41,10 @@ class IngFrPdfParser(PdfParser):
             flags=re.MULTILINE)
     amount_pattern = re.compile(r'\s*(\d[ \d]*,\d\d)\n')
     middle_line_pattern = re.compile(r'\s{30}\s*(\S.*?)\n')
+    total_pattern = re.compile(r'^ *Total\s*(\d[ \d]*,\d\d)\s*(\d[ \d]*,\d\d|)\s*'
+                               r'^( *)Nouveau solde au (\d{2}\/\d{2}\/\d{4})'
+                               r'\s*(\d[ \d]*,\d\d)',
+                               flags=re.MULTILINE)
 
     def parse_column_starts(self):
         m = self.table_heading.search(self.pdf_pages[0])
@@ -96,11 +100,14 @@ class IngFrPdfParser(PdfParser):
     def extract_table_from_page(self, page):
         m = self.table_heading.search(page)
         if m is None:
-            # There can be pages without a table
-            return ""
-        line_start = m.start()
-        debit_start = m.start(1) - line_start
-        credit_start = m.start(2) - line_start
+            # When the last page only contains the Total and Nouveau
+            # solde lines, it doesn't contain the header of the table.
+            m = self.total_pattern.search(page)
+            if m is not None:
+                return page[m.start():m.end()]
+            else:
+                # There can be pages without a table
+                return ""
         table_start = m.end()
 
         m = self.end_pattern.search(page)
@@ -125,11 +132,7 @@ class IngFrPdfParser(PdfParser):
         self.transactions_start = m.end()
 
     def parse_total_and_new_balance(self):
-        total_pattern = re.compile(r'^ *Total\s*(\d[ \d]*,\d\d)\s*(\d[ \d]*,\d\d|)\s*'
-                                   r'^( *)Nouveau solde au (\d{2}\/\d{2}\/\d{4})'
-                                   r'\s*(\d[ \d]*,\d\d)',
-                                   flags=re.MULTILINE)
-        m = total_pattern.search(self.transactions_text)
+        m = self.total_pattern.search(self.transactions_text)
         if m.group(2):
             total_debit = parse_amount(m.group(1))
             total_credit = parse_amount(m.group(2))
