@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2019 Felix Gruber <felgru@posteo.net>
+# SPDX-FileCopyrightText: 2019–2020 Felix Gruber <felgru@posteo.net>
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
@@ -57,7 +57,10 @@ class Transaction:
 
     def format_as_ledger_transaction(self):
         t = self
-        result = f'{t.operation_date} {t.description}\n'
+        comment = t.metadata.get('comment', '')
+        if comment:
+            comment = ' ; ' + comment
+        result = f'{t.operation_date} {t.description}{comment}\n'
         if t.value_date is not None and t.value_date != t.operation_date:
             value_date = f' ; date:{t.value_date}'
         else:
@@ -127,7 +130,10 @@ class MultiTransaction:
 
     def format_as_ledger_transaction(self):
         t = self
-        result = f'{t.date} {t.description}\n'
+        comment = t.metadata.get('comment', '')
+        if comment:
+            comment = ' ; ' + comment
+        result = f'{t.date} {t.description}{comment}\n'
         result += ''.join(p.format_as_ledger_transaction(t.date)
                           for p in t.postings)
         return result
