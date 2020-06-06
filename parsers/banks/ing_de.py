@@ -24,7 +24,6 @@ class IngDePdfParser(PdfParser):
         self.transaction_description_pattern = re.compile(
                 '^' + ' ' * self.description_start + ' *(\S.*)\n',
                 flags=re.MULTILINE)
-        self._parse_metadata()
         if self.metadata.account_type == 'Girokonto':
             self.account = 'assets:bank:checking:ING.de'
             self.cleaning_rules = cleaning_rules.rules

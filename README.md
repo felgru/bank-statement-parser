@@ -7,6 +7,12 @@ Supported banks:
 * BNP Paribas
 * ING.de
 * ING.fr
+* Mercedes-Benz Bank
+
+Not actual banks, but bank statement-like files:
+
+* PayPal csv reports
+* PayFit payslips
 
 To parse a single bank statement PDF you can use the `parse-bank-statement.py`
 script. For bulk imports you can use the `import-bank-statements.py` script

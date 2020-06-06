@@ -57,10 +57,15 @@ class Transaction:
 
     def format_as_ledger_transaction(self):
         t = self
+        assert('\n' not in t.description)
         comment = t.metadata.get('comment', '')
         if comment:
             comment = ' ; ' + comment
         result = f'{t.operation_date} {t.description}{comment}\n'
+        block_comment = t.metadata.get('block_comment')
+        if block_comment is not None:
+            block_comment = '\n    ; '.join(block_comment.split('\n'))
+            result += '    ; ' + block_comment + '\n'
         if t.value_date is not None and t.value_date != t.operation_date:
             value_date = f' ; date:{t.value_date}'
         else:
@@ -130,10 +135,15 @@ class MultiTransaction:
 
     def format_as_ledger_transaction(self):
         t = self
+        assert('\n' not in t.description)
         comment = t.metadata.get('comment', '')
         if comment:
             comment = ' ; ' + comment
         result = f'{t.date} {t.description}{comment}\n'
+        block_comment = t.metadata.get('block_comment')
+        if block_comment is not None:
+            block_comment = '\n    ; '.join(block_comment.split('\n'))
+            result += '    ; ' + block_comment + '\n'
         result += ''.join(p.format_as_ledger_transaction(t.date)
                           for p in t.postings)
         return result
