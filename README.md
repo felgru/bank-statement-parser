@@ -8,6 +8,7 @@ Supported banks:
 * ING.de
 * ING.fr
 * Mercedes-Benz Bank
+* VTB Direktbank
 
 Not actual banks, but bank statement-like files:
 
