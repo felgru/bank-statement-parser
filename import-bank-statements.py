@@ -7,6 +7,7 @@
 import argparse
 import configparser
 from datetime import timedelta
+import io
 import os
 import sys
 
@@ -14,8 +15,8 @@ from git import FakeGit, Git
 from import_transaction import import_transaction
 from parsers.banks import parsers
 
-def import_incoming_statements(dirs, git, import_branch, force):
-    with import_transaction(git, import_branch) as transaction:
+def import_incoming_statements(dirs, git, import_branch, force, dry_run):
+    with import_transaction(git, import_branch, dry_run) as transaction:
         incoming_dir = dirs['incoming']
         import_summary = dict()
         for (dirpath, dirnames, filenames) in os.walk(incoming_dir):
@@ -53,7 +54,7 @@ def import_incoming_statements(dirs, git, import_branch, force):
                 dest_file = os.path.join(dest_dir,
                                          os.path.splitext(f)[0] + '.hledger')
                 if parse_and_write_bank_statement(parser, src_file, dest_file,
-                                                  transaction, force):
+                                                  transaction, force, dry_run):
                     imported_files.append((f, m.start_date, m.end_date))
                     dateranges.append((m.start_date, m.end_date))
             merge_dateranges(dateranges)
@@ -64,7 +65,8 @@ def import_incoming_statements(dirs, git, import_branch, force):
                           + '\n'.join('* {1} → {2}: {0}'.format(*im)
                                       for im in imported_files)
                 import_summary[bank] = summary
-        write_include_files(config['dirs']['ledgers'], transaction)
+        if not dry_run:
+            write_include_files(config['dirs']['ledgers'], transaction)
         if import_summary:
             commit_message = 'import bank statements\n\n'
             commit_message += '\n\n'.join(s for _, s in sorted(import_summary
@@ -72,7 +74,7 @@ def import_incoming_statements(dirs, git, import_branch, force):
             transaction.set_commit_message(commit_message)
 
 def parse_and_write_bank_statement(parser, src_file, dest_file,
-                                   import_transaction, force):
+                                   import_transaction, force, dry_run):
     if os.path.exists(dest_file):
         if force:
             print(f'WARNING: existing {dest_file} will be overwritten',
@@ -87,8 +89,12 @@ def parse_and_write_bank_statement(parser, src_file, dest_file,
         print(f'Warning: couldn\'t parse {src_file}:', e.args,
               file=sys.stderr)
         return False
-    with open(dest_file, 'w') as f:
-        bank_statement.write_ledger(f)
+    if not dry_run:
+        with open(dest_file, 'w') as f:
+            bank_statement.write_ledger(f)
+    else:
+        with io.StringIO() as f:
+            bank_statement.write_ledger(f)
     import_transaction.add_file(dest_file)
     src_ext = os.path.splitext(src_file)[1]
     moved_src = os.path.splitext(dest_file)[0] + src_ext
@@ -155,6 +161,9 @@ if __name__ == '__main__':
     aparser.add_argument('--force', dest='force', default=False,
                          action='store_true',
                          help='overwrite existing ledgers')
+    aparser.add_argument('--dry-run', dest='dry_run',
+                         default=False, action='store_true',
+                         help='run parsers without writing any output files')
     aparser.add_argument('--regenerate-includes', dest='regenerate_includes',
                          default=False, action='store_true',
                          help='only regenerate include files; don\'t import '
@@ -176,5 +185,5 @@ if __name__ == '__main__':
         write_include_files(config['dirs']['ledgers'], git)
     else:
         import_incoming_statements(config['dirs'], git, import_branch,
-                                   args.force)
-        # TODO: merge iport_branch into default_branch
+                                   args.force, args.dry_run)
+        # TODO: merge import_branch into default_branch

@@ -50,9 +50,43 @@ class ImportTransaction:
         self.commit_message = commit_message
 
 
+class FakeImportTransaction:
+
+    def __init__(self, _git):
+        pass
+
+    def begin(self, import_branch):
+        print("beginning fake import Git transaction on branch "
+              + import_branch)
+        self.files_to_move_to_annex = []
+        self.files_to_add_to_git = []
+
+    def commit(self, commit_message=None):
+        if commit_message is None:
+            commit_message = self.commit_message
+        print("fake Git commit with message:\n"
+              + commit_message)
+
+    def rollback(self):
+        print("rolling back fake Git import transaction")
+
+    def add_file(self, file):
+        print(f"adding file {file} to import transaction")
+
+    def move_file_to_annex(self, source, dest):
+        self.files_to_move_to_annex.append((source, dest))
+        print(f"moving {source} to {dest}")
+
+    def set_commit_message(self, commit_message):
+        self.commit_message = commit_message
+
+
 @contextmanager
-def import_transaction(git, import_branch):
-    transaction = ImportTransaction(git)
+def import_transaction(git, import_branch, dry_run):
+    if dry_run:
+        transaction = FakeImportTransaction(git)
+    else:
+        transaction = ImportTransaction(git)
     transaction.begin(import_branch)
     try:
         yield transaction
