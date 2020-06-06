@@ -38,9 +38,12 @@ class VTBPdfParser(Parser):
         m = re.search(r' *_+\n +IHR KONTOSTAND AUF EINEN BLICK\n *_+\n',
                       self.pdf_pages[0])
         if m is not None:
-            return VTB2019PdfParser(self.xdg, self.pdf_pages)
-        else:
-            return VTB2020PdfParser(self.xdg, self.pdf_pages)
+            return VTB2014PdfParser(self.xdg, self.pdf_pages)
+        m = re.search('K O N T O A U S Z U G +Kontokorrent',
+                      self.pdf_pages[0])
+        if m is not None:
+            return VTB2012PdfParser(self.xdg, self.pdf_pages)
+        return VTB2020PdfParser(self.xdg, self.pdf_pages)
 
     def parse_metadata(self) -> BankStatementMetadata:
         return self.parser.parse_metadata()
@@ -176,7 +179,7 @@ class VTB2020PdfParser(PdfParser):
             raise RuntimeError(f"Unknown argument {dir!r} instead of"
                                " H(aben) or S(oll).")
 
-class VTB2019PdfParser(PdfParser):
+class VTB2014PdfParser(PdfParser):
     # Do not define bank_folder, so that it is not registered as a Parser by
     # the Parsers class. Instead it should only be used through the
     # VTBPdfParser class.
@@ -287,6 +290,139 @@ class VTB2019PdfParser(PdfParser):
 
     def check_transactions_consistency(self, transactions):
         assert sum(t.amount for t in transactions) == self.transactions_sum
+
+    def parse_short_date(self, d: str) -> date:
+        return parse_date_relative_to(d, self.new_balance.date)
+
+    @staticmethod
+    def parse_amount(a: str) -> Decimal:
+        """parse a decimal amount like 1.200,00+"""
+        a = a.replace('.', '').replace(',', '.')
+        a = a[-1] + a[:-1]
+        return Decimal(a)
+
+class VTB2012PdfParser(PdfParser):
+    # Do not define bank_folder, so that it is not registered as a Parser by
+    # the Parsers class. Instead it should only be used through the
+    # VTBPdfParser class.
+    account = 'assets:bank:saving:VTB Direktbank'
+
+    def __init__(self, xdg, pdf_pages):
+        self.xdg = xdg
+        self.pdf_pages = pdf_pages
+        self._parse_description_start()
+        self._parse_metadata()
+        self.transaction_description_pattern = re.compile(
+                '^' + ' ' * self.description_start + ' *(\S.*)\n*',
+                flags=re.MULTILINE)
+
+    def _parse_description_start(self):
+        self.table_heading = re.compile(
+                r'^ *BU-TAG *(VORGANG) *letzter Auszug vom'
+                r' (\d{2}.\d{2}.\d{2}) *SALDO ALT *EUR *'
+                r'(\d[.\d]*,\d\d[+-])\n *_+\n',
+                flags=re.MULTILINE)
+        m = self.table_heading.search(self.pdf_pages[0])
+        if m is not None:
+            self.old_balance = Balance(self.parse_amount(m.group(3)),
+                                       parse_date_with_year(m.group(2)))
+        else:
+            print(self.pdf_pages[0])
+            m = re.search(r' erstellt am +(\d{2}.\d{2}.\d{2})',
+                          self.pdf_pages[0])
+            end_date = parse_date_with_year(m.group(1))
+            self.table_heading = re.compile(
+                    r'^ *BU-TAG *(VORGANG) *SALDO ALT *EUR *'
+                    r'(\d[.\d]*,\d\d[+-])\n *_+\n',
+                    flags=re.MULTILINE)
+            m = self.table_heading.search(self.pdf_pages[0])
+            self.old_balance = Balance(self.parse_amount(m.group(2)),
+                                       end_date.replace(day=1))
+        self.description_start = m.start(1) - m.start()
+
+    def parse_metadata(self):
+        return self.metadata
+
+    def _parse_metadata(self):
+        m = re.search(r'BIC +([A-Z\d]+)\n', self.pdf_pages[0])
+        bic = m.group(1)
+        m = re.search(r'IBAN +(DE[\d ]+?)\n', self.pdf_pages[0])
+        iban = m.group(1)
+        m = re.search(r'Kontonummer +([\d ]+)\n', self.pdf_pages[0])
+        account_number = ''.join(m.group(1).split())
+        m = re.search(r'Auszug +\d+ +Blatt +\d+\n * vom +(\d{2}.\d{2}.\d{2})',
+                      self.pdf_pages[0])
+        if m is None:
+            m = re.search(r' erstellt am +(\d{2}.\d{2}.\d{2})',
+                          self.pdf_pages[0])
+        end_date = parse_date_with_year(m.group(1))
+        start_date = self.old_balance.date
+        meta = BankStatementMetadata(
+                start_date=start_date,
+                end_date=end_date,
+                iban=iban,
+                bic=bic,
+                account_number=account_number,
+               )
+        self.metadata = meta
+
+    def extract_transactions_table(self):
+        # Let's assume everything is on page 1 until I find a document
+        # that proves otherwise.
+        return self.extract_table_from_page(self.pdf_pages[0])
+
+    def extract_table_from_page(self, page):
+        m = self.table_heading.search(page)
+        table_start = m.end()
+        m = re.search(r' *_+\n +SALDO NEU +EUR +(\d[.\d]*,\d\d[+-])\n', page)
+        self.new_balance = Balance(self.parse_amount(m.group(1)),
+                                   self.metadata.end_date)
+        table_end = m.start()
+        page = page[table_start:table_end]
+        self.transactions_start = 0
+        self.transactions_end = len(page)
+        return page
+
+    def parse_balances(self):
+        pass
+
+    transaction_pattern = re.compile(
+            r'^ *(\d{2}.\d{2}.)( +Wert: +(\d{2}.\d{2}.))? +(.*\S+) +'
+            r'(\d[.\d]*,\d\d[+-])\n',
+            flags=re.MULTILINE)
+
+    def generate_transactions(self, start, end):
+        while True:
+            m = self.transaction_pattern.search(self.transactions_text,
+                                                start, end)
+            if m is None: break
+            transaction_date = self.parse_short_date(m.group(1))
+            if m.group(2) is not None:
+                value_date = self.parse_short_date(m.group(3))
+            else:
+                value_date = transaction_date
+            transaction_type = m.group(4)
+            amount = self.parse_amount(m.group(5))
+            start = m.end()
+            description = []
+            while True:
+                m = self.transaction_description_pattern.match(
+                                self.transactions_text, start, end)
+                if m is None: break
+                description.append(m.group(1))
+                start = m.end()
+            if description:
+                description = transaction_type + ' | ' \
+                            + ' '.join(l for l in description)
+            else:
+                description = transaction_type
+            yield Transaction(self.account, description, transaction_date,
+                              value_date, amount,
+                              metadata=dict(type=transaction_type))
+
+    def check_transactions_consistency(self, transactions):
+        assert self.old_balance.balance + sum(t.amount for t in transactions) \
+               == self.new_balance.balance
 
     def parse_short_date(self, d: str) -> date:
         return parse_date_relative_to(d, self.new_balance.date)
