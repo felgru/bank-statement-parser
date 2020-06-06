@@ -95,6 +95,7 @@ def parse_and_write_bank_statement(parser, src_file, dest_file,
     else:
         with io.StringIO() as f:
             bank_statement.write_ledger(f)
+            print(f.getvalue())
     import_transaction.add_file(dest_file)
     src_ext = os.path.splitext(src_file)[1]
     moved_src = os.path.splitext(dest_file)[0] + src_ext
