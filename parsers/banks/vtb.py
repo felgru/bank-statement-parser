@@ -8,21 +8,20 @@ import os
 import re
 import subprocess
 
-from bank_statement import BankStatementMetadata
+from bank_statement import BankStatement, BankStatementMetadata
 from transaction import Balance, MultiTransaction, Posting, Transaction
 
+from ..parser import Parser
 from ..pdf_parser import PdfParser
 
-class VTBPdfParser(PdfParser):
+class VTBPdfParser(Parser):
     bank_folder = 'vtb'
-    account = 'assets:bank:saving:VTB Direktbank'
+    file_extension = '.pdf'
 
     def __init__(self, pdf_file):
         super().__init__(pdf_file)
-        self._parse_description_start()
-        self.transaction_description_pattern = re.compile(
-                '^' + ' ' * self.description_start + ' *(\S.*)\n*',
-                flags=re.MULTILINE)
+        self._parse_file(pdf_file)
+        self.parser = self._choose_parser()
 
     def _parse_file(self, pdf_file):
         if not os.path.exists(pdf_file):
@@ -34,7 +33,35 @@ class VTBPdfParser(PdfParser):
                                  check=True).stdout
         # Careful: There's a trailing \f on the last page
         self.pdf_pages = pdftext.split('\f')[:-1]
+
+    def _choose_parser(self) -> Parser:
+        m = re.search(r' *_+\n +IHR KONTOSTAND AUF EINEN BLICK\n *_+\n',
+                      self.pdf_pages[0])
+        if m is not None:
+            return VTB2019PdfParser(self.xdg, self.pdf_pages)
+        else:
+            return VTB2020PdfParser(self.xdg, self.pdf_pages)
+
+    def parse_metadata(self) -> BankStatementMetadata:
+        return self.parser.parse_metadata()
+
+    def parse(self) -> BankStatement:
+        return self.parser.parse()
+
+class VTB2020PdfParser(PdfParser):
+    # Do not define bank_folder, so that it is not registered as a Parser by
+    # the Parsers class. Instead it should only be used through the
+    # VTBPdfParser class.
+    account = 'assets:bank:saving:VTB Direktbank'
+
+    def __init__(self, xdg, pdf_pages):
+        self.xdg = xdg
+        self.pdf_pages = pdf_pages
         self._parse_metadata()
+        self._parse_description_start()
+        self.transaction_description_pattern = re.compile(
+                '^' + ' ' * self.description_start + ' *(\S.*)\n*',
+                flags=re.MULTILINE)
 
     table_heading = re.compile(r'^ *Bu-Tag *Wert *(Vorgang)\n*',
                                flags=re.MULTILINE)
@@ -91,13 +118,13 @@ class VTBPdfParser(PdfParser):
                       r' +(\d[.\d]*,\d\d) +([HS])\n',
                       self.transactions_text)
         self.transactions_start = m.end()
-        self.old_balance = Balance(parse_amount(m.group(2), m.group(3)),
+        self.old_balance = Balance(self.parse_amount(m.group(2), m.group(3)),
                                    parse_date_with_year(m.group(1)))
         m = re.search(r'neuer Kontostand vom (\d{2}.\d{2}.\d{4})'
                       r' +(\d[.\d]*,\d\d) +([HS])\n',
                       self.transactions_text)
         self.transactions_end = m.start()
-        self.new_balance = Balance(parse_amount(m.group(2), m.group(3)),
+        self.new_balance = Balance(self.parse_amount(m.group(2), m.group(3)),
                                    parse_date_with_year(m.group(1)))
 
     transaction_pattern = re.compile(
@@ -112,7 +139,7 @@ class VTBPdfParser(PdfParser):
             if m is None: break
             transaction_date = self.parse_short_date(m.group(1))
             value_date = self.parse_short_date(m.group(2))
-            amount = parse_amount(m.group(4), m.group(5))
+            amount = self.parse_amount(m.group(4), m.group(5))
             description = [m.group(3)]
             start = m.end()
             while True:
@@ -131,6 +158,145 @@ class VTBPdfParser(PdfParser):
 
     def parse_short_date(self, d: str) -> date:
         return parse_date_relative_to(d, self.new_balance.date)
+
+    @staticmethod
+    def parse_amount(a: str, dir: str) -> Decimal:
+        """parse a decimal amount like 1.200,00 H
+
+        The suffix H indicates positive amounts (Haben),
+        while the suffix S indicates negative ones (Soll).
+        """
+        a = a.replace('.', '').replace(',', '.')
+        a = Decimal(a)
+        if dir == 'H':
+            return a
+        elif dir == 'S':
+            return -a
+        else:
+            raise RuntimeError(f"Unknown argument {dir!r} instead of"
+                               " H(aben) or S(oll).")
+
+class VTB2019PdfParser(PdfParser):
+    # Do not define bank_folder, so that it is not registered as a Parser by
+    # the Parsers class. Instead it should only be used through the
+    # VTBPdfParser class.
+    account = 'assets:bank:saving:VTB Direktbank'
+
+    def __init__(self, xdg, pdf_pages):
+        self.xdg = xdg
+        self.pdf_pages = pdf_pages
+        self._parse_metadata()
+        self._parse_description_start()
+        self.transaction_description_pattern = re.compile(
+                '^' + ' ' * self.description_start + ' *(\S.*)\n*',
+                flags=re.MULTILINE)
+
+    table_heading = re.compile(r'^( *_+\n) *DATUM *(BUCHUNGSVORGANG) *(SOLL) *(HABEN)\n*',
+                               flags=re.MULTILINE)
+
+    def _parse_description_start(self):
+        m = self.table_heading.search(self.pdf_pages[0])
+        self.row_divider = m.group(1)
+        self.description_start = m.start(2) - m.end(1)
+
+    def parse_metadata(self):
+        return self.metadata
+
+    def _parse_metadata(self):
+        m = re.search(r'Kontonummer: +([\d ]+)\n', self.pdf_pages[0])
+        account_number = ''.join(m.group(1).split())
+        m = re.search(r'IBAN: +(DE[\d ]+?)\n', self.pdf_pages[0])
+        iban = m.group(1)
+        m = re.search(r'BIC: +([A-Z\d]+)\n', self.pdf_pages[0])
+        bic = m.group(1)
+        m = re.search(r' *_+\n +IHR KONTOSTAND AUF EINEN BLICK\n *_+\n'
+                      r' *alt \((\d{2}.\d{2}.\d{4})\) *(\d+,\d\d[+-])\n'
+                      r' *neu \((\d{2}.\d{2}.\d{4})\) *(\d+,\d\d[+-])\n',
+                      self.pdf_pages[0])
+        start_date = parse_date_with_year(m.group(1))
+        self.old_balance = Balance(self.parse_amount(m.group(2)),
+                                   start_date)
+        end_date = parse_date_with_year(m.group(3))
+        self.new_balance = Balance(self.parse_amount(m.group(4)),
+                                   end_date)
+        meta = BankStatementMetadata(
+                start_date=start_date,
+                end_date=end_date,
+                iban=iban,
+                bic=bic,
+                account_number=account_number,
+               )
+        self.metadata = meta
+
+    def extract_transactions_table(self):
+        self.row_divider_pattern = re.compile('^' + self.row_divider,
+                                              flags=re.MULTILINE)
+        return ''.join(self.extract_table_from_page(p) for p in self.pdf_pages)
+
+    def extract_table_from_page(self, page):
+        m = self.table_heading.search(page)
+        if m is None:
+            return ''
+        table_start = m.end()
+        for m in self.row_divider_pattern.finditer(page, table_start):
+            table_end = m.end()
+        return page[table_start:table_end]
+
+    def parse_balances(self):
+        m = re.search(r'ALTER KONTOSTAND VOM (\d{2}.\d{2}.\d{4}) IN EUR'
+                      r' +(\d[.\d]*,\d\d[+-])\n',
+                      self.transactions_text)
+        self.transactions_start = m.end()
+        assert self.parse_amount(m.group(2)) == self.old_balance.balance
+        m = re.search(r' +GESAMTUMSATZ +(\d[.\d]*,\d\d[+-])\n'
+                      r' +NEUER KONTOSTAND VOM (\d{2}.\d{2}.\d{4}) IN EUR'
+                      r' +(\d[.\d]*,\d\d[+-])\n',
+                      self.transactions_text)
+        self.transactions_end = m.start()
+        assert self.parse_amount(m.group(3)) == self.new_balance.balance
+        self.transactions_sum = self.parse_amount(m.group(1))
+        assert self.old_balance.balance + self.transactions_sum \
+                == self.new_balance.balance
+
+    transaction_pattern = re.compile(
+            r'^ *(\d{2}.\d{2}.) +Wertstellung: +(\d{2}.\d{2}.) +(\S+) +'
+            r'(\d[.\d]*,\d\d[+-])\n',
+            flags=re.MULTILINE)
+
+    def generate_transactions(self, start, end):
+        while True:
+            m = self.transaction_pattern.search(self.transactions_text,
+                                                start, end)
+            if m is None: break
+            transaction_date = self.parse_short_date(m.group(1))
+            value_date = self.parse_short_date(m.group(2))
+            transaction_type = m.group(3)
+            amount = self.parse_amount(m.group(4))
+            start = m.end()
+            description = []
+            while True:
+                m = self.transaction_description_pattern.match(
+                                self.transactions_text, start, end)
+                if m is None: break
+                description.append(m.group(1))
+                start = m.end()
+            description = ' '.join(l for l in description)
+            yield Transaction(self.account, description, transaction_date,
+                              value_date, amount,
+                              metadata=dict(type=transaction_type))
+
+    def check_transactions_consistency(self, transactions):
+        assert sum(t.amount for t in transactions) == self.transactions_sum
+
+    def parse_short_date(self, d: str) -> date:
+        return parse_date_relative_to(d, self.new_balance.date)
+
+    @staticmethod
+    def parse_amount(a: str) -> Decimal:
+        """parse a decimal amount like 1.200,00+"""
+        a = a.replace('.', '').replace(',', '.')
+        a = a[-1] + a[:-1]
+        return Decimal(a)
 
 def parse_date_with_year(d: str) -> date:
     """parse a date in "dd.mm.yyyy" or "dd.mm.yy" format
@@ -158,19 +324,3 @@ def parse_date_relative_to(d, ref_d):
         else:
             d = date(year - 1, month, day)
     return d
-
-def parse_amount(a: str, dir: str) -> Decimal:
-    """parse a decimal amount like 1.200,00 H
-
-    The suffix H indicates positive amounts (Haben),
-    while the suffix S indicates negative ones (Soll).
-    """
-    a = a.replace('.', '').replace(',', '.')
-    a = Decimal(a)
-    if dir == 'H':
-        return a
-    elif dir == 'S':
-        return -a
-    else:
-        raise RuntimeError(f"Unknown argument {dir!r} instead of"
-                           " H(aben) or S(oll).")
