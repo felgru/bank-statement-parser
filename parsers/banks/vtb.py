@@ -43,7 +43,7 @@ class VTBPdfParser(Parser):
                       self.pdf_pages[0])
         if m is not None:
             return VTB2012PdfParser(self.xdg, self.pdf_pages)
-        return VTB2020PdfParser(self.xdg, self.pdf_pages)
+        return VTB2019PdfParser(self.xdg, self.pdf_pages)
 
     def parse_metadata(self) -> BankStatementMetadata:
         return self.parser.parse_metadata()
@@ -51,7 +51,7 @@ class VTBPdfParser(Parser):
     def parse(self) -> BankStatement:
         return self.parser.parse()
 
-class VTB2020PdfParser(PdfParser):
+class VTB2019PdfParser(PdfParser):
     # Do not define bank_folder, so that it is not registered as a Parser by
     # the Parsers class. Instead it should only be used through the
     # VTBPdfParser class.
@@ -262,7 +262,7 @@ class VTB2014PdfParser(PdfParser):
                 == self.new_balance.balance
 
     transaction_pattern = re.compile(
-            r'^ *(\d{2}.\d{2}.) +Wertstellung: +(\d{2}.\d{2}.) +(\S+) +'
+            r'^ *(\d{2}.\d{2}.)( +Wertstellung: +(\d{2}.\d{2}.))? +(\S+) +'
             r'(\d[.\d]*,\d\d[+-])\n',
             flags=re.MULTILINE)
 
@@ -272,9 +272,12 @@ class VTB2014PdfParser(PdfParser):
                                                 start, end)
             if m is None: break
             transaction_date = self.parse_short_date(m.group(1))
-            value_date = self.parse_short_date(m.group(2))
-            transaction_type = m.group(3)
-            amount = self.parse_amount(m.group(4))
+            if m.group(2) is not None:
+                value_date = self.parse_short_date(m.group(3))
+            else:
+                value_date = transaction_date
+            transaction_type = m.group(4)
+            amount = self.parse_amount(m.group(5))
             start = m.end()
             description = []
             while True:
@@ -327,7 +330,6 @@ class VTB2012PdfParser(PdfParser):
             self.old_balance = Balance(self.parse_amount(m.group(3)),
                                        parse_date_with_year(m.group(2)))
         else:
-            print(self.pdf_pages[0])
             m = re.search(r' erstellt am +(\d{2}.\d{2}.\d{2})',
                           self.pdf_pages[0])
             end_date = parse_date_with_year(m.group(1))
