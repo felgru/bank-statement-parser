@@ -87,10 +87,7 @@ class PayfitPdfParser:
         payment_date = parse_verbose_date(m.group(1))
         transaction = MultiTransaction('Salaire', payment_date)
 
-        gross_salary, bonus = self._parse_salary()
-        total_gross_salary = gross_salary.amount
-        if bonus is not None:
-            total_gross_salary += bonus.amount
+        salary_postings, total_gross_salary = self._parse_salary()
 
         social_security_postings, social_security_total = \
                 self._parse_social_security_payments()
@@ -103,13 +100,12 @@ class PayfitPdfParser:
         income_tax = self._parse_tax_deducted_at_source()
         payment = self._parse_payment()
 
-        assert(total_gross_salary - transportation_reimbursed
+        assert(-total_gross_salary - transportation_reimbursed
                + meal_vouchers.amount + social_security_total
                + income_tax.amount + payment.amount == 0)
-        transaction.add_posting(gross_salary)
-        if bonus is not None:
-            transaction.add_posting(bonus)
         transaction.add_posting(payment)
+        for p in salary_postings:
+            transaction.add_posting(p)
         transaction.add_posting(income_tax)
         for p in social_security_postings:
             transaction.add_posting(p)
@@ -119,22 +115,47 @@ class PayfitPdfParser:
         return BankStatement(None, [transaction])
 
     def _parse_salary(self):
-        m = re.search(r'Prime sur objectifs *(\d[ \d]*,\d\d)',
-                      self.transactions_text)
-        if m is not None:
-            bonus = parse_amount(m.group(1))
-            bonus = Posting('income:salary:bonus', -bonus)
-        else:
-            bonus = None
         m = re.search(r'Rémunération brute \(1\) *(\d[ \d]*,\d\d)',
                       self.transactions_text)
         total_gross_salary = parse_amount(m.group(1))
-        if bonus is None:
-            salary = -total_gross_salary
-        else:
-            salary = -total_gross_salary - bonus.amount
-        salary = Posting('income:salary', salary)
-        return salary, bonus
+        end = m.start()
+        posting_pattern = re.compile(r'^ *(.*?\S) *(\d[ \d]*,\d\d|)'
+                                     r' *(\d+,\d{4}|) *(-?\d[ \d]*,\d\d)$',
+                                     flags=re.MULTILINE)
+        salary_accounts = {
+                'Salaire de base': 'income:salary',
+                'Heures supplémentaires contractuelles 25 %':
+                                        'income:salary:overtime',
+                'Prime sur objectifs': 'income:salary:bonus',
+                'Absence maladie ordinaire': 'income:salary',
+                'Régularisation Indemnité CP N': 'income:salary:vacation?',
+                'Entrée / Sortie en cours de mois': 'income:salary',
+                }
+        salaries = []
+        vacation_salary = Decimal('0.00')
+        for m in posting_pattern.finditer(self.transactions_text, 0, end):
+            title = m.group(1)
+            salary = parse_amount(m.group(4))
+            account = salary_accounts.get(title)
+            if account is None:
+                # Why do the absences/indemnités congés payés sometimes not
+                # cancel to 0?
+                if 'Congés Payés' in title:
+                    vacation_salary += salary
+                continue
+            if m.group(2) and m.group(3):
+                hours = parse_amount(m.group(2))
+                hourly_salary = parse_amount(m.group(3))
+                comment = f'{title} {hours}h * {hourly_salary} €/h'
+            else:
+                comment = title
+            p = Posting(account, -salary, comment=comment)
+            salaries.append(p)
+        if vacation_salary != Decimal('0.00'):
+            salaries.append(Posting('income:salary:vacation?',
+                                    -vacation_salary))
+        assert sum(p.amount for p in salaries) + total_gross_salary == 0
+        return salaries, total_gross_salary
 
     def _parse_social_security_payments(self):
         m = re.search(r"CSG déductible de l'impôt sur le revenu"
