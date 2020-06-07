@@ -88,24 +88,29 @@ class PayfitPdfParser:
         transaction = MultiTransaction('Salaire', payment_date)
 
         gross_salary, bonus = self._parse_salary()
+        total_gross_salary = gross_salary.amount
+        if bonus is not None:
+            total_gross_salary += bonus.amount
 
-        misc_expenses = self._parse_misc_expenses()
+        social_security = self._parse_social_security_payments()
         transportation_postings, transportation_reimbursed \
                 = self._parse_travel_reimbursement()
         meal_vouchers = self._parse_meal_vouchers()
 
         m = self.net_before_taxes_pattern.search(self.summary_text)
         net_before_taxes = parse_amount(m.group(1))
+        income_tax = self._parse_tax_deducted_at_source()
         payment = self._parse_payment()
 
-        simplified_gross_salary = payment.amount + meal_vouchers.amount \
-                                                 - transportation_reimbursed
+        assert(total_gross_salary - transportation_reimbursed
+               + meal_vouchers.amount + social_security.amount
+               + income_tax.amount + payment.amount == 0)
+        transaction.add_posting(gross_salary)
         if bonus is not None:
             transaction.add_posting(bonus)
-            simplified_gross_salary += bonus.amount
-        transaction.add_posting(Posting('income:salary',
-                                        -simplified_gross_salary))
         transaction.add_posting(payment)
+        transaction.add_posting(income_tax)
+        transaction.add_posting(social_security)
         transaction.add_posting(meal_vouchers)
         for p in transportation_postings:
             transaction.add_posting(p)
@@ -121,13 +126,19 @@ class PayfitPdfParser:
             bonus = None
         m = re.search(r'Rémunération brute \(1\) *(\d[ \d]*,\d\d)',
                       self.transactions_text)
-        return parse_amount(m.group(1)), bonus
+        total_gross_salary = parse_amount(m.group(1))
+        if bonus is None:
+            salary = -total_gross_salary
+        else:
+            salary = -total_gross_salary - bonus.amount
+        salary = Posting('income:salary', salary)
+        return salary, bonus
 
-    def _parse_misc_expenses(self):
+    def _parse_social_security_payments(self):
         m = re.search(r'TOTAL COTISATIONS ET CONTRIBUTIONS SALARIALES \(4\)'
                       r' *(\d[ \d]*,\d\d)',
                       self.transactions_text)
-        return parse_amount(m.group(1))
+        return Posting('expenses:taxes:social', parse_amount(m.group(1)))
 
     def _parse_travel_reimbursement(self):
         m = re.search(r'Frais transport public *(\d[ \d]*,\d\d) *(\d,\d{4}) *'
@@ -157,18 +168,30 @@ class PayfitPdfParser:
             postings.append(Posting('expenses:reimbursable:transportation',
                                     -travel_reimbursement,
                                     comment='trip: TODO'))
-            postings.append(Posting('equity:travel reimbursement',
-                                    travel_reimbursement))
         m = re.search(r'Indemnités non soumises \(2\) *(\d[ \d]*,\d\d)',
                       self.transactions_text)
         assert(parse_amount(m.group(1)) == total_reimbursed)
-        return (postings, transportation_reimbursed)
+        return (postings, total_reimbursed)
 
     def _parse_meal_vouchers(self):
         m = re.search(r'Titres Restaurant *\d*,\d\d *\d,\d{3} *(\d*,\d\d)',
                       self.transactions_text)
         return Posting('expenses:food:meal_vouchers',
                        parse_amount(m.group(1)))
+
+    def _parse_tax_deducted_at_source(self):
+
+        m = re.search(r'Impôt sur le revenu prélevé à la source \(\d\)'
+                      r' *(\d[ \d]*,\d\d) *(\d+,\d{2})% *(\d[ \d]*,\d\d)',
+                      self.summary_text)
+        base = parse_amount(m.group(1))
+        taux = parse_amount(m.group(2)) / 100
+        montant = parse_amount(m.group(3))
+        assert(round(base * taux, 2) == montant)
+        comment = 'Impôt sur le revenu prélevé à la source {}% * {}€' \
+                  .format(m.group(2), m.group(1))
+        return Posting('expenses:taxes:income', montant,
+                       comment=comment)
 
     def _parse_payment(self):
         m = re.search(r'NET PAYÉ\s*(\(\d\)( [+-] \(\d\))*) *'
