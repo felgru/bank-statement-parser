@@ -92,7 +92,8 @@ class PayfitPdfParser:
         if bonus is not None:
             total_gross_salary += bonus.amount
 
-        social_security = self._parse_social_security_payments()
+        social_security_postings, social_security_total = \
+                self._parse_social_security_payments()
         transportation_postings, transportation_reimbursed \
                 = self._parse_travel_reimbursement()
         meal_vouchers = self._parse_meal_vouchers()
@@ -103,14 +104,15 @@ class PayfitPdfParser:
         payment = self._parse_payment()
 
         assert(total_gross_salary - transportation_reimbursed
-               + meal_vouchers.amount + social_security.amount
+               + meal_vouchers.amount + social_security_total
                + income_tax.amount + payment.amount == 0)
         transaction.add_posting(gross_salary)
         if bonus is not None:
             transaction.add_posting(bonus)
         transaction.add_posting(payment)
         transaction.add_posting(income_tax)
-        transaction.add_posting(social_security)
+        for p in social_security_postings:
+            transaction.add_posting(p)
         transaction.add_posting(meal_vouchers)
         for p in transportation_postings:
             transaction.add_posting(p)
@@ -135,10 +137,25 @@ class PayfitPdfParser:
         return salary, bonus
 
     def _parse_social_security_payments(self):
+        m = re.search(r"CSG déductible de l'impôt sur le revenu"
+                      r' *(\d[ \d]*,\d\d) *(\d,\d{3}) *'
+                      r'(\d[ \d]*,\d\d)', self.transactions_text)
+        base = parse_amount(m.group(1))
+        percentage = parse_amount(m.group(2))
+        amount = parse_amount(m.group(3))
+        assert round(base * percentage / 100, 2) == amount
+        assert percentage == Decimal('6.800')
+        deductible_csg = Posting('expenses:taxes:social:deductible',
+                                 amount,
+                                 comment="CSG déductible de l'impôt"
+                                         " sur le revenu")
         m = re.search(r'TOTAL COTISATIONS ET CONTRIBUTIONS SALARIALES \(4\)'
                       r' *(\d[ \d]*,\d\d)',
                       self.transactions_text)
-        return Posting('expenses:taxes:social', parse_amount(m.group(1)))
+        total = parse_amount(m.group(1))
+        nondeductible_csg = Posting('expenses:taxes:social:nondeductible',
+                                    total - deductible_csg.amount)
+        return [deductible_csg, nondeductible_csg], total
 
     def _parse_travel_reimbursement(self):
         m = re.search(r'Frais transport public *(\d[ \d]*,\d\d) *(\d,\d{4}) *'
