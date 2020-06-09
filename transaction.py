@@ -3,7 +3,8 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 from copy import copy
-from collections import namedtuple
+from collections import defaultdict, namedtuple
+from decimal import Decimal
 
 class Transaction:
     def __init__(self, account, description,
@@ -147,6 +148,18 @@ class MultiTransaction:
         result += ''.join(p.format_as_ledger_transaction(t.date)
                           for p in t.postings)
         return result
+
+    def is_balanced(self) -> bool:
+        without_amount = 0
+        amounts = defaultdict(lambda: Decimal(0))
+        for p in self.postings:
+            if p.amount is None:
+                without_amount += 1
+                continue
+            amounts[p.currency] += p.amount
+        unbalanced_currencies = sum(1 for a in amounts.values() if a != 0)
+        return (unbalanced_currencies == 0 and without_amount == 0) \
+               or (unbalanced_currencies <= 1 and without_amount == 1)
 
     def __repr__(self):
         s = self

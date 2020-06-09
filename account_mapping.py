@@ -54,7 +54,7 @@ def extract_unmapped_transactions(mt: MultiTransaction) \
     for i, posting in enumerate(mt.postings):
         if posting.account is None:
             yield (i, Transaction(account=None,
-                                  description=mt.description,
+                                  description=posting.comment or mt.description,
                                   operation_date=mt.date,
                                   value_date=None,
                                   amount=-posting.amount,
