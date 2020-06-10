@@ -453,13 +453,48 @@ class VTB2012PdfParser(PdfParser):
                             + ' '.join(l for l in description)
             else:
                 description = transaction_type
-            yield Transaction(self.account, description, transaction_date,
-                              value_date, amount,
-                              metadata=dict(type=transaction_type))
+            if transaction_type == 'Zinsen/Kontoführung':
+                yield self._parse_balance(description, transaction_date,
+                                          value_date, amount)
+            else:
+                yield Transaction(self.account, description, transaction_date,
+                                  value_date, amount,
+                                  metadata=dict(type=transaction_type))
+
+    def _parse_balance(self, description: str, transaction_date: date,
+                       value_date: date, amount: Decimal):
+        t = MultiTransaction(description, transaction_date,
+                             metadata={'type': 'Zinsen/Kontoführung'})
+        t.add_posting(Posting(self.account, amount,
+                              posting_date=value_date))
+        m = re.search('R E C H N U N G S A B S C H L U S S'
+                      ' *\(siehe Rückseite\)\n', self.pdf_pages[1])
+        start = m.end()
+        m = re.search('Summe Zinsen/Kontoführung +EUR +(\d[.\d]*,\d\d[+-])',
+                      self.pdf_pages[1][start:])
+        assert(self.parse_amount(m.group(1)) == amount)
+        end = start + m.start()
+        for m in re.finditer(r' *(.* Habenzinsen) +(\d+ ZZ|) +'
+                             r'(\d[.\d]*,\d\d[+-])\n',
+                             self.pdf_pages[1][start:end]):
+            t.add_posting(Posting(None, -self.parse_amount(m.group(3)),
+                                  comment=m.group(1)))
+        start = start + m.end()
+        for m in re.finditer(' *(.+?) +EUR +(\d[.\d]*,\d\d[+-])\n',
+                             self.pdf_pages[1][start:end]):
+            t.add_posting(Posting(None, -self.parse_amount(m.group(2)),
+                                  comment=m.group(1)))
+        assert(t.is_balanced())
+        return t
 
     def check_transactions_consistency(self, transactions):
-        assert self.old_balance.balance + sum(t.amount for t in transactions) \
-               == self.new_balance.balance
+        sum = self.old_balance.balance
+        for t in transactions:
+            amount = getattr(t, 'amount', None)
+            if amount is None:
+                amount = t.postings[0].amount
+            sum += amount
+        assert sum == self.new_balance.balance
 
     def parse_short_date(self, d: str) -> date:
         return parse_date_relative_to(d, self.new_balance.date)
