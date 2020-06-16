@@ -217,7 +217,7 @@ class IngFrPdfParser(PdfParser):
                 return
             operation_date = parse_date(m.group(1))
             value_date = parse_date(m.group(2)) if m.group(2) != '' else None
-            description = m.group(3)
+            description = [m.group(3)]
             m = self.amount_pattern.search(self.transactions_text,
                                            start+self.debit_start, end)
             amount = parse_amount(m.group(1))
@@ -233,11 +233,14 @@ class IngFrPdfParser(PdfParser):
                                                     start, transaction_end)
                 if m is None:
                     break
-                description += ' ' + m.group(1)
+                description.append(m.group(1))
                 start = m.end()
+            metadata = dict(type=transaction_type,
+                            raw_description='\n'.join(l for l in description))
+            description = ' '.join(l for l in description)
             yield Transaction(self.account, description, operation_date,
                               value_date, amount,
-                              metadata=dict(type=transaction_type))
+                              metadata=metadata)
 
 def parse_date(d: str) -> date:
     """ parse a date in "dd/mm/yyyy" format """

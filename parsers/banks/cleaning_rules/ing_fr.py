@@ -19,15 +19,40 @@ def is_sepa_direct_debit(t):
     return (t.type == 'PRELEVEMENT TIP'
             and t.description.startswith('Prlv Sepa '))
 
-sepa_pattern = re.compile(r'Virement Sepa (\S+) (.*)')
+sepa_direct_debit_pattern = re.compile(r'PRLV SEPA (.*?):\s+([A-Z]{2}\S+)\s+(.*)',
+                                       flags=re.MULTILINE | re.DOTALL)
+
+def clean_sepa_direct_debit(t):
+    m = sepa_direct_debit_pattern.match(t.metadata['raw_description'])
+    prefix = 'prlv SEPA '
+    recipient = m.group(1).strip().title()
+    # Creditor Identifier (CI)
+    # https://www.sepaforcorporates.com/sepa-direct-debits/sepa-creditor-identifier/
+    # https://www.europeanpaymentscouncil.eu/sites/default/files/kb/file/2019-09/EPC262-08%20v7.0%20Creditor%20Identifier%20Overview_0.pdf
+    creditor_identifier = m.group(2)
+    # Unique Mandate Reference (UMR)
+    # https://de.wikipedia.org/wiki/Mandatsreferenz
+    mandate_reference = m.group(3).replace('\n', '')
+    description = prefix + recipient
+    block_comment = t.metadata.get('block_comment', '')
+    if block_comment:
+        block_comment += '\n'
+    block_comment += f'SEPA CI:  {creditor_identifier}\n' \
+                     f'SEPA UMR: {mandate_reference}'
+    metadata = dict(**t.metadata,
+                    sepa_creditor_identifier=creditor_identifier,
+                    sepa_mandate_reference=mandate_reference,
+                    block_comment=block_comment,
+                    )
+    return description, metadata
 
 def is_sepa_giro_transfer(t):
     return (t.type == 'VIREMENT EXTERNE'
-            and sepa_pattern.match(t.description))
+            and t.description.startswith('Virement Sepa'))
 
-def clean_sepa_direct_debit(t):
-    prefix = 'prlv SEPA '
-    return prefix + t.description[len(prefix):]
+sepa_pattern = re.compile(r'Virement Sepa (Recu|Emis Vers) +(.*)')
+sepa_emis_pattern = re.compile(r'VIREMENT SEPA EMIS VERS\s*(\S+)',
+                              flags=re.MULTILINE)
 
 def clean_sepa_giro_transfer(t):
     m = sepa_pattern.match(t.description)
@@ -35,8 +60,10 @@ def clean_sepa_giro_transfer(t):
     if direction == 'recu':
         direction = 'reçu'
     rest = m.group(2)
-    if rest.startswith('Vers '):
-        rest = 'v' + rest[1:]
+    if direction == 'emis vers':
+        m = sepa_emis_pattern.match(t.metadata['raw_description'])
+        account = m.group(1)
+        rest = account + rest[rest.find(' '):]
     return f'Virement SEPA {direction} {rest}'
 
 def is_card_transaction(t):
@@ -75,9 +102,11 @@ def format_foreign_card_transaction(t):
 
 checkings_rules = [
         Rule(lambda _: True, lambda t: t.description.title()),
-        Rule(is_sepa_direct_debit, clean_sepa_direct_debit),
+        Rule(is_sepa_direct_debit, clean_sepa_direct_debit,
+             field=('description', 'metadata')),
         Rule(is_sepa_giro_transfer, clean_sepa_giro_transfer),
-        Rule(is_card_transaction_with_date, move_date, field=('description', 'external_value_date')),
+        Rule(is_card_transaction_with_date, move_date,
+             field=('description', 'external_value_date')),
         Rule(is_foreign_card_transaction, format_foreign_card_transaction),
         ]
 
