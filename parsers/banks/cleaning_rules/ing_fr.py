@@ -61,13 +61,28 @@ def parse_date(d: str) -> date:
     year = int(d[6:])
     return date(year, month, day)
 
+foreign_card_pattern = re.compile(r'Carte: (\d+\.?\d*) ([A-Za-z]{3})'
+                                  r' Cours (\d+\.\d+) (.*)')
+
+def is_foreign_card_transaction(t):
+    return (is_card_transaction(t)
+            and bool(foreign_card_pattern.match(t.description)))
+
+def format_foreign_card_transaction(t):
+    m = foreign_card_pattern.match(t.description)
+    return f'Carte: {m.group(1)} {m.group(2).upper()}' \
+           f' cours {m.group(3)} {m.group(4)}'
+
 checkings_rules = [
         Rule(lambda _: True, lambda t: t.description.title()),
         Rule(is_sepa_direct_debit, clean_sepa_direct_debit),
         Rule(is_sepa_giro_transfer, clean_sepa_giro_transfer),
         Rule(is_card_transaction_with_date, move_date, field=('description', 'external_value_date')),
+        Rule(is_foreign_card_transaction, format_foreign_card_transaction),
         ]
 
 ldd_rules = [
         Rule(lambda _: True, parse_transaction_type, field=('metadata')),
+        Rule(lambda _: True, lambda t: t.description.title()),
+        Rule(is_sepa_giro_transfer, clean_sepa_giro_transfer),
         ]
