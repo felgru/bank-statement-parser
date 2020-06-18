@@ -228,7 +228,7 @@ class PayfitPdfParser:
         assert(round(base * taux, 2) == montant)
         comment = 'Impôt sur le revenu prélevé à la source {}% * {}€' \
                   .format(m.group(2), m.group(1))
-        return Posting('expenses:taxes:income:decucted at source', montant,
+        return Posting('expenses:taxes:income:deducted at source', montant,
                        comment=comment)
 
     def _parse_payment(self):
