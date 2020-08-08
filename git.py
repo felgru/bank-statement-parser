@@ -8,8 +8,9 @@ import subprocess
 
 class Git:
 
-    def __init__(self, git_dir):
-        self.git_command = ['git', f'--git-dir={git_dir}']
+    def __init__(self, work_tree, git_dir):
+        self.git_command = ['git', f'--work-tree={work_tree}',
+                                   f'--git-dir={git_dir}']
         # was git annex initialized in the Git repository?
         self._has_annex = os.path.exists(os.path.join(git_dir, 'annex'))
 
@@ -62,7 +63,7 @@ class Git:
 
 class FakeGit:
 
-    def __init__(self, git_dir):
+    def __init__(self):
         pass
 
     def working_directory_is_clean(self):

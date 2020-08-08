@@ -176,10 +176,10 @@ if __name__ == '__main__':
     # change working directory for git status to work correctly
     os.chdir(config['dirs']['ledgers'])
     if 'git' in config:
-        git = Git(config['git']['git_dir'])
+        git = Git(config['dirs']['ledgers'], config['git']['git_dir'])
         import_branch = config['git']['import_branch']
     else:
-        git = FakeGit
+        git = FakeGit()
         import_branch = git.current_branch()
 
     if args.regenerate_includes:
