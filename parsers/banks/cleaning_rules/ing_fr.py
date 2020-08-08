@@ -77,7 +77,10 @@ def is_card_transaction_with_date(t):
 
 def move_date(t):
     m = value_date_pattern.match(t.description)
-    description = m.group(1) + ': ' + m.group(3)
+    prefix = m.group(1)
+    if prefix == 'Carte' or prefix == 'Paiement Par Carte':
+        prefix = 'Paiement par carte'
+    description = prefix + ': ' + m.group(3)
     value_date = parse_date(m.group(2))
     return description, value_date
 
@@ -88,7 +91,7 @@ def parse_date(d: str) -> date:
     year = int(d[6:])
     return date(year, month, day)
 
-foreign_card_pattern = re.compile(r'Carte: (\d+\.?\d*) ([A-Za-z]{3})'
+foreign_card_pattern = re.compile(r'Paiement par carte: (\d+\.?\d*) ([A-Za-z]{3})'
                                   r' Cours (\d+\.\d+) (.*)')
 
 def is_foreign_card_transaction(t):
@@ -97,7 +100,7 @@ def is_foreign_card_transaction(t):
 
 def format_foreign_card_transaction(t):
     m = foreign_card_pattern.match(t.description)
-    return f'Carte: {m.group(1)} {m.group(2).upper()}' \
+    return f'Paiement par carte: {m.group(1)} {m.group(2).upper()}' \
            f' cours {m.group(3)} {m.group(4)}'
 
 checkings_rules = [
