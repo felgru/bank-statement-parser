@@ -14,6 +14,8 @@ import sys
 from git import FakeGit, Git
 from import_transaction import import_transaction
 from parsers.banks import parsers
+from xdg_dirs import getXDGdirectories
+
 
 def import_incoming_statements(dirs, git, import_branch, force, dry_run):
     with import_transaction(git, import_branch, dry_run) as transaction:
@@ -134,6 +136,8 @@ def write_include_files(ledger_root, git):
 
 def read_config():
     config = configparser.ConfigParser()
+    xdg = getXDGdirectories('bank-statement-parser')
+    config.read(os.path.join(xdg['config'], 'import.cfg'))
     if 'dirs' not in config:
         config['dirs'] = {}
     dirs = config['dirs']
