@@ -22,7 +22,7 @@ class PdfParser(Parser):
     def _parse_file(self, pdf_file):
         if not os.path.exists(pdf_file):
             raise IOError('Unknown file: {}'.format(pdf_file))
-        # pdftotext is provided by Poppler on Debian
+        # pdftotext is provided by poppler-utils on Debian
         pdftext = subprocess.run(['pdftotext', '-fixed', '5', pdf_file, '-'],
                                  capture_output=True, encoding='UTF8',
                                  check=True).stdout

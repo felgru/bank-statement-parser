@@ -21,6 +21,9 @@ that tries to parse all bank statements found in
 `~/accounting/bank_statements/incoming/<name_of_bank>`. For each bank statement
 file it creates a corresponding hledger file in `~/accounting/bank_statements`.
 
+To parse PDF files the bank statement parser uses `pdftotext`, which in Debian
+is part of the `poppler-utils` package.
+
 ## License
 
 These programs are licensed under the GPL version 3 or (at your option)
