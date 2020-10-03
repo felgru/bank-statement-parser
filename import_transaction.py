@@ -43,6 +43,9 @@ class ImportTransaction:
     def add_file(self, file):
         self.files_to_add_to_git.append(file)
 
+    def add_files(self, files):
+        self.files_to_add_to_git.extend(files)
+
     def move_file_to_annex(self, source, dest):
         self.files_to_move_to_annex.append((source, dest))
 
@@ -72,6 +75,9 @@ class FakeImportTransaction:
 
     def add_file(self, file):
         print(f"adding file {file} to import transaction")
+
+    def add_files(self, files):
+        print(f"adding files {', '.join(files)} to import transaction")
 
     def move_file_to_annex(self, source, dest):
         self.files_to_move_to_annex.append((source, dest))
