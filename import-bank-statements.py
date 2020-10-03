@@ -113,6 +113,7 @@ def merge_dateranges(dateranges):
 
 def write_include_files(ledger_root, git):
     ledger_name = 'journal.hledger'
+    ledger_files = []
     for(dirpath, dirnames, filenames) in os.walk(ledger_root):
         if dirpath == ledger_root:
             for i in reversed(range(len(dirnames))):
@@ -132,7 +133,8 @@ def write_include_files(ledger_root, git):
             filenames = sorted(f for f in filenames if f.endswith('.hledger'))
             for filename in filenames:
                 print('include', filename, file=f)
-        git.add_file(ledger)
+        ledger_files.append(ledger)
+    git.add_files(ledger_files)
 
 def read_config():
     config = configparser.ConfigParser()
