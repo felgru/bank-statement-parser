@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2019 Felix Gruber <felgru@posteo.net>
+# SPDX-FileCopyrightText: 2019–2020 Felix Gruber <felgru@posteo.net>
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
@@ -10,6 +10,7 @@ from bank_statement import BankStatementMetadata
 from transaction import Balance, Transaction
 
 from ..pdf_parser import PdfParser
+
 
 class BnpParibasPdfParser(PdfParser):
     bank_folder = 'bnp'
@@ -23,7 +24,9 @@ class BnpParibasPdfParser(PdfParser):
             self.account = 'assets:bank:checking:BNP'
             self.end_pattern = re.compile(
                     r"^ *\* Commissions sur services et opérations "
-                    r"bancaires. Total", flags=re.MULTILINE)
+                    r"bancaires. Total|"
+                    r'^\s*[0-9]{12}\n\s+[0-9A-Z]{18}\n',
+                    flags=re.MULTILINE)
         if self.account_type == 'Livret A':
             self.account = 'assets:bank:saving:BNP'
             self.end_pattern = re.compile(
