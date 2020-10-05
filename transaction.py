@@ -172,12 +172,14 @@ class MultiTransaction:
 
 class Posting:
     def __init__(self, account, amount, currency='€',
-                 posting_date=None, comment=None):
+                 posting_date=None, comment=None, *,
+                 conversion_price=None):
         self.account = account
         self.amount = amount
         self.currency = currency
         self.date = posting_date
         self.comment = comment
+        self.conversion_price = conversion_price
 
     def format_as_ledger_transaction(self, transaction_date):
         t = self
@@ -186,6 +188,9 @@ class Posting:
             amount = ''
         else:
             amount = f'{t.amount} {t.currency}'
+            if self.conversion_price is not None:
+                amount += f' @@ {t.conversion_price[0]}' \
+                          f' {t.conversion_price[1]}'
         comments = []
         if t.date is not None and t.date != transaction_date:
             comments.append(f'date:{t.date}')
