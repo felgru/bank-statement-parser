@@ -18,7 +18,7 @@ from xdg_dirs import getXDGdirectories
 class PayPalCsvParser(Parser):
     bank_folder = 'paypal'
     account = 'assets:online:paypal'
-    balancing_account = 'equity:balancing:paypal'
+    balancing_account = 'assets:balancing:paypal'
     file_extension = '.csv'
     cleaning_rules = cleaning_rules.rules
 

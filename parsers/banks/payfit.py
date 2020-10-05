@@ -236,7 +236,7 @@ class PayfitPdfParser:
                       r'VIREMENT *(\d[ \d]*,\d\d)',
                       self.summary_text)
         payment = parse_amount(m.group(3))
-        return Posting('equity:receivable:salary', payment)
+        return Posting('assets:receivable:salary', payment)
 
 def parse_amount(a: str) -> Decimal:
     """ parse a decimal amount like -10,00 """
