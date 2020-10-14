@@ -30,7 +30,8 @@ class BnpParibasPdfParser(PdfParser):
         if self.account_type == 'Livret A':
             self.account = 'assets:bank:saving:BNP'
             self.end_pattern = re.compile(
-                    r"^ *détail *rémunération *en EUR *de ",
+                    r"^ *détail *rémunération *en EUR *de |"
+                    r"^ *Si vous avez une réclamation à formuler,",
                     flags=re.MULTILINE)
         self.debit_start, self.credit_start = self.parse_column_starts()
 
