@@ -97,7 +97,8 @@ class Transaction:
         return (f'Transaction(account={s.account!r}, '
                 f'description={s.description!r}, '
                 f'operation_date={s.operation_date!r}, '
-                f'value_date={s.value_date!r}, amount={s.amount!r}'
+                f'value_date={s.value_date!r}, amount={s.amount!r}, '
+                f'currency={s.currency!r}'
                 f'{ext_account}{ext_date}{meta})')
 
 class MultiTransaction:

@@ -33,7 +33,7 @@ class BankStatement:
                                                  self.old_balance.balance),
                   file=outfile)
         for transaction in self.transactions:
-            print(transaction, file=outfile)
+            print(f'{transaction!r}\n', file=outfile)
         if self.new_balance is not None:
             date = self._format_date(self.new_balance.date)
             print('new balance{}: {} €'.format(date,
