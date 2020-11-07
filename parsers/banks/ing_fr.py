@@ -25,7 +25,7 @@ class IngFrPdfParser(PdfParser):
             self.account = 'assets:bank:checking:ING.fr'
             self.cleaning_rules = cleaning_rules.checkings_rules
         if self.account_type == 'LDD':
-            self.account = 'assets:bank:saving:ING.fr'
+            self.account = 'assets:bank:saving:ING.fr:LDD'
             self.cleaning_rules = cleaning_rules.ldd_rules
         self.debit_start, self.credit_start = self.parse_column_starts()
 
