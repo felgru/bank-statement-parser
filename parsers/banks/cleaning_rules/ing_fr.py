@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 from datetime import date
+from decimal import Decimal
 import re
 
 from transaction_sanitation import TransactionCleanerRule as Rule
@@ -100,8 +101,26 @@ def is_foreign_card_transaction(t):
 
 def format_foreign_card_transaction(t):
     m = foreign_card_pattern.match(t.description)
-    return f'Paiement par carte: {m.group(1)} {m.group(2).upper()}' \
-           f' cours {m.group(3)} {m.group(4)}'
+    foreign_currency = m.group(2).upper()
+    exchange_rate = Decimal(m.group(3))
+    foreign_amount = Decimal(m.group(1).replace(',', '.'))
+    if foreign_currency == t.currency.replace('€', 'EUR'):
+        # Apparently buying in a foreign country in EUR still
+        # formats the transaction as a foreign currency transaction
+        # on the ING.fr bank statement pdf.
+        assert exchange_rate == 1
+        assert foreign_amount == -t.amount
+        description = f'Paiement par carte: {m.group(4)}'
+        metadata = t.metadata
+    else:
+        description = (f'Paiement par carte: {m.group(1)} {foreign_currency}'
+                       f' cours {m.group(3)} {m.group(4)}')
+        metadata = dict(t.metadata,
+                exchange_rate=exchange_rate,
+                foreign_amount=Decimal(m.group(1).replace(',', '.')),
+                foreign_currency=foreign_currency,
+                )
+    return (description, metadata)
 
 checkings_rules = [
         Rule(lambda _: True, lambda t: t.description.title()),
@@ -110,7 +129,8 @@ checkings_rules = [
         Rule(is_sepa_giro_transfer, clean_sepa_giro_transfer),
         Rule(is_card_transaction_with_date, move_date,
              field=('description', 'external_value_date')),
-        Rule(is_foreign_card_transaction, format_foreign_card_transaction),
+        Rule(is_foreign_card_transaction, format_foreign_card_transaction,
+             field=('description', 'metadata')),
         ]
 
 ldd_rules = [
