@@ -6,18 +6,20 @@
 
 import argparse
 import configparser
-from datetime import timedelta
+from datetime import date, timedelta
 import io
 import os
 import sys
+from typing import List, Tuple
 
 from git import BaseGit, FakeGit, Git
-from import_transaction import import_transaction
+from import_transaction import import_transaction, ImportTransactionProtocol
 from parsers.banks import parsers
 from xdg_dirs import getXDGdirectories
 
 
-def import_incoming_statements(dirs, git, import_branch, force, dry_run):
+def import_incoming_statements(dirs, git: BaseGit, import_branch: str,
+                               force: bool, dry_run: bool):
     with import_transaction(git, import_branch, dry_run) as transaction:
         incoming_dir = dirs['incoming']
         import_summary = dict()
@@ -60,10 +62,11 @@ def import_incoming_statements(dirs, git, import_branch, force, dry_run):
                     imported_files.append((f, m.start_date, m.end_date))
                     dateranges.append((m.start_date, m.end_date))
             merge_dateranges(dateranges)
-            dateranges = ', '.join('{} → {}'.format(*d) for d in dateranges)
             if dateranges:
-                print(f'imported {bank} bank statements for {dateranges}')
-                summary = f'{bank}:\n{dateranges}\n\n' \
+                dateranges_disp = ', '.join('{} → {}'.format(*d)
+                                            for d in dateranges)
+                print(f'imported {bank} bank statements for {dateranges_disp}')
+                summary = f'{bank}:\n{dateranges_disp}\n\n' \
                           + '\n'.join('* {1} → {2}: {0}'.format(*im)
                                       for im in imported_files)
                 import_summary[bank] = summary
@@ -75,8 +78,9 @@ def import_incoming_statements(dirs, git, import_branch, force, dry_run):
                                                                .items()))
             transaction.set_commit_message(commit_message)
 
-def parse_and_write_bank_statement(parser, src_file, dest_file,
-                                   import_transaction, force, dry_run):
+def parse_and_write_bank_statement(parser, src_file: str, dest_file: str,
+            import_transaction: ImportTransactionProtocol,
+            force: bool, dry_run: bool) -> bool:
     if os.path.exists(dest_file):
         if force:
             print(f'WARNING: existing {dest_file} will be overwritten',
@@ -104,14 +108,14 @@ def parse_and_write_bank_statement(parser, src_file, dest_file,
     import_transaction.move_file_to_annex(src_file, moved_src)
     return True
 
-def merge_dateranges(dateranges):
+def merge_dateranges(dateranges: List[Tuple[date, date]]) -> None:
     dateranges.sort(key=lambda t: t[0])
     for i in reversed(range(len(dateranges)-1)):
         if 0 <= (dateranges[i+1][0] - dateranges[i][1]).days <= 1:
             dateranges[i] = (dateranges[i][0], dateranges[i+1][1])
             dateranges.pop(i+1)
 
-def write_include_files(ledger_root, git):
+def write_include_files(ledger_root: str, git: BaseGit) -> None:
     ledger_name = 'journal.hledger'
     ledger_files = []
     for(dirpath, dirnames, filenames) in os.walk(ledger_root):
@@ -136,7 +140,7 @@ def write_include_files(ledger_root, git):
         ledger_files.append(ledger)
     git.add_files(ledger_files)
 
-def read_config():
+def read_config() -> configparser.ConfigParser:
     config = configparser.ConfigParser()
     xdg = getXDGdirectories('bank-statement-parser')
     config.read(os.path.join(xdg['config'], 'import.cfg'))
