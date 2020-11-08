@@ -186,7 +186,7 @@ class MultiTransaction(BaseTransaction):
                 f' {s.postings}{meta})')
 
 class Posting:
-    def __init__(self, account: Optional[str], amount: Optional[Decimal],
+    def __init__(self, account: Optional[str], amount: Decimal,
                  currency: str = '€', posting_date: Optional[date] = None,
                  comment: Optional[str] = None, *,
                  conversion_price: Optional[Tuple[Decimal, str]] = None):
