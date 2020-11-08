@@ -8,12 +8,21 @@ from datetime import date, timedelta
 from decimal import Decimal
 import os
 import re
+from typing import cast, DefaultDict, Dict, List, Optional, TypedDict
 
 from .cleaning_rules import paypal as cleaning_rules
 from bank_statement import BankStatement, BankStatementMetadata
 from ..parser import Parser
-from transaction import MultiTransaction, Posting
+from transaction import AnyTransaction, MultiTransaction, Posting
 from xdg_dirs import getXDGdirectories
+
+class PostingDict(TypedDict):
+    type: str
+    account: Optional[str]
+    description: str
+    date: date
+    amount: Decimal
+    currency: str
 
 class PayPalCsvParser(Parser):
     bank_folder = 'paypal'
@@ -22,14 +31,14 @@ class PayPalCsvParser(Parser):
     file_extension = '.csv'
     cleaning_rules = cleaning_rules.rules
 
-    def __init__(self, csv_file):
+    def __init__(self, csv_file: str):
         super().__init__(csv_file)
         self._parse_file(csv_file)
 
-    def _parse_file(self, csv_file):
+    def _parse_file(self, csv_file: str) -> None:
         if not os.path.exists(csv_file):
             raise IOError('Unknown file: {}'.format(csv_file))
-        postings = OrderedDict()
+        postings: OrderedDict[str, List[PostingDict]] = OrderedDict()
         related_postings = defaultdict(list)
         with open(csv_file, newline='', encoding='UTF-8-sig') as f:
             reader = csv.DictReader(f, dialect='unix')
@@ -50,24 +59,28 @@ class PayPalCsvParser(Parser):
                         description = name + ' | ' + description
                     else:
                         description = name
-                posting = dict(
-                    description=description,
-                    date=transaction_date,
-                    amount=-net_amount,
-                    currency=currency,
-                    )
                 type_ = row['Typ']
+                account: Optional[str] = None
+                amount = -net_amount
                 if type_ == 'Allgemeine Währungsumrechnung':
-                    posting['type'] = 'currency_conversion'
-                    posting['amount'] = net_amount
+                    type_ = 'currency_conversion'
+                    amount = net_amount
                 else:
                     if (type_.startswith('Allgemeine Gutschrift')
                             or type_ == 'Bankgutschrift auf PayPal-Konto'):
-                        posting['type'] = 'credit'
-                        posting['account'] = self.balancing_account
+                        type_ = 'credit'
+                        account = self.balancing_account
                     else:
-                        posting['type'] = 'expense'
-                        posting['account'] = None
+                        type_ = 'expense'
+                        account = None
+                posting: PostingDict = dict(
+                    type=type_,
+                    account=account,
+                    description=description,
+                    date=transaction_date,
+                    amount=amount,
+                    currency=currency,
+                    )
                 postings[transaction_code] = [posting]
                 related_transaction = row['Zugehöriger Transaktionscode']
                 if related_transaction != '':
@@ -86,7 +99,7 @@ class PayPalCsvParser(Parser):
         transactions = []
         known_keys = {'credit', 'expense', 'currency_conversion'}
         for posting_list in postings.values():
-            by_type = defaultdict(list)
+            by_type: DefaultDict[str, List[PostingDict]] = defaultdict(list)
             for posting in posting_list:
                 by_type[posting['type']].append(posting)
             assert known_keys.issuperset(by_type.keys())
@@ -133,9 +146,9 @@ class PayPalCsvParser(Parser):
                )
 
     def parse(self) -> BankStatement:
-        transactions = self.transactions
-        #self.check_transactions_consistency(transactions)
-        transactions = self.clean_up_transactions(transactions)
+        #self.check_transactions_consistency(self.transactions)
+        transactions = self.clean_up_transactions(
+                cast(List[AnyTransaction], self.transactions))
         self.map_accounts(transactions)
         return BankStatement(self.account, transactions)
 
