@@ -1,18 +1,24 @@
-# SPDX-FileCopyrightText: 2019 Felix Gruber <felgru@posteo.net>
+# SPDX-FileCopyrightText: 2019–2020 Felix Gruber <felgru@posteo.net>
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
+from datetime import date
 import json
+from typing import List, Optional
+
+from transaction import AnyTransaction, Balance
 
 class BankStatement:
-    def __init__(self, account, transactions,
-                 old_balance=None, new_balance=None):
+    def __init__(self, account: Optional[str],
+                 transactions: List[AnyTransaction],
+                 old_balance: Optional[Balance] = None,
+                 new_balance: Optional[Balance] = None):
         self.account = account
         self.transactions = transactions
         self.old_balance = old_balance
         self.new_balance = new_balance
 
-    def write_ledger(self, outfile):
+    def write_ledger(self, outfile) -> None:
         if self.old_balance is not None:
             date = self._format_date(self.old_balance.date)
             print('; old balance{}: {} €\n'.format(date,
@@ -26,7 +32,7 @@ class BankStatement:
                                                  self.new_balance.balance),
                   file=outfile)
 
-    def write_raw(self, outfile):
+    def write_raw(self, outfile) -> None:
         if self.old_balance is not None:
             date = self._format_date(self.old_balance.date)
             print('old balance{}: {} €\n'.format(date,
@@ -41,18 +47,16 @@ class BankStatement:
                   file=outfile)
 
     @staticmethod
-    def _format_date(d) -> str:
-            if d is not None:
-                d = f' on {d}'
-            else:
-                d = ''
-            return d
+    def _format_date(d: Optional[date]) -> str:
+            return f' on {d}' if d is not None else ''
 
 class BankStatementMetadata:
-    def __init__(self, start_date, end_date,
-                 iban=None, bic=None,
-                 account_owner=None, owner_number=None,
-                 card_number=None, account_number=None,
+    def __init__(self, start_date: date, end_date: date,
+                 iban: Optional[str] = None, bic: Optional[str] = None,
+                 account_owner: Optional[str] = None,
+                 owner_number: Optional[str] = None,
+                 card_number: Optional[str] = None,
+                 account_number: Optional[str] = None,
                  **extra):
         self.account_owner = account_owner
         self.iban = iban
@@ -64,10 +68,10 @@ class BankStatementMetadata:
         self.end_date = end_date
         self.extra = dict(extra)
 
-    def __getattr__(self, key):
+    def __getattr__(self, key: str):
         return self.extra[key]
 
-    def write(self, outfile):
+    def write(self, outfile) -> None:
         print(f'account owner: {self.account_owner}', file=outfile)
         print(f'IBAN: {self.iban}', file=outfile)
         print(f'BIC: {self.bic}', file=outfile)
@@ -79,7 +83,7 @@ class BankStatementMetadata:
         for key, value in sorted(self.extra.items()):
             print(f'{key}: {value}', file=outfile)
 
-    def write_json(self, outfile):
+    def write_json(self, outfile) -> None:
         data = {s: str(getattr(self, s)) for s in [
                 'account_owner', 'iban', 'bic', 'owner_number', 'card_number',
                 'account_number', 'start_date', 'end_date']}

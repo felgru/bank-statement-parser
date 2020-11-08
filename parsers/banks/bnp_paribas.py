@@ -141,13 +141,13 @@ class BnpParibasPdfParser(PdfParser):
             yield Transaction(self.account, description, transaction_date,
                               value_date, amount)
 
-    def parse_short_date(self, d: str) -> date:
+    def parse_short_date(self, d_str: str) -> date:
         """ parse a date in "dd.mm" format
 
         The result has to lie between start_date and end_date
         """
-        day = int(d[:2])
-        month = int(d[3:5])
+        day = int(d_str[:2])
+        month = int(d_str[3:5])
         start_date = self.old_balance.date
         end_date = self.new_balance.date
         year = start_date.year
@@ -158,8 +158,8 @@ class BnpParibasPdfParser(PdfParser):
         return d
 
 def parse_verbose_date(d: str) -> date:
-    day, month, year = d.split()
-    day = int(day)
+    day_, month_, year_ = d.split()
+    day = int(day_)
     month = {'janvier': 1,
              'février': 2,
              'mars': 3,
@@ -171,8 +171,8 @@ def parse_verbose_date(d: str) -> date:
              'septembre': 9,
              'octobre': 10,
              'novembre': 11,
-             'décembre': 12}[month]
-    year = int(year)
+             'décembre': 12}[month_]
+    year = int(year_)
     return date(year, month, day)
 
 def parse_date(d: str) -> date:

@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2019 Felix Gruber <felgru@posteo.net>
+# SPDX-FileCopyrightText: 2019–2020 Felix Gruber <felgru@posteo.net>
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
@@ -244,8 +244,8 @@ def parse_amount(a: str) -> Decimal:
     return Decimal(a)
 
 def parse_verbose_date(d: str) -> date:
-    day, month, year = d.split()
-    day = int(day)
+    day_, month_, year_ = d.split()
+    day = int(day_)
     month = {'JANVIER': 1,
              'FÉVRIER': 2,
              'MARS': 3,
@@ -257,6 +257,6 @@ def parse_verbose_date(d: str) -> date:
              'SEPTEMBRE': 9,
              'OCTOBRE': 10,
              'NOVEMBRE': 11,
-             'DÉCEMBRE': 12}[month]
-    year = int(year)
+             'DÉCEMBRE': 12}[month_]
+    year = int(year_)
     return date(year, month, day)

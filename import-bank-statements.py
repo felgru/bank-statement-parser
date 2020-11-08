@@ -11,7 +11,7 @@ import io
 import os
 import sys
 
-from git import FakeGit, Git
+from git import BaseGit, FakeGit, Git
 from import_transaction import import_transaction
 from parsers.banks import parsers
 from xdg_dirs import getXDGdirectories
@@ -181,6 +181,7 @@ if __name__ == '__main__':
     config = read_config()
     # change working directory for git status to work correctly
     os.chdir(config['dirs']['ledgers'])
+    git: BaseGit
     if 'git' in config:
         git = Git(config['dirs']['ledgers'], config['git']['git_dir'])
         import_branch = config['git']['import_branch']

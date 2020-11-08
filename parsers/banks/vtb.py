@@ -170,11 +170,11 @@ class VTB2019PdfParser(PdfParser):
         while the suffix S indicates negative ones (Soll).
         """
         a = a.replace('.', '').replace(',', '.')
-        a = Decimal(a)
+        amount = Decimal(a)
         if dir == 'H':
-            return a
+            return amount
         elif dir == 'S':
-            return -a
+            return -amount
         else:
             raise RuntimeError(f"Unknown argument {dir!r} instead of"
                                " H(aben) or S(oll).")
