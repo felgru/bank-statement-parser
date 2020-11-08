@@ -12,7 +12,7 @@ from typing import Iterable, List, Union
 from account_mapping import AccountMapper
 from bank_statement import BankStatement, BankStatementMetadata
 from .parser import Parser
-from transaction import Balance, MultiTransaction, Transaction
+from transaction import AnyTransaction, Balance, MultiTransaction, Transaction
 from transaction_sanitation import TransactionCleaner
 from xdg_dirs import getXDGdirectories
 
@@ -68,10 +68,11 @@ class PdfParser(Parser, metaclass=ABCMeta):
 
     @abstractmethod
     def generate_transactions(self, start: int, end: int) \
-                                    -> Iterable[Transaction]: pass
+                                    -> Iterable[AnyTransaction]: pass
 
     def check_transactions_consistency(self,
-                                       transactions: List[Transaction]) -> None:
+                                       transactions: List[AnyTransaction]) \
+                                                                    -> None:
         assert self.old_balance.balance \
                + self.total_credit - self.total_debit \
                 == self.new_balance.balance

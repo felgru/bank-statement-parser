@@ -7,9 +7,11 @@ from decimal import Decimal
 import os
 import re
 import subprocess
+from typing import cast, Iterator, List
 
 from bank_statement import BankStatement, BankStatementMetadata
-from transaction import Balance, MultiTransaction, Posting, Transaction
+from transaction import (AnyTransaction, Balance,
+                         MultiTransaction, Posting, Transaction)
 
 from ..parser import Parser
 from ..pdf_parser import PdfParser
@@ -18,12 +20,12 @@ class VTBPdfParser(Parser):
     bank_folder = 'vtb'
     file_extension = '.pdf'
 
-    def __init__(self, pdf_file):
+    def __init__(self, pdf_file: str):
         super().__init__(pdf_file)
         self._parse_file(pdf_file)
         self.parser = self._choose_parser()
 
-    def _parse_file(self, pdf_file):
+    def _parse_file(self, pdf_file: str):
         if not os.path.exists(pdf_file):
             raise IOError('Unknown file: {}'.format(pdf_file))
         # pdftotext is provided by Poppler on Debian
@@ -51,11 +53,14 @@ class VTBPdfParser(Parser):
     def parse(self) -> BankStatement:
         return self.parser.parse()
 
+class VTB2019PdfParserError(RuntimeError): pass
+
 class VTB2019PdfParser(PdfParser):
     # Do not define bank_folder, so that it is not registered as a Parser by
     # the Parsers class. Instead it should only be used through the
     # VTBPdfParser class.
     account = 'assets:bank:saving:VTB Direktbank'
+    ParserError = VTB2019PdfParserError
 
     def __init__(self, xdg, pdf_pages):
         self.xdg = xdg
@@ -69,24 +74,36 @@ class VTB2019PdfParser(PdfParser):
     table_heading = re.compile(r'^ *Bu-Tag *Wert *(Vorgang)\n*',
                                flags=re.MULTILINE)
 
-    def _parse_description_start(self):
+    def _parse_description_start(self) -> None:
         m = self.table_heading.search(self.pdf_pages[0])
+        if m is None:
+            raise self.ParserError('Could not find table heading.')
         self.description_start = m.start(1) - m.start()
 
-    def parse_metadata(self):
+    def parse_metadata(self) -> BankStatementMetadata:
         return self.metadata
 
-    def _parse_metadata(self):
+    def _parse_metadata(self) -> None:
         m = re.search(r'EUR-Konto +Kontonummer +(\d+)\n', self.pdf_pages[0])
+        if m is None:
+            raise self.ParserError('Could not find account number.')
         account_number = m.group(1)
         m = re.search(r'IBAN: +(DE[\d ]+?)\n', self.pdf_pages[0])
+        if m is None:
+            raise self.ParserError('Could not find IBAN.')
         iban = m.group(1)
         m = re.search(r'BIC: +([A-Z\d]+)\n', self.pdf_pages[0])
+        if m is None:
+            raise self.ParserError('Could not find BIC.')
         bic = m.group(1)
         m = re.search(r'erstellt am (\d{2}.\d{2}.\d{4})', self.pdf_pages[0])
+        if m is None:
+            raise self.ParserError('Could not find creation date.')
         end_date = parse_date_with_year(m.group(1))
         m = re.search(r'alter Kontostand vom (\d{2}.\d{2}.\d{4})',
                       self.pdf_pages[0])
+        if m is None:
+            raise self.ParserError('Could not find start date.')
         start_date = parse_date_with_year(m.group(1))
         meta = BankStatementMetadata(
                 start_date=start_date,
@@ -97,13 +114,13 @@ class VTB2019PdfParser(PdfParser):
                )
         self.metadata = meta
 
-    def extract_transactions_table(self):
+    def extract_transactions_table(self) -> str:
         self.footer_start_pattern = re.compile(
                 '\n*^( {{1,{}}})[^ \d]'.format(self.description_start - 1),
                 flags=re.MULTILINE)
         return ''.join(self.extract_table_from_page(p) for p in self.pdf_pages)
 
-    def extract_table_from_page(self, page):
+    def extract_table_from_page(self, page: str) -> str:
         m = self.table_heading.search(page)
         if m is None:
             return ''
@@ -116,16 +133,20 @@ class VTB2019PdfParser(PdfParser):
             page = page[table_start:]
         return page
 
-    def parse_balances(self):
+    def parse_balances(self) -> None:
         m = re.search(r'alter Kontostand vom (\d{2}.\d{2}.\d{4})'
                       r' +(\d[.\d]*,\d\d) +([HS])\n',
                       self.transactions_text)
+        if m is None:
+            raise self.ParserError('Could not find old balance.')
         self.transactions_start = m.end()
         self.old_balance = Balance(self.parse_amount(m.group(2), m.group(3)),
                                    parse_date_with_year(m.group(1)))
         m = re.search(r'neuer Kontostand vom (\d{2}.\d{2}.\d{4})'
                       r' +(\d[.\d]*,\d\d) +([HS])\n',
                       self.transactions_text)
+        if m is None:
+            raise self.ParserError('Could not find new balance.')
         self.transactions_end = m.start()
         self.new_balance = Balance(self.parse_amount(m.group(2), m.group(3)),
                                    parse_date_with_year(m.group(1)))
@@ -135,7 +156,7 @@ class VTB2019PdfParser(PdfParser):
             r'(\d[.\d]*,\d\d) +([HS])\n*',
             flags=re.MULTILINE)
 
-    def generate_transactions(self, start, end):
+    def generate_transactions(self, start: int, end: int) -> Iterator[Transaction]:
         while True:
             m = self.transaction_pattern.search(self.transactions_text,
                                                 start, end)
@@ -151,12 +172,14 @@ class VTB2019PdfParser(PdfParser):
                 if m is None: break
                 description.append(m.group(1))
                 start = m.end()
-            description = ' '.join(l for l in description)
-            yield Transaction(self.account, description, transaction_date,
-                              value_date, amount)
+            yield Transaction(self.account, ' '.join(description),
+                              transaction_date, value_date, amount)
 
-    def check_transactions_consistency(self, transactions):
-        assert self.old_balance.balance + sum(t.amount for t in transactions) \
+    def check_transactions_consistency(self,
+                                       transactions: List[AnyTransaction]) \
+                                                                    -> None:
+        assert self.old_balance.balance \
+               + sum(cast(Transaction, t).amount for t in transactions) \
                == self.new_balance.balance
 
     def parse_short_date(self, d: str) -> date:
@@ -179,13 +202,16 @@ class VTB2019PdfParser(PdfParser):
             raise RuntimeError(f"Unknown argument {dir!r} instead of"
                                " H(aben) or S(oll).")
 
+class VTB2014PdfParserError(RuntimeError): pass
+
 class VTB2014PdfParser(PdfParser):
     # Do not define bank_folder, so that it is not registered as a Parser by
     # the Parsers class. Instead it should only be used through the
     # VTBPdfParser class.
     account = 'assets:bank:saving:VTB Direktbank'
+    ParserError = VTB2014PdfParserError
 
-    def __init__(self, xdg, pdf_pages):
+    def __init__(self, xdg, pdf_pages: List[str]):
         self.xdg = xdg
         self.pdf_pages = pdf_pages
         self._parse_metadata()
@@ -197,25 +223,35 @@ class VTB2014PdfParser(PdfParser):
     table_heading = re.compile(r'^( *_+\n) *DATUM *(BUCHUNGSVORGANG) *(SOLL) *(HABEN)\n*',
                                flags=re.MULTILINE)
 
-    def _parse_description_start(self):
+    def _parse_description_start(self) -> None:
         m = self.table_heading.search(self.pdf_pages[0])
+        if m is None:
+            raise self.ParserError('Could not find table heading.')
         self.row_divider = m.group(1)
         self.description_start = m.start(2) - m.end(1)
 
-    def parse_metadata(self):
+    def parse_metadata(self) -> BankStatementMetadata:
         return self.metadata
 
-    def _parse_metadata(self):
+    def _parse_metadata(self) -> None:
         m = re.search(r'Kontonummer: +([\d ]+)\n', self.pdf_pages[0])
+        if m is None:
+            raise self.ParserError('Could not find account number.')
         account_number = ''.join(m.group(1).split())
         m = re.search(r'IBAN: +(DE[\d ]+?)\n', self.pdf_pages[0])
+        if m is None:
+            raise self.ParserError('Could not find IBAN.')
         iban = m.group(1)
         m = re.search(r'BIC: +([A-Z\d]+)\n', self.pdf_pages[0])
+        if m is None:
+            raise self.ParserError('Could not find BIC.')
         bic = m.group(1)
         m = re.search(r' *_+\n +IHR KONTOSTAND AUF EINEN BLICK\n *_+\n'
                       r' *alt \((\d{2}.\d{2}.\d{4})\) *(\d+,\d\d[+-])\n'
                       r' *neu \((\d{2}.\d{2}.\d{4})\) *(\d+,\d\d[+-])\n',
                       self.pdf_pages[0])
+        if m is None:
+            raise self.ParserError('Could not find balances.')
         start_date = parse_date_with_year(m.group(1))
         self.old_balance = Balance(self.parse_amount(m.group(2)),
                                    start_date)
@@ -231,12 +267,12 @@ class VTB2014PdfParser(PdfParser):
                )
         self.metadata = meta
 
-    def extract_transactions_table(self):
+    def extract_transactions_table(self) -> str:
         self.row_divider_pattern = re.compile('^' + self.row_divider,
                                               flags=re.MULTILINE)
         return ''.join(self.extract_table_from_page(p) for p in self.pdf_pages)
 
-    def extract_table_from_page(self, page):
+    def extract_table_from_page(self, page: str) -> str:
         m = self.table_heading.search(page)
         if m is None:
             return ''
@@ -245,16 +281,20 @@ class VTB2014PdfParser(PdfParser):
             table_end = m.end()
         return page[table_start:table_end]
 
-    def parse_balances(self):
+    def parse_balances(self) -> None:
         m = re.search(r'ALTER KONTOSTAND VOM (\d{2}.\d{2}.\d{4}) IN EUR'
                       r' +(\d[.\d]*,\d\d[+-])\n',
                       self.transactions_text)
+        if m is None:
+            raise self.ParserError('Could not find old balance.')
         self.transactions_start = m.end()
         assert self.parse_amount(m.group(2)) == self.old_balance.balance
         m = re.search(r' +GESAMTUMSATZ +(\d[.\d]*,\d\d[+-])\n'
                       r' +NEUER KONTOSTAND VOM (\d{2}.\d{2}.\d{4}) IN EUR'
                       r' +(\d[.\d]*,\d\d[+-])\n',
                       self.transactions_text)
+        if m is None:
+            raise self.ParserError('Could not find new balance.')
         self.transactions_end = m.start()
         assert self.parse_amount(m.group(3)) == self.new_balance.balance
         self.transactions_sum = self.parse_amount(m.group(1))
@@ -266,7 +306,8 @@ class VTB2014PdfParser(PdfParser):
             r'(\d[.\d]*,\d\d[+-])\n',
             flags=re.MULTILINE)
 
-    def generate_transactions(self, start, end):
+    def generate_transactions(self, start: int, end: int) \
+                                            -> Iterator[AnyTransaction]:
         while True:
             m = self.transaction_pattern.search(self.transactions_text,
                                                 start, end)
@@ -279,14 +320,14 @@ class VTB2014PdfParser(PdfParser):
             transaction_type = m.group(4)
             amount = self.parse_amount(m.group(5))
             start = m.end()
-            description = []
+            description_lines = []
             while True:
                 m = self.transaction_description_pattern.match(
                                 self.transactions_text, start, end)
                 if m is None: break
-                description.append(m.group(1))
+                description_lines.append(m.group(1))
                 start = m.end()
-            description = ' '.join(l for l in description)
+            description = ' '.join(description_lines)
             if transaction_type == 'Zinsen/Kontoführung':
                 yield self._parse_balance(description, transaction_date,
                                           value_date, amount)
@@ -296,16 +337,18 @@ class VTB2014PdfParser(PdfParser):
                                   metadata=dict(type=transaction_type))
 
     def _parse_balance(self, description: str, transaction_date: date,
-                       value_date: date, amount: Decimal):
+                       value_date: date, amount: Decimal) -> MultiTransaction:
         t = MultiTransaction(description, transaction_date,
                              metadata={'type': 'Zinsen/Kontoführung'})
         t.add_posting(Posting(self.account, amount,
                               posting_date=value_date))
         m = re.search('R E C H N U N G S A B S C H L U S S\n'
                       ' *\(siehe Rückseite\)\n', self.pdf_pages[1])
+        assert m is not None, 'Start of interests and fees not found.'
         start = m.end()
         m = re.search('Summe Zinsen/Kontoführung +EUR +(\d[.\d]*,\d\d[+-])',
                       self.pdf_pages[1][start:])
+        assert m is not None, 'Sum of interests and fees not found.'
         assert(self.parse_amount(m.group(1)) == amount)
         end = start + m.start()
         for m in re.finditer(' *(.* Habenzinsen) +(\d[.\d]*,\d\d[+-])\n',
@@ -320,11 +363,14 @@ class VTB2014PdfParser(PdfParser):
         assert(t.is_balanced())
         return t
 
-    def check_transactions_consistency(self, transactions):
-        sum = 0
+    def check_transactions_consistency(self,
+                                       transactions: List[AnyTransaction]) \
+                                                                    -> None:
+        sum = Decimal(0)
         for t in transactions:
-            amount = getattr(t, 'amount', None)
-            if amount is None:
+            if isinstance(t, Transaction):
+                amount = t.amount
+            else:
                 amount = t.postings[0].amount
             sum += amount
         assert sum == self.transactions_sum
@@ -339,13 +385,16 @@ class VTB2014PdfParser(PdfParser):
         a = a[-1] + a[:-1]
         return Decimal(a)
 
+class VTB2012PdfParserError(RuntimeError): pass
+
 class VTB2012PdfParser(PdfParser):
     # Do not define bank_folder, so that it is not registered as a Parser by
     # the Parsers class. Instead it should only be used through the
     # VTBPdfParser class.
     account = 'assets:bank:saving:VTB Direktbank'
+    ParserError = VTB2012PdfParserError
 
-    def __init__(self, xdg, pdf_pages):
+    def __init__(self, xdg, pdf_pages: List[str]):
         self.xdg = xdg
         self.pdf_pages = pdf_pages
         self._parse_description_start()
@@ -354,7 +403,7 @@ class VTB2012PdfParser(PdfParser):
                 '^' + ' ' * self.description_start + ' *(\S.*)\n*',
                 flags=re.MULTILINE)
 
-    def _parse_description_start(self):
+    def _parse_description_start(self) -> None:
         self.table_heading = re.compile(
                 r'^ *BU-TAG *(VORGANG) *letzter Auszug vom'
                 r' (\d{2}.\d{2}.\d{2}) *SALDO ALT *EUR *'
@@ -367,31 +416,43 @@ class VTB2012PdfParser(PdfParser):
         else:
             m = re.search(r' erstellt am +(\d{2}.\d{2}.\d{2})',
                           self.pdf_pages[0])
+            if m is None:
+                raise self.ParserError('Could not find end date.')
             end_date = parse_date_with_year(m.group(1))
             self.table_heading = re.compile(
                     r'^ *BU-TAG *(VORGANG) *SALDO ALT *EUR *'
                     r'(\d[.\d]*,\d\d[+-])\n *_+\n',
                     flags=re.MULTILINE)
             m = self.table_heading.search(self.pdf_pages[0])
+            if m is None:
+                raise self.ParserError('Could not find old balance.')
             self.old_balance = Balance(self.parse_amount(m.group(2)),
                                        end_date.replace(day=1))
         self.description_start = m.start(1) - m.start()
 
-    def parse_metadata(self):
+    def parse_metadata(self) -> BankStatementMetadata:
         return self.metadata
 
-    def _parse_metadata(self):
+    def _parse_metadata(self) -> None:
         m = re.search(r'BIC +([A-Z\d]+)\n', self.pdf_pages[0])
+        if m is None:
+            raise self.ParserError('Could not find BIC.')
         bic = m.group(1)
         m = re.search(r'IBAN +(DE[\d ]+?)\n', self.pdf_pages[0])
+        if m is None:
+            raise self.ParserError('Could not find IBAN.')
         iban = m.group(1)
         m = re.search(r'Kontonummer +([\d ]+)\n', self.pdf_pages[0])
+        if m is None:
+            raise self.ParserError('Could not find account number.')
         account_number = ''.join(m.group(1).split())
         m = re.search(r'Auszug +\d+ +Blatt +\d+\n * vom +(\d{2}.\d{2}.\d{2})',
                       self.pdf_pages[0])
         if m is None:
             m = re.search(r' erstellt am +(\d{2}.\d{2}.\d{2})',
                           self.pdf_pages[0])
+            if m is None:
+                raise self.ParserError('Could not find end date.')
         end_date = parse_date_with_year(m.group(1))
         start_date = self.old_balance.date
         meta = BankStatementMetadata(
@@ -403,15 +464,19 @@ class VTB2012PdfParser(PdfParser):
                )
         self.metadata = meta
 
-    def extract_transactions_table(self):
+    def extract_transactions_table(self) -> str:
         # Let's assume everything is on page 1 until I find a document
         # that proves otherwise.
         return self.extract_table_from_page(self.pdf_pages[0])
 
-    def extract_table_from_page(self, page):
+    def extract_table_from_page(self, page: str) -> str:
         m = self.table_heading.search(page)
+        if m is None:
+            raise self.ParserError('Could not find table start.')
         table_start = m.end()
         m = re.search(r' *_+\n +SALDO NEU +EUR +(\d[.\d]*,\d\d[+-])\n', page)
+        if m is None:
+            raise self.ParserError('Could not find new balance.')
         self.new_balance = Balance(self.parse_amount(m.group(1)),
                                    self.metadata.end_date)
         table_end = m.start()
@@ -420,7 +485,7 @@ class VTB2012PdfParser(PdfParser):
         self.transactions_end = len(page)
         return page
 
-    def parse_balances(self):
+    def parse_balances(self) -> None:
         pass
 
     transaction_pattern = re.compile(
@@ -428,7 +493,8 @@ class VTB2012PdfParser(PdfParser):
             r'(\d[.\d]*,\d\d[+-])\n',
             flags=re.MULTILINE)
 
-    def generate_transactions(self, start, end):
+    def generate_transactions(self, start: int, end: int) \
+                                        -> Iterator[AnyTransaction]:
         while True:
             m = self.transaction_pattern.search(self.transactions_text,
                                                 start, end)
@@ -441,16 +507,16 @@ class VTB2012PdfParser(PdfParser):
             transaction_type = m.group(4)
             amount = self.parse_amount(m.group(5))
             start = m.end()
-            description = []
+            description_lines = []
             while True:
                 m = self.transaction_description_pattern.match(
                                 self.transactions_text, start, end)
                 if m is None: break
-                description.append(m.group(1))
+                description_lines.append(m.group(1))
                 start = m.end()
-            if description:
+            if description_lines:
                 description = transaction_type + ' | ' \
-                            + ' '.join(l for l in description)
+                            + ' '.join(description_lines)
             else:
                 description = transaction_type
             if transaction_type == 'Zinsen/Kontoführung':
@@ -462,16 +528,18 @@ class VTB2012PdfParser(PdfParser):
                                   metadata=dict(type=transaction_type))
 
     def _parse_balance(self, description: str, transaction_date: date,
-                       value_date: date, amount: Decimal):
+                       value_date: date, amount: Decimal) -> MultiTransaction:
         t = MultiTransaction(description, transaction_date,
                              metadata={'type': 'Zinsen/Kontoführung'})
         t.add_posting(Posting(self.account, amount,
                               posting_date=value_date))
         m = re.search('R E C H N U N G S A B S C H L U S S'
                       ' *\(siehe Rückseite\)\n', self.pdf_pages[1])
+        assert m is not None, 'Start of interests and fees not found.'
         start = m.end()
         m = re.search('Summe Zinsen/Kontoführung +EUR +(\d[.\d]*,\d\d[+-])',
                       self.pdf_pages[1][start:])
+        assert m is not None, 'Sum of interests and fees not found.'
         assert(self.parse_amount(m.group(1)) == amount)
         end = start + m.start()
         for m in re.finditer(r' *(.* Habenzinsen) +(\d+ ZZ|) +'
@@ -487,11 +555,13 @@ class VTB2012PdfParser(PdfParser):
         assert(t.is_balanced())
         return t
 
-    def check_transactions_consistency(self, transactions):
+    def check_transactions_consistency(self,
+            transactions: List[AnyTransaction]) -> None:
         sum = self.old_balance.balance
         for t in transactions:
-            amount = getattr(t, 'amount', None)
-            if amount is None:
+            if isinstance(t, Transaction):
+                amount = t.amount
+            else:
                 amount = t.postings[0].amount
             sum += amount
         assert sum == self.new_balance.balance
@@ -518,10 +588,10 @@ def parse_date_with_year(d: str) -> date:
         year += 2000
     return date(year, month, day)
 
-def parse_date_relative_to(d, ref_d):
+def parse_date_relative_to(s: str, ref_d: date) -> date:
     """parse a date in "dd.mm." format while guessing year relative to date ref_d"""
-    day = int(d[:2])
-    month = int(d[3:5])
+    day = int(s[:2])
+    month = int(s[3:5])
     year = ref_d.year
     d = date(year, month, day)
     half_a_year = timedelta(days=356/2)

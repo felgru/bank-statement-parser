@@ -231,6 +231,6 @@ class Posting:
         return (f'Posting({s.account!r}, {s.amount!r}, {s.currency!r}'
                 f'{date}{comment})')
 
-AnyTransaction = TypeVar('AnyTransaction', Transaction, MultiTransaction)
+AnyTransaction = Union[Transaction, MultiTransaction]
 
 Balance = namedtuple('Balance', 'balance date')
