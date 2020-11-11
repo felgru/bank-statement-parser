@@ -26,9 +26,16 @@ class IngFrPdfParser(PdfParser):
             self.account_type = 'Compte Courant'
             self.account = 'assets:bank:checking:ING.fr'
             self.cleaning_rules = cleaning_rules.checkings_rules
-        if self.account_type == 'LDD':
+        elif self.account_type == 'LIVRET A':
+            self.account_type = 'Livret A'
+            self.account = 'assets:bank:saving:ING.fr:Livret A'
+            self.cleaning_rules = cleaning_rules.savings_rules
+        elif self.account_type == 'LDD':
             self.account = 'assets:bank:saving:ING.fr:LDD'
-            self.cleaning_rules = cleaning_rules.ldd_rules
+            self.cleaning_rules = cleaning_rules.savings_rules
+        else:
+            raise RuntimeError(
+                    f'unknown ING.fr account type: {self.account_type}')
         self.debit_start, self.credit_start = self.parse_column_starts()
 
     table_heading = re.compile(r"^\s*Date de\s*Date de\s*Nature de l'opération\s*"
@@ -82,12 +89,14 @@ class IngFrPdfParser(PdfParser):
             owner_number = m.group(1)
             card_number = m.group(2)
             account_number = m.group(3)
-        elif self.account_type == 'LDD':
+        elif self.account_type in ('Livret A', 'LDD'):
+            account_type = 'livret A' if self.account_type == 'Livret A' \
+                          else self.account_type
             m = re.search(r'N° Client Titulaire 1 : (\d+)\s*'
                           r'Total des intérêts (acquis|payés)'
                           r' au (\d{2}/\d{2}/\d{4}) : +([0-9,]+) *€\s*'
-                          r'N° du LDD : (\d+)\s*'
-                          r'Taux en vigueur au (\d{2}/\d{2}/\d{4}) \* : (\d+,\d\d) %',
+                          f'N° du {account_type} : ' r'(\d+)\s*'
+                          r'Taux en vigueur au (\d{2}/\d{2}/\d{4}) ?\* : (\d+,\d\d) %',
                           self.pdf_pages[0])
             assert m is not None, 'Account number not found.'
             owner_number = m.group(1)
@@ -167,7 +176,7 @@ class IngFrPdfParser(PdfParser):
                                             -> Iterator[AnyTransaction]:
         if self.account_type == 'Compte Courant':
             yield from self.generate_transactions_compte_courant(start, end)
-        elif self.account_type == 'LDD':
+        elif self.account_type in ('Livret A', 'LDD'):
             yield from self.generate_transactions_ldd(start, end)
 
     def generate_transactions_compte_courant(self, start: int, end: int) \

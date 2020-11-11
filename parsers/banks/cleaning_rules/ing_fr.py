@@ -13,6 +13,8 @@ def parse_transaction_type(t):
         return dict(type='INTERET')
     elif t.description.startswith('VIREMENT '):
         return dict(type='VIREMENT INTERNE')
+    elif t.description.startswith('REMISE DE CHÈQUE(S)'):
+        return dict(type='REMISE DE CHEQUES')
     else:
         raise RuntimeError('Unable to guess transaction type of:', t.description)
 
@@ -133,7 +135,7 @@ checkings_rules = [
              field=('description', 'metadata')),
         ]
 
-ldd_rules = [
+savings_rules = [
         Rule(lambda _: True, parse_transaction_type, field=('metadata')),
         Rule(lambda _: True, lambda t: t.description.title()),
         Rule(is_sepa_giro_transfer, clean_sepa_giro_transfer),
