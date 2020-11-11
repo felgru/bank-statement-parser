@@ -4,7 +4,7 @@
 
 from datetime import date
 import json
-from typing import List, Optional
+from typing import List, Optional, TextIO
 
 from transaction import AnyTransaction, Balance
 
@@ -18,7 +18,7 @@ class BankStatement:
         self.old_balance = old_balance
         self.new_balance = new_balance
 
-    def write_ledger(self, outfile) -> None:
+    def write_ledger(self, outfile: TextIO) -> None:
         if self.old_balance is not None:
             date = self._format_date(self.old_balance.date)
             print('; old balance{}: {} €\n'.format(date,
@@ -32,7 +32,7 @@ class BankStatement:
                                                  self.new_balance.balance),
                   file=outfile)
 
-    def write_raw(self, outfile) -> None:
+    def write_raw(self, outfile: TextIO) -> None:
         if self.old_balance is not None:
             date = self._format_date(self.old_balance.date)
             print('old balance{}: {} €\n'.format(date,
@@ -71,7 +71,7 @@ class BankStatementMetadata:
     def __getattr__(self, key: str):
         return self.extra[key]
 
-    def write(self, outfile) -> None:
+    def write(self, outfile: TextIO) -> None:
         print(f'account owner: {self.account_owner}', file=outfile)
         print(f'IBAN: {self.iban}', file=outfile)
         print(f'BIC: {self.bic}', file=outfile)
@@ -83,7 +83,7 @@ class BankStatementMetadata:
         for key, value in sorted(self.extra.items()):
             print(f'{key}: {value}', file=outfile)
 
-    def write_json(self, outfile) -> None:
+    def write_json(self, outfile: TextIO) -> None:
         data = {s: str(getattr(self, s)) for s in [
                 'account_owner', 'iban', 'bic', 'owner_number', 'card_number',
                 'account_number', 'start_date', 'end_date']}
