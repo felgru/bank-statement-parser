@@ -1,11 +1,11 @@
-# SPDX-FileCopyrightText: 2019 Felix Gruber <felgru@posteo.net>
+# SPDX-FileCopyrightText: 2019–2020 Felix Gruber <felgru@posteo.net>
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import os
-from typing import Union
+from typing import Any, Callable, Tuple, Union
 
-from transaction import MultiTransaction, Transaction
+from transaction import AnyTransaction, BaseTransaction, MultiTransaction, Transaction
 
 class TransactionCleaner:
     def __init__(self, xdg_dirs, builtin_rules=None):
@@ -34,34 +34,33 @@ class TransactionCleaner:
                     raise Error(f'{self.conf_file} didn\'t contain any rules.')
                 self.rules = parse_globals['rules']
 
-    def clean(self, transaction: Union[Transaction, MultiTransaction]) \
-                                    -> Union[Transaction, MultiTransaction]:
+    def clean(self, transaction: AnyTransaction) -> AnyTransaction:
         for r in self.rules:
             if r.applies_to(transaction):
                 transaction = r.clean(transaction)
         return transaction
 
 class TransactionCleanerRule:
-    def __init__(self, condition, cleaner, field='description'):
-        self.condition = condition
-        self.cleaner = cleaner
+    def __init__(self, condition: Callable[[BaseTransaction], bool],
+                 cleaner: Callable[[BaseTransaction], Any],
+                 field: Union[str, Tuple[str, ...]] = 'description'):
+        self.condition: Callable[[BaseTransaction], bool] = condition
+        self.cleaner: Callable[[BaseTransaction], Any] = cleaner
         self.field = field
 
-    def applies_to(self, transaction: Union[Transaction, MultiTransaction]) \
-                                                                    -> bool:
+    def applies_to(self, transaction: BaseTransaction) -> bool:
         return self.condition(transaction)
 
-    def clean(self, t: Union[Transaction, MultiTransaction]) \
-                                    -> Union[Transaction, MultiTransaction]:
+    def clean(self, t: BaseTransaction) -> BaseTransaction:
         return t.change_property(self.field, self.cleaner)
 
 class ToMultiTransactionRule:
-    def __init__(self, condition, cleaner):
+    def __init__(self, condition: Callable[[Transaction], bool],
+                 cleaner: Callable[[Transaction], MultiTransaction]):
         self.condition = condition
         self.cleaner = cleaner
 
-    def applies_to(self, transaction: Union[Transaction, MultiTransaction]) \
-                                                                    -> bool:
+    def applies_to(self, transaction: AnyTransaction) -> bool:
         return (isinstance(transaction, Transaction)
                 and self.condition(transaction))
 

@@ -2,15 +2,44 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
+from abc import ABCMeta, abstractmethod
 from copy import copy
 from collections import defaultdict, namedtuple
+from datetime import date
 from decimal import Decimal
+from typing import (Any, DefaultDict, Dict, Iterable, List, Optional,
+                    Tuple, TypeVar, Union)
 
-class Transaction:
-    def __init__(self, account, description,
-                 operation_date, value_date, amount, currency='€',
-                 external_account=None, external_value_date=None,
-                 metadata=None):
+class BaseTransaction(metaclass=ABCMeta):
+    description: str
+    operation_date: date
+    metadata: Dict[str, Any]
+
+    @abstractmethod
+    def change_property(self, prop: Union[str, Iterable[str]], f) \
+                                            -> 'BaseTransaction': pass
+
+    @abstractmethod
+    def format_as_ledger_transaction(self) -> str: pass
+
+    @abstractmethod
+    def __repr__(self) -> str: pass
+
+    @property
+    def type(self):
+        try:
+            return self.metadata['type']
+        except KeyError:
+            raise AttributeError("'{}' object has no attribute 'type'"
+                                 .format(self.__class__.__name__))
+
+class Transaction(BaseTransaction):
+    def __init__(self, account: str, description: str,
+                 operation_date: date, value_date: Optional[date],
+                 amount: Decimal, currency: str = '€',
+                 external_account: Optional[str] = None,
+                 external_value_date: Optional[date] = None,
+                 metadata: Optional[Dict[str, Any]] = None):
         self.account = account
         self.description = description
         self.operation_date = operation_date
@@ -23,30 +52,22 @@ class Transaction:
             metadata = {}
         self.metadata = metadata
 
-    def change_property(self, prop, f):
+    def change_property(self, prop: Union[str, Iterable[str]], f):
         res = copy(self)
         const_properties = ('amount', 'currency', 'sub_total')
         if isinstance(prop, str):
             if prop in const_properties:
-                raise Error(f'Cannot change {prop} of a transaction')
+                raise RuntimeError(f'Cannot change {prop} of a transaction')
             setattr(res, prop, f(self))
         else:
             new_vals = f(self)
             for p, v in zip(prop, new_vals):
                 if prop in const_properties:
-                    raise Error(f'Cannot change {prop} of a transaction')
+                    raise RuntimeError(f'Cannot change {prop} of a transaction')
                 setattr(res, p, v)
         return res
 
-    @property
-    def type(self):
-        try:
-            return self.metadata['type']
-        except KeyError:
-            raise AttributeError("'{}' object has no attribute 'type'"
-                                 .format(self.__class__.__name__))
-
-    def to_multi_transaction(self):
+    def to_multi_transaction(self) -> 'MultiTransaction':
         mt = MultiTransaction(description=self.description,
                               transaction_date=self.operation_date,
                               metadata=self.metadata)
@@ -56,7 +77,7 @@ class Transaction:
                                self.currency, self.external_value_date))
         return mt
 
-    def format_as_ledger_transaction(self):
+    def format_as_ledger_transaction(self) -> str:
         t = self
         assert('\n' not in t.description)
         comment = t.metadata.get('comment', '')
@@ -101,9 +122,10 @@ class Transaction:
                 f'currency={s.currency!r}'
                 f'{ext_account}{ext_date}{meta})')
 
-class MultiTransaction:
-    def __init__(self, description, transaction_date, postings=None,
-                 metadata=None):
+class MultiTransaction(BaseTransaction):
+    def __init__(self, description: str, transaction_date: date,
+                 postings: 'Optional[List[Posting]]' = None,
+                 metadata: Optional[Dict[str, Any]] = None):
         self.description = description
         self.date = transaction_date
         if postings is None:
@@ -114,10 +136,10 @@ class MultiTransaction:
             metadata = {}
         self.metadata = metadata
 
-    def add_posting(self, posting):
+    def add_posting(self, posting: 'Posting') -> None:
         self.postings.append(posting)
 
-    def change_property(self, prop, f):
+    def change_property(self, prop: Union[str, Iterable[str]], f):
         res = copy(self)
         if isinstance(prop, str):
             setattr(res, prop, f(self))
@@ -127,15 +149,7 @@ class MultiTransaction:
                 setattr(res, p, v)
         return res
 
-    @property
-    def type(self):
-        try:
-            return self.metadata['type']
-        except KeyError:
-            raise AttributeError("'{}' object has no attribute 'type'"
-                                 .format(self.__class__.__name__))
-
-    def format_as_ledger_transaction(self):
+    def format_as_ledger_transaction(self) -> str:
         t = self
         assert('\n' not in t.description)
         comment = t.metadata.get('comment', '')
@@ -152,7 +166,7 @@ class MultiTransaction:
 
     def is_balanced(self) -> bool:
         without_amount = 0
-        amounts = defaultdict(lambda: Decimal(0))
+        amounts: DefaultDict[str, Decimal] = defaultdict(lambda: Decimal(0))
         for p in self.postings:
             if p.amount is None:
                 without_amount += 1
@@ -172,9 +186,10 @@ class MultiTransaction:
                 f' {s.postings}{meta})')
 
 class Posting:
-    def __init__(self, account, amount, currency='€',
-                 posting_date=None, comment=None, *,
-                 conversion_price=None):
+    def __init__(self, account: Optional[str], amount: Decimal,
+                 currency: str = '€', posting_date: Optional[date] = None,
+                 comment: Optional[str] = None, *,
+                 conversion_price: Optional[Tuple[Decimal, str]] = None):
         self.account = account
         self.amount = amount
         self.currency = currency
@@ -182,14 +197,14 @@ class Posting:
         self.comment = comment
         self.conversion_price = conversion_price
 
-    def format_as_ledger_transaction(self, transaction_date):
+    def format_as_ledger_transaction(self, transaction_date: date) -> str:
         t = self
         account = t.account or 'TODO:assign_account'
         if t.amount is None:
             amount = ''
         else:
             amount = f'{t.amount} {t.currency}'
-            if self.conversion_price is not None:
+            if t.conversion_price is not None:
                 amount += f' @@ {t.conversion_price[0]}' \
                           f' {t.conversion_price[1]}'
         comments = []
@@ -198,10 +213,10 @@ class Posting:
         if t.comment is not None:
             comments.append(t.comment)
         if comments:
-            comments = ' ; ' + ', '.join(comments)
+            comments_str = ' ; ' + ', '.join(comments)
         else:
-            comments = ''
-        return f'    {account}  {amount}{comments}\n'
+            comments_str = ''
+        return f'    {account}  {amount}{comments_str}\n'
 
     def __repr__(self):
         s = self
@@ -215,5 +230,7 @@ class Posting:
             comment = ''
         return (f'Posting({s.account!r}, {s.amount!r}, {s.currency!r}'
                 f'{date}{comment})')
+
+AnyTransaction = Union[Transaction, MultiTransaction]
 
 Balance = namedtuple('Balance', 'balance date')

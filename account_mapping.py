@@ -1,11 +1,11 @@
-# SPDX-FileCopyrightText: 2019 Felix Gruber <felgru@posteo.net>
+# SPDX-FileCopyrightText: 2019–2020 Felix Gruber <felgru@posteo.net>
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import os
-from typing import Iterator, List, Tuple
+from typing import Any, Callable, Dict, Iterator, List, Tuple
 
-from transaction import MultiTransaction, Transaction
+from transaction import AnyTransaction, MultiTransaction, Transaction
 
 class AccountMapper:
     def __init__(self, xdg_dirs):
@@ -15,21 +15,22 @@ class AccountMapper:
         self.conf_file = conf_file
         self._read_rules()
 
-    def _read_rules(self):
+    def _read_rules(self) -> None:
         if self.conf_file is None:
-            self.rules = []
+            self.rules: List[Callable[[AnyTransaction], str]] = []
         else:
             with open(self.conf_file, 'r') as f:
-                f = f.read()
-                parse_globals = {
+                content = f.read()
+                parse_globals: Dict[str, Any] = {
                     'Transaction': Transaction,
                     }
-                exec(f, parse_globals)
+                exec(content, parse_globals)
                 if 'rules' not in parse_globals:
-                    raise Error(f'{self.conf_file} didn\'t contain any rules.')
+                    raise RuntimeError(
+                            f'{self.conf_file} didn\'t contain any rules.')
                 self.rules = parse_globals['rules']
 
-    def map_transactions(self, transactions: List[Transaction]) -> None:
+    def map_transactions(self, transactions: List[AnyTransaction]) -> None:
         for t in transactions:
             if isinstance(t, MultiTransaction):
                 self._map_multitransaction(t)
@@ -50,10 +51,9 @@ class AccountMapper:
 
 def extract_unmapped_transactions(mt: MultiTransaction) \
                                     -> Iterator[Tuple[int, Transaction]]:
-    transactions = []
     for i, posting in enumerate(mt.postings):
         if posting.account is None:
-            yield (i, Transaction(account=None,
+            yield (i, Transaction(account='split from MultiTransaction',
                                   description=posting.comment or mt.description,
                                   operation_date=mt.date,
                                   value_date=None,
@@ -61,4 +61,3 @@ def extract_unmapped_transactions(mt: MultiTransaction) \
                                   currency=posting.currency,
                                   external_value_date=posting.date,
                                   metadata=mt.metadata))
-    return transactions

@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2019 Felix Gruber <felgru@posteo.net>
+# SPDX-FileCopyrightText: 2019–2020 Felix Gruber <felgru@posteo.net>
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
@@ -13,6 +13,6 @@ def remove_transaction_id_from_description(t):
     return t.description[:m.start()]
 
 rules = [
-        Rule(lambda t: transaction_id_pattern.search(t.description),
+        Rule(lambda t: bool(transaction_id_pattern.search(t.description)),
              remove_transaction_id_from_description),
         ]

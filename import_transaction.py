@@ -4,21 +4,24 @@
 
 from contextlib import contextmanager
 import os
+from typing import Iterable, List, Optional, Tuple, TypeVar, Union
+
+from git import BaseGit
 
 
 class ImportTransaction:
 
-    def __init__(self, git):
+    def __init__(self, git: BaseGit):
         self.git = git
 
-    def begin(self, import_branch):
+    def begin(self, import_branch: str) -> None:
         assert self.git.working_directory_is_clean()
         self.old_branch = self.git.current_branch()
         self.git.change_branch(import_branch)
-        self.files_to_move_to_annex = []
-        self.files_to_add_to_git = []
+        self.files_to_move_to_annex: List[Tuple[str, str]] = []
+        self.files_to_add_to_git: List[str] = []
 
-    def commit(self, commit_message=None):
+    def commit(self, commit_message: Optional[str] = None) -> None:
         if commit_message is None:
             commit_message = self.commit_message
         self.git.add_files(self.files_to_add_to_git)
@@ -31,7 +34,7 @@ class ImportTransaction:
         self.git.change_branch(self.old_branch)
         del self.old_branch
 
-    def rollback(self):
+    def rollback(self) -> None:
         del self.files_to_move_to_annex
         # add files to git so that they are properly reset --hard
         self.git.add_files(self.files_to_add_to_git)
@@ -40,55 +43,56 @@ class ImportTransaction:
         self.git.change_branch(self.old_branch)
         del self.old_branch
 
-    def add_file(self, file):
+    def add_file(self, file: str) -> None:
         self.files_to_add_to_git.append(file)
 
-    def add_files(self, files):
+    def add_files(self, files: Iterable[str]) -> None:
         self.files_to_add_to_git.extend(files)
 
-    def move_file_to_annex(self, source, dest):
+    def move_file_to_annex(self, source: str, dest: str) -> None:
         self.files_to_move_to_annex.append((source, dest))
 
-    def set_commit_message(self, commit_message):
+    def set_commit_message(self, commit_message: str) -> None:
         self.commit_message = commit_message
 
 
 class FakeImportTransaction:
 
-    def __init__(self, _git):
+    def __init__(self, _git: BaseGit):
         pass
 
-    def begin(self, import_branch):
+    def begin(self, import_branch: str) -> None:
         print("beginning fake import Git transaction on branch "
               + import_branch)
-        self.files_to_move_to_annex = []
-        self.files_to_add_to_git = []
+        self.files_to_move_to_annex: List[Tuple[str, str]] = []
+        self.files_to_add_to_git: List[str] = []
 
-    def commit(self, commit_message=None):
+    def commit(self, commit_message: Optional[str] = None) -> None:
         if commit_message is None:
             commit_message = self.commit_message
         print("fake Git commit with message:\n"
               + commit_message)
 
-    def rollback(self):
+    def rollback(self) -> None:
         print("rolling back fake Git import transaction")
 
-    def add_file(self, file):
+    def add_file(self, file: str) -> None:
         print(f"adding file {file} to import transaction")
 
-    def add_files(self, files):
+    def add_files(self, files: Iterable[str]) -> None:
         print(f"adding files {', '.join(files)} to import transaction")
 
-    def move_file_to_annex(self, source, dest):
+    def move_file_to_annex(self, source: str, dest: str) -> None:
         self.files_to_move_to_annex.append((source, dest))
         print(f"moving {source} to {dest}")
 
-    def set_commit_message(self, commit_message):
+    def set_commit_message(self, commit_message: str) -> None:
         self.commit_message = commit_message
 
 
 @contextmanager
-def import_transaction(git, import_branch, dry_run):
+def import_transaction(git: BaseGit, import_branch: str, dry_run: bool):
+    transaction: Union[FakeImportTransaction, ImportTransaction]
     if dry_run:
         transaction = FakeImportTransaction(git)
     else:
@@ -104,3 +108,7 @@ def import_transaction(git, import_branch, dry_run):
             transaction.commit()
         else:
             transaction.rollback()
+
+ImportTransactionProtocol = TypeVar('ImportTransactionProtocol',
+                                    ImportTransaction,
+                                    FakeImportTransaction)

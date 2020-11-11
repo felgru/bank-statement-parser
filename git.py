@@ -2,11 +2,42 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
+from abc import ABCMeta, abstractmethod
 import os
 import subprocess
 
 
-class Git:
+class BaseGit(metaclass=ABCMeta):
+
+    @abstractmethod
+    def working_directory_is_clean(self) -> bool: pass
+
+    @abstractmethod
+    def has_staged_files(self) -> bool: pass
+
+    @abstractmethod
+    def current_branch(self) -> str: pass
+
+    @abstractmethod
+    def change_branch(self, branch) -> None: pass
+
+    @abstractmethod
+    def add_file(self, file) -> None: pass
+
+    @abstractmethod
+    def add_files(self, files) -> None: pass
+
+    @abstractmethod
+    def add_files_to_annex(self, files) -> None: pass
+
+    @abstractmethod
+    def commit(self, message) -> None: pass
+
+    @abstractmethod
+    def reset_index_and_working_directory(self) -> None: pass
+
+
+class Git(BaseGit):
 
     def __init__(self, work_tree, git_dir):
         self.git_command = ['git', f'--work-tree={work_tree}',
@@ -61,7 +92,7 @@ class Git:
         self._run_git_command(['reset', '--hard', 'HEAD'])
 
 
-class FakeGit:
+class FakeGit(BaseGit):
 
     def __init__(self):
         pass
