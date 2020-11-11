@@ -5,10 +5,11 @@
 from datetime import date
 from decimal import Decimal
 import re
+from typing import Iterator, Optional, Tuple
 
 from .cleaning_rules import ing_fr as cleaning_rules
 from bank_statement import BankStatementMetadata
-from transaction import Balance, Transaction
+from transaction import AnyTransaction, Balance, Transaction
 
 from ..pdf_parser import PdfParser
 
@@ -16,9 +17,10 @@ class IngFrPdfParser(PdfParser):
     bank_folder = 'ing.fr'
     account = 'assets:bank:TODO:ING.fr' # exact account is set in __init__
 
-    def __init__(self, pdf_file):
+    def __init__(self, pdf_file: str):
         super().__init__(pdf_file)
         m = re.search('RELEVE ([A-Z ]+)', self.pdf_pages[0])
+        assert m is not None, 'Account type not found.'
         self.account_type = m.group(1)
         if self.account_type == 'COMPTE COURANT':
             self.account_type = 'Compte Courant'
@@ -46,30 +48,37 @@ class IngFrPdfParser(PdfParser):
                                r'\s*(\d[ \d]*,\d\d)',
                                flags=re.MULTILINE)
 
-    def parse_column_starts(self):
+    def parse_column_starts(self) -> Tuple[int, int]:
         m = self.table_heading.search(self.pdf_pages[0])
+        assert m is not None, 'Table heading not found.'
         line_start = m.start()
         debit_start = m.start(1) - line_start
         credit_start = m.start(2) - line_start
         return debit_start, credit_start
 
-    def parse_metadata(self):
+    def parse_metadata(self) -> BankStatementMetadata:
         m = re.search(r'Du (\d{2}\/\d{2}\/\d{4}) au (\d{2}\/\d{2}\/\d{4})',
                       self.pdf_pages[0])
+        assert m is not None, 'Start date not found.'
         start_date = parse_date(m.group(1))
         end_date = parse_date(m.group(2))
         m = re.search(r'Nom, prénom Titulaire 1 :\n\s*((\S+\s)*)',
                       self.pdf_pages[0], flags=re.MULTILINE)
+        assert m is not None, 'Account owner not found.'
         account_owner = m.group(1).strip()
         m = re.search(r'BIC .+?\n *(.+?)\n', self.pdf_pages[0])
+        assert m is not None, 'BIC not found.'
         bic = m.group(1)
         m = re.search(r'IBAN\n *(.+?)\n', self.pdf_pages[0])
+        assert m is not None, 'IBAN not found.'
         iban = m.group(1)
+        card_number: Optional[str]
         if self.account_type == 'Compte Courant':
             m = re.search(r'N° Client Titulaire 1 : (\d+)\s*'
                           r'N° carte Titulaire 1 : ([0-9*]+)\s*'
                           r'N° du Compte Courant : (\d+)',
                           self.pdf_pages[0])
+            assert m is not None, 'Account number not found.'
             owner_number = m.group(1)
             card_number = m.group(2)
             account_number = m.group(3)
@@ -80,6 +89,7 @@ class IngFrPdfParser(PdfParser):
                           r'N° du LDD : (\d+)\s*'
                           r'Taux en vigueur au (\d{2}/\d{2}/\d{4}) \* : (\d+,\d\d) %',
                           self.pdf_pages[0])
+            assert m is not None, 'Account number not found.'
             owner_number = m.group(1)
             card_number = None
             interest_date = m.group(3)
@@ -97,7 +107,7 @@ class IngFrPdfParser(PdfParser):
                )
         return meta
 
-    def extract_table_from_page(self, page):
+    def extract_table_from_page(self, page: str) -> str:
         m = self.table_heading.search(page)
         if m is None:
             # When the last page only contains the Total and Nouveau
@@ -117,22 +127,25 @@ class IngFrPdfParser(PdfParser):
             table_end = len(page)
         return page[table_start:table_end]
 
-    def parse_balances(self):
+    def parse_balances(self) -> None:
         self.parse_old_balance()
         self.parse_total_and_new_balance()
 
-    def parse_old_balance(self):
-        old_balance = re.compile(r'^\s*Ancien solde au (\d{2}\/\d{2}\/\d{4})\s*(\d[ \d]*,\d\d)',
-                                 flags=re.MULTILINE)
-        m = old_balance.search(self.transactions_text)
+    def parse_old_balance(self) -> None:
+        m = re.compile(
+                r'^\s*Ancien solde au (\d{2}\/\d{2}\/\d{4})\s*(\d[ \d]*,\d\d)',
+                flags=re.MULTILINE) \
+              .search(self.transactions_text)
+        assert m is not None, 'Old balance not found.'
         old_balance = parse_amount(m.group(2))
         if m.end(2) - m.start() < self.credit_start:
             old_balance = -old_balance
         self.old_balance = Balance(old_balance, parse_date(m.group(1)))
         self.transactions_start = m.end()
 
-    def parse_total_and_new_balance(self):
+    def parse_total_and_new_balance(self) -> None:
         m = self.total_pattern.search(self.transactions_text)
+        assert m is not None, 'New balance not found.'
         if m.group(2):
             total_debit = parse_amount(m.group(1))
             total_credit = parse_amount(m.group(2))
@@ -150,13 +163,15 @@ class IngFrPdfParser(PdfParser):
         self.new_balance = Balance(new_balance, new_balance_date)
         self.transactions_end = m.start()
 
-    def generate_transactions(self, start, end):
+    def generate_transactions(self, start: int, end: int) \
+                                            -> Iterator[AnyTransaction]:
         if self.account_type == 'Compte Courant':
             yield from self.generate_transactions_compte_courant(start, end)
         elif self.account_type == 'LDD':
             yield from self.generate_transactions_ldd(start, end)
 
-    def generate_transactions_compte_courant(self, start, end):
+    def generate_transactions_compte_courant(self, start: int, end: int) \
+                                                -> Iterator[Transaction]:
         transaction_block_start_pattern = re.compile(
                 r'^ {30} *(\S.+)\n',
                 flags=re.MULTILINE)
@@ -175,6 +190,7 @@ class IngFrPdfParser(PdfParser):
             transaction_type = m.group(1)
             m = transaction_block_end_pattern.search(self.transactions_text,
                                                      block_start, end)
+            assert m is not None, 'End of transaction block not found.'
             block_end = m.start()
             assert m.group(1) == transaction_type
             sub_total = parse_amount(m.group(2)), parse_amount(m.group(3))
@@ -195,7 +211,8 @@ class IngFrPdfParser(PdfParser):
             accumulated_sub_totals[0] += sub_total[0]
             accumulated_sub_totals[1] += sub_total[1]
 
-    def generate_transactions_ldd(self, start, end):
+    def generate_transactions_ldd(self, start: int, end: int) \
+                                                -> Iterator[Transaction]:
         accumulated_debit = Decimal('0.00')
         accumulated_credit = Decimal('0.00')
         for transaction in self.transactions_in_block(None,
@@ -209,7 +226,8 @@ class IngFrPdfParser(PdfParser):
         assert accumulated_debit == self.total_debit
         assert accumulated_credit == self.total_credit
 
-    def transactions_in_block(self, transaction_type, start, end):
+    def transactions_in_block(self, transaction_type, start: int, end: int) \
+                                                    -> Iterator[Transaction]:
         while True:
             m = self.first_line_pattern.search(self.transactions_text, start,
                                                start+self.debit_start)
@@ -217,27 +235,27 @@ class IngFrPdfParser(PdfParser):
                 return
             operation_date = parse_date(m.group(1))
             value_date = parse_date(m.group(2)) if m.group(2) != '' else None
-            description = [m.group(3)]
+            description_lines = [m.group(3)]
             m = self.amount_pattern.search(self.transactions_text,
                                            start+self.debit_start, end)
+            assert m is not None, 'Could not find amount of transaction.'
             amount = parse_amount(m.group(1))
             if m.end(1) - m.start() < self.credit_start - self.debit_start:
                 amount = -amount
             start = m.end()
-            transaction_end = self.first_line_pattern \
-                                  .search(self.transactions_text, start, end)
-            transaction_end = transaction_end.start() \
-                              if transaction_end is not None else end
+            m = self.first_line_pattern.search(self.transactions_text,
+                                               start, end)
+            transaction_end = m.start() if m is not None else end
             while True:
                 m = self.middle_line_pattern.search(self.transactions_text,
                                                     start, transaction_end)
                 if m is None:
                     break
-                description.append(m.group(1))
+                description_lines.append(m.group(1))
                 start = m.end()
             metadata = dict(type=transaction_type,
-                            raw_description='\n'.join(l for l in description))
-            description = ' '.join(l for l in description)
+                            raw_description='\n'.join(description_lines))
+            description = ' '.join(description_lines)
             yield Transaction(self.account, description, operation_date,
                               value_date, amount,
                               metadata=metadata)
