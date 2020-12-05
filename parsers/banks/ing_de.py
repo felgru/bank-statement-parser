@@ -4,9 +4,7 @@
 
 from datetime import date, timedelta
 from decimal import Decimal
-import os
 import re
-import subprocess
 from typing import cast, Iterator, List
 
 from .cleaning_rules import ing_de as cleaning_rules
@@ -19,9 +17,11 @@ from ..pdf_parser import PdfParser
 class IngDePdfParser(PdfParser):
     bank_folder = 'ing.de'
     account = 'assets:bank:TODO:ING.de' # exact account is set in __init__
+    num_cols = 5
 
     def __init__(self, pdf_file: str):
         super().__init__(pdf_file)
+        self._parse_metadata()
         self._parse_description_start()
         self.transaction_description_pattern = re.compile(
                 '^' + ' ' * self.description_start + ' *(\S.*)\n',
@@ -32,18 +32,6 @@ class IngDePdfParser(PdfParser):
         elif self.metadata.account_type == 'Extra-Konto':
             self.account = 'assets:bank:saving:ING.de'
             self.cleaning_rules = cleaning_rules.extra_konto_rules
-
-    def _parse_file(self, pdf_file: str):
-        if not os.path.exists(pdf_file):
-            raise IOError('Unknown file: {}'.format(pdf_file))
-        # pdftotext is provided by Poppler on Debian
-        pdftext = subprocess.run(['pdftotext',
-                                  '-fixed', '3', pdf_file, '-'],
-                                 capture_output=True, encoding='UTF8',
-                                 check=True).stdout
-        # Careful: There's a trailing \f on the last page
-        self.pdf_pages = pdftext.split('\f')[:-1]
-        self._parse_metadata()
 
     table_heading = re.compile(r'^ *Buchung *(Buchung / Verwendungszweck) *'
                                r'Betrag \(EUR\)\n *Valuta\n*',

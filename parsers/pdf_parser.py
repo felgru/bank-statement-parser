@@ -25,6 +25,7 @@ class PdfParser(Parser, metaclass=ABCMeta):
     new_balance: Balance
     total_credit: Decimal
     total_debit: Decimal
+    num_cols: int = 5
 
     def __init__(self, pdf_file: str):
         super().__init__(pdf_file)
@@ -34,7 +35,8 @@ class PdfParser(Parser, metaclass=ABCMeta):
         if not os.path.exists(pdf_file):
             raise IOError('Unknown file: {}'.format(pdf_file))
         # pdftotext is provided by poppler-utils on Debian
-        pdftext = subprocess.run(['pdftotext', '-fixed', '5', pdf_file, '-'],
+        pdftext = subprocess.run(['pdftotext', '-fixed', str(self.num_cols),
+                                  pdf_file, '-'],
                                  capture_output=True, encoding='UTF8',
                                  check=True).stdout
         # Careful: There's a trailing \f on the last page
