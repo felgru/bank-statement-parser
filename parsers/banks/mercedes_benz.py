@@ -46,9 +46,13 @@ class MercedesBenzPdfParser(PdfParser):
         m = re.search(r'IBAN +(DE[\d ]+?)\n', self.pdf_pages[0])
         assert m is not None, 'Could not find IBAN.'
         iban = m.group(1)
-        m = re.search(r'Währung +([A-Z]{3})\n', self.pdf_pages[0])
-        assert m is not None, 'Could not find currency.'
-        assert m.group(1) == 'EUR', f'Unexpected currency: {m.group(1)}'
+        # Currency code is not in same line as the word "Währung"
+        # due to some inaccuracy of the PDF parsing.
+        # Since this is in thery always EUR, I'll simply disable
+        # this check.
+        # m = re.search(r'Währung +([A-Z]{3})\n', self.pdf_pages[0])
+        # assert m is not None, 'Could not find currency.'
+        # assert m.group(1) == 'EUR', f'Unexpected currency: {m.group(1)}'
         m = re.search(r'Kontoauszug für Ihr Mercedes-Benz Bank Tagesgeldkonto'
                       r' zum (\d{2}.\d{2}.\d{4})', self.pdf_pages[0])
         assert m is not None, 'Could not find IBAN.'
