@@ -138,7 +138,7 @@ class IngDePdfParser(PdfParser):
     def parse_interest_postings(self) -> List[Posting]:
         interest_table = self.extract_interest_table()
         postings = []
-        for m in re.finditer(r'^  +(.+?)  +(.+?%)  +(.+?)  +(.+,\d\d)$',
+        for m in re.finditer(r'^ +(.+?)  +(.+?%) +(.+?)  +(.+,\d\d)$',
                              interest_table, flags=re.MULTILINE):
             description = ' '.join(m.group(i) for i in (1, 2, 3))
             postings.append(Posting('income:bank:interest:ING.de',
