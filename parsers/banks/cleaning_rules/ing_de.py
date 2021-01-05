@@ -10,11 +10,12 @@ from transaction_sanitation import TransactionCleanerRule as Rule
 
 def is_card_transaction(t):
     return (t.type == 'Lastschrift' and
-            re.search(r'\bNR\d{10}\b.*\bARN\d+\b', t.description,
-                                                   flags=re.DOTALL))
+            re.search(r'\b(NR\d{10}|NR XXXX \d{4} [\d-]+)\b.*\bARN\d+\b',
+                      t.description, flags=re.DOTALL))
 
 def parse_card_metadata(t):
-    m = re.search(r'(.*)\n(\bNR\d{10}\b)\s*(.*?)\s*(\bARN\d+\b)',
+    m = re.search(r'(.*)\n\b(NR\d{10}|NR XXXX \d{4} [\d-]+)'
+                  r'\s*(.*?)\s*(\bARN\d+\b)',
                   t.description, flags=re.DOTALL)
     description = m.group(1).replace('\n', ' ')
     metadata = dict(t.metadata)
@@ -114,7 +115,7 @@ def is_card_exchange_fee(t):
 def parse_card_exchange_fee_metadata(t):
     lines = t.description.split('\n')
     metadata = {'fee_type': 'AUSLANDSEINSATZENTGELT', **t.metadata}
-    m = re.match(r'VISA (\d{4} X{4} X{4} \d{4}) '
+    m = re.match(r'VISA (\d{4} X{4} X{4} \d{3,4}) '
                  r'(\d,\d\d)%AUSLANDSEINSATZENTGELT',
                  lines[-2])
     metadata['card_number'] = m.group(1)
