@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2019–2020 Felix Gruber <felgru@posteo.net>
+# SPDX-FileCopyrightText: 2019–2021 Felix Gruber <felgru@posteo.net>
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
@@ -143,6 +143,7 @@ class PayfitPdfParser:
                 'Salaire de base': 'income:salary',
                 'Heures supplémentaires contractuelles 25 %':
                                         'income:salary:overtime',
+                'Prime de 13ème mois': 'income:salary:bonus',
                 'Prime sur objectifs': 'income:salary:bonus',
                 'Absence maladie ordinaire': 'income:salary',
                 'Régularisation Indemnité CP N': 'income:salary:vacation?',
@@ -159,7 +160,8 @@ class PayfitPdfParser:
                 # cancel to 0?
                 if 'Congés Payés' in title:
                     vacation_salary += salary
-                continue
+                    continue
+                raise RuntimeError(f'Unknown salary type: {title}.')
             if m.group(2) and m.group(3):
                 hours = parse_amount(m.group(2))
                 hourly_salary = parse_amount(m.group(3))
