@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2020 Felix Gruber <felgru@posteo.net>
+# SPDX-FileCopyrightText: 2020–2021 Felix Gruber <felgru@posteo.net>
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
@@ -26,8 +26,14 @@ sepa_direct_debit_pattern = re.compile(r'PRLV SEPA (.*?):\s+([A-Z]{2}\S+)\s+(.*)
                                        flags=re.MULTILINE | re.DOTALL)
 
 def clean_sepa_direct_debit(t):
-    m = sepa_direct_debit_pattern.match(t.metadata['raw_description'])
     prefix = 'prlv SEPA '
+    m = sepa_direct_debit_pattern.match(t.metadata['raw_description'])
+    # Beginning with january 2021 ING.fr only gives the first line of
+    # transaction descriptions on the PDF, which means that the pattern
+    # will not match anymore in most cases.
+    if m is None:
+        description = prefix + t.description[len(prefix):]
+        return description, t.metadata
     recipient = m.group(1).strip().title()
     # Creditor Identifier (CI)
     # https://www.sepaforcorporates.com/sepa-direct-debits/sepa-creditor-identifier/
@@ -53,7 +59,7 @@ def is_sepa_giro_transfer(t):
     return (t.type == 'VIREMENT EXTERNE'
             and t.description.startswith('Virement Sepa'))
 
-sepa_pattern = re.compile(r'Virement Sepa (Recu|Emis Vers) +(.*)')
+sepa_pattern = re.compile(r'Virement Sepa (Recu|Emis Vers)(.*)')
 sepa_emis_pattern = re.compile(r'VIREMENT SEPA EMIS VERS\s*(\S+)',
                               flags=re.MULTILINE)
 
@@ -62,11 +68,12 @@ def clean_sepa_giro_transfer(t):
     direction = m.group(1).lower()
     if direction == 'recu':
         direction = 'reçu'
-    rest = m.group(2)
+    rest = m.group(2).strip()
     if direction == 'emis vers':
         m = sepa_emis_pattern.match(t.metadata['raw_description'])
-        account = m.group(1)
-        rest = account + rest[rest.find(' '):]
+        if m is not None:
+            account = m.group(1)
+            rest = account + rest[rest.find(' '):]
     return f'Virement SEPA {direction} {rest}'
 
 def is_card_transaction(t):
