@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2019–2020 Felix Gruber <felgru@posteo.net>
+# SPDX-FileCopyrightText: 2019–2021 Felix Gruber <felgru@posteo.net>
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
@@ -12,6 +12,8 @@ from bank_statement import BankStatementMetadata
 from transaction import AnyTransaction, Balance, Transaction
 
 from ..pdf_parser import PdfParser
+from ..qif_parser import QifParser
+
 
 class IngFrPdfParser(PdfParser):
     bank_folder = 'ing.fr'
@@ -269,12 +271,29 @@ class IngFrPdfParser(PdfParser):
                               value_date, amount,
                               metadata=metadata)
 
+
+class IngFrQifParser(QifParser):
+    bank_folder = 'ing.fr'
+    account = 'assets:bank:TODO:ING.fr' # exact account is set in __init__
+    currency = '€'
+    cleaning_rules = cleaning_rules.qif_checkings_rules
+
+    def __init__(self, qif_file: str):
+        super().__init__(qif_file)
+        # TODO: determine exact account type
+
+    @classmethod
+    def parse_date(cls, input_: str) -> date:
+        return parse_date(input_)
+
+
 def parse_date(d: str) -> date:
     """ parse a date in "dd/mm/yyyy" format """
     day = int(d[:2])
     month = int(d[3:5])
     year = int(d[6:])
     return date(year, month, day)
+
 
 def parse_amount(a: str) -> Decimal:
     """ parse a decimal amount like -10,00 """

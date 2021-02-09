@@ -8,11 +8,26 @@ import re
 
 from transaction_sanitation import TransactionCleanerRule as Rule
 
-def parse_transaction_type(t):
+def parse_savings_transaction_type(t):
     if t.description.startswith('INTERET'):
         return dict(type='INTERET')
     elif t.description.startswith('VIREMENT '):
         return dict(type='VIREMENT INTERNE')
+    elif t.description.startswith('REMISE DE CHÈQUE(S)'):
+        return dict(type='REMISE DE CHEQUES')
+    else:
+        raise RuntimeError('Unable to guess transaction type of:', t.description)
+
+def parse_qif_transaction_type(t):
+    if t.description.startswith('INTERET'):
+        return dict(type='INTERET')
+    elif t.description.startswith('VIREMENT '):
+        return dict(type='VIREMENT')
+    elif t.description.startswith('PAIEMENT PAR CARTE') \
+            or t.description.startswith('RETRAIT DAB'):
+        return dict(type='CARTE')
+    elif t.description.startswith('PRLV SEPA'):
+        return dict(type='PRELEVEMENT TIP')
     elif t.description.startswith('REMISE DE CHÈQUE(S)'):
         return dict(type='REMISE DE CHEQUES')
     else:
@@ -56,7 +71,7 @@ def clean_sepa_direct_debit(t):
     return description, metadata
 
 def is_sepa_giro_transfer(t):
-    return (t.type == 'VIREMENT EXTERNE'
+    return (t.type.startswith('VIREMENT')
             and t.description.startswith('Virement Sepa'))
 
 sepa_pattern = re.compile(r'Virement Sepa (Recu|Emis Vers)(.*)')
@@ -77,7 +92,7 @@ def clean_sepa_giro_transfer(t):
     return f'Virement SEPA {direction} {rest}'
 
 def is_card_transaction(t):
-    return t.type.startswith('CARTE ')
+    return t.type.startswith('CARTE')
 
 value_date_pattern = re.compile(r'(.*?) (\d{2}\/\d{2}\/\d{4}) (.*)')
 
@@ -143,7 +158,17 @@ checkings_rules = [
         ]
 
 savings_rules = [
-        Rule(lambda _: True, parse_transaction_type, field=('metadata')),
+        Rule(lambda _: True, parse_savings_transaction_type,
+             field=('metadata')),
         Rule(lambda _: True, lambda t: t.description.title()),
         Rule(is_sepa_giro_transfer, clean_sepa_giro_transfer),
         ]
+
+qif_rules = [
+        Rule(lambda _: True, parse_qif_transaction_type, field=('metadata')),
+        Rule(lambda _: True,
+             lambda t: dict(**t.metadata, raw_description=t.description),
+             field=('metadata')),
+        ]
+
+qif_checkings_rules = qif_rules + checkings_rules
