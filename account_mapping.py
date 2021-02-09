@@ -24,7 +24,7 @@ class AccountMapper:
                 parse_globals: Dict[str, Any] = {
                     'Transaction': Transaction,
                     }
-                exec(content, parse_globals)
+                exec(compile(content, self.conf_file, 'exec'), parse_globals)
                 if 'rules' not in parse_globals:
                     raise RuntimeError(
                             f'{self.conf_file} didn\'t contain any rules.')

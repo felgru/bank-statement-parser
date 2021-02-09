@@ -29,7 +29,7 @@ class TransactionCleaner:
                     'Transaction': Transaction,
                     **globals(),
                     }
-                exec(f, parse_globals)
+                exec(compile(f, self.conf_file, 'exec'), parse_globals)
                 if 'rules' not in parse_globals:
                     raise Error(f'{self.conf_file} didn\'t contain any rules.')
                 self.rules = parse_globals['rules']
