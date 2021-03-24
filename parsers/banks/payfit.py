@@ -146,6 +146,7 @@ class PayfitPdfParser:
                 'Prime de 13ème mois': 'income:salary:bonus',
                 'Prime sur objectifs': 'income:salary:bonus',
                 'Absence maladie ordinaire': 'income:salary',
+                'Maintien employeur maladie ordinaire': 'income:salary',
                 'Régularisation Indemnité CP N': 'income:salary:vacation?',
                 'Entrée / Sortie en cours de mois': 'income:salary',
                 }
