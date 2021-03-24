@@ -40,7 +40,7 @@ class PayfitPdfParser:
     def extract_main_transactions_table(self) -> None:
         upper_left = (32, 347)
         if self.num_pages > 1:
-            main_tables = self.extract_table(1, upper_left, (532, 763), 4)
+            main_tables = self.extract_table(1, upper_left, (532, 800), 4)
         else:
             main_tables = self.extract_table(1, upper_left, (532, 709), 4)
         m = self.net_before_taxes_pattern.search(main_tables)
