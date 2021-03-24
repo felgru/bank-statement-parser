@@ -150,6 +150,12 @@ class PayfitPdfParser:
                 'Régularisation Indemnité CP N': 'income:salary:vacation?',
                 'Entrée / Sortie en cours de mois': 'income:salary',
                 }
+        time_units = {
+                'Salaire de base': 'h',
+                'Heures supplémentaires contractuelles 25 %': 'h',
+                'Absence maladie ordinaire': 'j',
+                'Maintien employeur maladie ordinaire': 'j',
+                }
         salaries = []
         vacation_salary = Decimal('0.00')
         for m in posting_pattern.finditer(self.transactions_text, 0, end):
@@ -164,9 +170,10 @@ class PayfitPdfParser:
                     continue
                 raise RuntimeError(f'Unknown salary type: {title}.')
             if m.group(2) and m.group(3):
-                hours = parse_amount(m.group(2))
-                hourly_salary = parse_amount(m.group(3))
-                comment = f'{title} {hours}h * {hourly_salary} €/h'
+                unit = time_units[title]
+                base = parse_amount(m.group(2))
+                rate = parse_amount(m.group(3))
+                comment = f'{title} {base}{unit} * {rate} €/{unit}'
             else:
                 comment = title
             p = Posting(account, -salary, comment=comment)
