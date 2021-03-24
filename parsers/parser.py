@@ -1,9 +1,9 @@
-# SPDX-FileCopyrightText: 2019–2020 Felix Gruber <felgru@posteo.net>
+# SPDX-FileCopyrightText: 2019–2021 Felix Gruber <felgru@posteo.net>
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 from abc import ABCMeta, abstractmethod
-from typing import List, Optional
+from typing import List, Optional, Sequence
 
 from account_mapping import AccountMapper
 from bank_statement import BankStatement, BankStatementMetadata
@@ -29,7 +29,7 @@ class Parser(metaclass=ABCMeta):
     def parse(self) -> BankStatement:
         pass
 
-    def clean_up_transactions(self, transactions: List[AnyTransaction]) \
+    def clean_up_transactions(self, transactions: Sequence[AnyTransaction]) \
                                                     -> List[AnyTransaction]:
         cleaner = TransactionCleaner(self.xdg,
                                      builtin_rules=self.cleaning_rules)
