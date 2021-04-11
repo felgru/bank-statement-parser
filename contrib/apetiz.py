@@ -12,9 +12,11 @@ import datetime
 from getpass import getpass
 import json
 import sys
-from typing import List, Literal, TypedDict, Union
+import statistics
+from typing import List, Literal, Optional, TypedDict, Union
 
 from dateutil import parser as dateparser
+from dateutil import tz
 from dateutil.relativedelta import *
 import requests
 
@@ -145,7 +147,7 @@ class TransactionsJSON(TypedDict):
     items: List[TransactionItemJSON]
 
 
-class PaymentJSON(TypedDict):
+class PaymentJSON(TypedDict, total=False):
     type: Literal["PAYMENT"]
     amount: float  # TODO: I should probably parse this as Decimal
     supplementaryAmount: float  # TODO: I should probably parse this as Decimal
@@ -155,7 +157,7 @@ class PaymentJSON(TypedDict):
     creditDebitIndicator: Literal["D", "C"]
     readingMode: Literal["CONTACT", "CONTACTLESS"]
     authorizationNumber: str
-    merchant: MerchantJSON
+    merchant: MerchantJSON  # does not seem to exist when status is IN_PROGRESS
 
 
 class MerchantJSON(TypedDict):
@@ -271,17 +273,23 @@ def download_main(args: argparse.Namespace) -> None:
         json.dump(all_transactions, f)
 
 
-def json_to_ledger_main(args: argparse.Namespace) -> None:
-    if args.json_file == '-':
+def load_json_transactions(json_file: str) -> List[TransactionItemJSON]:
+    if json_file == '-':
         infile = contextlib.nullcontext(sys.stdin)
     else:
-        infile = open(args.json_file)
+        infile = open(json_file)
     with infile as f:
-        all_transactions: List[TransactionItemJSON] = json.load(f)
+        return json.load(f)
+
+
+def json_to_ledger_main(args: argparse.Namespace) -> None:
+    all_transactions = load_json_transactions(args.json_file)
     apetiz_account = 'assets:meal_vouchers:apetiz'
     payment_account = 'expenses:food'
     loading_account = 'income:apetiz'
     currency = '€'
+    for t1, t2 in zip(all_transactions, all_transactions[1:]):
+        assert t1['dateTime'] > t2['dateTime']
     for transaction in reversed(all_transactions):
         type_ = transaction['type']
         if type_ == 'PAYMENT':
@@ -299,7 +307,11 @@ def json_to_ledger_main(args: argparse.Namespace) -> None:
             raise RuntimeError(
                     f'Unexpected creditDebitIndicator: {indicator!r}')
         amount = sign * transaction['amount']
-        merchant = transaction.get('merchant')
+        # mypy complaints that LoadingJSON has no key 'merchant'.
+        # This is a false positive as the PaymentJSON in the
+        # TransactionItemJSON has a 'merchant' key.
+        merchant: Optional[MerchantJSON] = \
+                transaction.get('merchant')  # type: ignore
         if merchant is not None:
             description = merchant['name']
         else:
@@ -310,6 +322,39 @@ def json_to_ledger_main(args: argparse.Namespace) -> None:
         print(f'    {apetiz_account}  {amount} {currency}')
         print(f'    {account}  {-amount} {currency}')
         print()
+
+
+def print_recharges_main(args: argparse.Namespace) -> None:
+    all_transactions = load_json_transactions(args.json_file)
+    for transaction in reversed(all_transactions):
+        if transaction['type'] != 'LOADING':
+            continue
+        amount = transaction['amount']
+        transaction_date = dateparser.isoparse(transaction['dateTime']) \
+                                     .date()
+        print(f'{transaction_date}: {amount:6.2f} {transaction["label"]}')
+
+
+def plot_payment_times_main(args: argparse.Namespace) -> None:
+    import matplotlib.pyplot as plt  # type: ignore
+    all_transactions = load_json_transactions(args.json_file)
+    dates: List[datetime.date] = []
+    hours: List[float] = []
+    paris_tz = tz.gettz('Europe/Paris')
+    for transaction in reversed(all_transactions):
+        if transaction['type'] != 'PAYMENT':
+            continue
+        # While the transaction time has UTC timezone in the JSON data,
+        # it looks like it is actually local time.
+        transaction_time = dateparser.isoparse(transaction['dateTime'])
+                                     #.astimezone(paris_tz)
+        dates.append(transaction_time.date())
+        time = transaction_time.time()
+        hours.append(time.hour + time.minute / 60 + time.second / 3600)
+    median_hour = statistics.median(hours)
+    plt.plot([dates[0], dates[-1]], [median_hour] * 2, '-')
+    plt.plot(dates, hours, '.')
+    plt.show()
 
 
 if __name__ == '__main__':
@@ -326,6 +371,16 @@ if __name__ == '__main__':
     parser_json_to_ledger.add_argument(
             'json_file', help='JSON file with transaction data')
     parser_json_to_ledger.set_defaults(main=json_to_ledger_main)
+    parser_print_recharges = subparsers.add_parser('recharges',
+            help='print date and amount of recharges')
+    parser_print_recharges.add_argument(
+            'json_file', help='JSON file with transaction data')
+    parser_print_recharges.set_defaults(main=print_recharges_main)
+    parser_plot_payment_times = subparsers.add_parser('plot-payment-times',
+            help='plot times of payments against dates')
+    parser_plot_payment_times.add_argument(
+            'json_file', help='JSON file with transaction data')
+    parser_plot_payment_times.set_defaults(main=plot_payment_times_main)
 
     args = aparser.parse_args()
     if 'main' not in args:
