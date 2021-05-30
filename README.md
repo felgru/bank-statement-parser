@@ -14,6 +14,7 @@ Not actual banks, but bank statement-like files:
 
 * PayPal csv reports
 * PayFit payslips
+* Buygues Télécom payslips
 
 ## Usage
 
