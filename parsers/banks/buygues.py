@@ -174,6 +174,12 @@ class BuyguesPdfParser:
                 account = 'expenses:food:meal_vouchers'
                 # remove excessive whitespaces
                 description = ' '.join(description.split())
+            elif description.startswith('Frais de transports'):
+                account = 'expenses:reimbursable:transportation'
+                # remove excessive whitespaces
+                description = ' '.join(description.split())
+            elif description == "Versement mensuel PEE":
+                account = 'assets:bank:saving:PEE'
             elif description == "Comité d'entraide":
                 account = 'expenses:misc'
             else:
@@ -298,6 +304,21 @@ class MainTableIterator:
             self.pos = eol + 1
         else:
             description = line[:self.field_offsets[0]].strip()
+        # Somehow the "Frais de transport" and "Versement mensuel PEE"
+        # lines are also broken into two lines with a large indent in
+        # the second line.
+        if len(line) < self.field_offsets[0]:
+            table_indent = sum(1 for _ in itertools.takewhile(
+                                                lambda s: s == ' ', line))
+            next_eol = page.find('\n', self.pos, self.end)
+            if next_eol != -1:
+                next_line = page[self.pos:next_eol]
+                # continuation line has larger indent
+                if next_line.startswith(2 * table_indent * ' '):
+                    eol = next_eol
+                    self.pos = eol + 1
+                    line = next_line
+                    description += ' ' + line[:self.field_offsets[0]].strip()
         amounts: List[Optional[Decimal]] = []
         for field_start, field_end in zip(self.field_offsets,
                                           itertools.chain(
