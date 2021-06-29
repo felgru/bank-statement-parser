@@ -118,7 +118,11 @@ class BuyguesPdfParser:
                 assert sum(p.amount for p in postings) \
                        + total_gross_salary == 0
                 return postings, total_gross_salary
-            p = Posting('income:salary', -line.montant_employee,
+            if '13ème mois' in line.description:
+                account = 'income:salary:bonus'
+            else:
+                account = 'income:salary'
+            p = Posting(account, -line.montant_employee,
                         comment=line.description)
             postings.append(p)
         raise BuyguesPdfParserError('Missing TOTOAL BRUT.')
