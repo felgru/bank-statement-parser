@@ -8,7 +8,7 @@ from decimal import Decimal
 import os
 import re
 import subprocess
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 
 from bank_statement import BankStatement, BankStatementMetadata
 from transaction import MultiTransaction, Posting
@@ -185,6 +185,83 @@ class PayfitPdfParser:
         return salaries, total_gross_salary
 
     def _parse_social_security_payments(self) -> Tuple[List[Posting], Decimal]:
+        postings: List[Posting] = []
+        m = re.search(r"Mutuelle .*?"
+                      r' *(\d[ \d]*,\d\d) +(\d,\d{3}) +'
+                      r'(\d[ \d]*,\d\d)', self.transactions_text)
+        mutuelle: Optional[Decimal] = None
+        if m is not None:
+            base = parse_amount(m.group(1))
+            percentage = parse_amount(m.group(2))
+            amount = parse_amount(m.group(3))
+            assert round(base * percentage / 100, 2) == amount
+            mutuelle = amount
+        m = re.search(r"Complémentaire santé"
+                      r' *(\d[ \d]*,\d\d) +(\d,\d{3}) +'
+                      r'(\d[ \d]*,\d\d)', self.transactions_text)
+        complement: Optional[Decimal] = None
+        if m is not None:
+            base = parse_amount(m.group(1))
+            percentage = parse_amount(m.group(2))
+            amount = parse_amount(m.group(3))
+            assert round(base * percentage / 100, 2) == amount
+            complement = amount
+        if sum(1 for x in [mutuelle, complement] if x is not None) != 1:
+            raise PayfitPdfParserError('Mutuelle amount not found.')
+        elif mutuelle is None:
+            mutuelle = complement
+        m = re.search(r"Prévoyance \| Tranche B"
+                      r' *(\d[ \d]*,\d\d) +(\d,\d{3}) +'
+                      r'(\d[ \d]*,\d\d)', self.transactions_text)
+        if m is None:
+            raise PayfitPdfParserError('Prévoyance Tranche B amount not found.')
+        base = parse_amount(m.group(1))
+        percentage = parse_amount(m.group(2))
+        amount = parse_amount(m.group(3))
+        assert round(base * percentage / 100, 2) == amount
+        prevoyance = amount
+        postings.append(Posting('expenses:insurance:health',
+                                mutuelle + prevoyance,
+                                comment=f"Santé ({mutuelle}€ mutuélle "
+                                        f"+ {prevoyance}€ prévoyance)"))
+        accounted_for = mutuelle + prevoyance
+        m = re.search('Retraite', self.transactions_text)
+        if m is None:
+            raise PayfitPdfParserError('Retraite heading not found.')
+        retraite_start = m.end()
+        m = re.search('Famille', self.transactions_text)
+        if m is None:
+            raise PayfitPdfParserError('Famille heading not found.')
+        retraite_end = m.start()
+        posting_pattern = re.compile(r"\S.*"
+                      r'  +(\d[ \d]*,\d\d) +(\d,\d{3}) +'
+                      r'(\d[ \d]*,\d\d)')
+        retraite = Decimal('0.00')
+        for m in posting_pattern.finditer(self.transactions_text,
+                                          retraite_start, retraite_end):
+            base = parse_amount(m.group(1))
+            percentage = parse_amount(m.group(2))
+            amount = parse_amount(m.group(3))
+            # Some values are rounded slightly wrong.
+            assert round(base * percentage / 100, 2) - amount <= Decimal('0.01')
+            retraite += amount
+        postings.append(Posting('expenses:taxes:retirement insurance',
+                                retraite,
+                                comment="Retraite"))
+        accounted_for += retraite
+        m = re.search(r"APEC"
+                      r' +(\d[ \d]*,\d\d) +(\d,\d{3}) +'
+                      r'(\d[ \d]*,\d\d)', self.transactions_text)
+        if m is None:
+            raise PayfitPdfParserError('APEC amount not found.')
+        base = parse_amount(m.group(1))
+        percentage = parse_amount(m.group(2))
+        amount = parse_amount(m.group(3))
+        assert round(base * percentage / 100, 2) == amount
+        postings.append(Posting('expenses:taxes:social:nondeductible',
+                                amount,
+                                comment=f"Chômage"))
+        accounted_for += amount
         m = re.search(r"CSG déductible de l'impôt sur le revenu"
                       r' *(\d[ \d]*,\d\d) *(\d,\d{3}) *'
                       r'(\d[ \d]*,\d\d)', self.transactions_text)
@@ -195,10 +272,11 @@ class PayfitPdfParser:
         amount = parse_amount(m.group(3))
         assert round(base * percentage / 100, 2) == amount
         assert percentage == Decimal('6.800')
-        deductible_csg = Posting('expenses:taxes:social:deductible',
-                                 amount,
-                                 comment="CSG déductible de l'impôt"
-                                         " sur le revenu")
+        postings.append(Posting('expenses:taxes:social:deductible',
+                                amount,
+                                comment="CSG déductible de l'impôt"
+                                        " sur le revenu"))
+        accounted_for += amount
         m = re.search(r'TOTAL COTISATIONS ET CONTRIBUTIONS SALARIALES \(4\)'
                       r' *(\d[ \d]*,\d\d)',
                       self.transactions_text)
@@ -206,9 +284,9 @@ class PayfitPdfParser:
             raise PayfitPdfParserError('Total of social security payments'
                                        ' not found.')
         total = parse_amount(m.group(1))
-        nondeductible_csg = Posting('expenses:taxes:social:nondeductible',
-                                    total - deductible_csg.amount)
-        return [deductible_csg, nondeductible_csg], total
+        postings.append(Posting('expenses:taxes:social:nondeductible',
+                                total - accounted_for))
+        return postings, total
 
     def _parse_travel_reimbursement(self) -> Tuple[List[Posting], Decimal]:
         m = re.search(r'Frais transport public *(\d[ \d]*,\d\d) *(\d,\d{4}) *'
