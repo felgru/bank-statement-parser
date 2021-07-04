@@ -130,30 +130,66 @@ class BuyguesPdfParser:
     def _parse_social_security_payments(self,
                                         lines: MainTableIterator,
                                         ) -> Tuple[List[Posting], Decimal]:
+        postings: List[Posting] = []
         header = next(lines)
         if not header.is_section_header() \
            or not header.description == 'COTISATIONS ET CONTRIBUTIONS SOCIALES':
                raise BuyguesPdfParserError(
                        'Missing COTISATIONS ET CONTRIBUTIONS SOCIALES.')
-        deductible_csg: Optional[Posting] = None
+        header = next(lines)
+        assert header.is_section_header() and header.description == 'SANTÉ'
+        sante = Decimal('0.00')
+        while True:
+            line = next(lines)
+            if line.is_section_header():
+                header = line
+                break
+            if line.montant_employee is not None:
+                sante -= line.montant_employee
+        postings.append(Posting('expenses:insurance:health',
+                                 sante,
+                                 comment="Santé"))
+        assert header.description == 'RETRAITE'
+        retraite = Decimal('0.00')
+        while True:
+            line = next(lines)
+            if line.is_section_header():
+                header = line
+                break
+            if line.montant_employee is not None:
+                retraite -= line.montant_employee
+        postings.append(Posting('expenses:taxes:retirement insurance',
+                                 retraite,
+                                 comment="Retraite"))
+        assert header.description == 'ASSURANCE CHOMAGE'
+        chomage = Decimal('0.00')
+        while True:
+            line = next(lines)
+            if line.description == "AUTRES CONTRIBUTIONS DUES PAR L'EMPLOYEUR":
+                header = line
+                break
+            if line.montant_employee is not None:
+                chomage -= line.montant_employee
+        postings.append(Posting('expenses:taxes:social:nonreimbursable',
+                                 chomage,
+                                 comment="Assurance chômage"))
         total_nondeductible = Decimal(0)
         for line in lines:
             if line.description == "CSG déductible de l'impôt sur le revenu":
                 assert line.montant_employee is not None
-                deductible_csg = Posting('expenses:taxes:social:deductible',
-                                         -line.montant_employee,
-                                         comment="CSG déductible de l'impôt"
-                                                 " sur le revenu")
+                postings.append(Posting('expenses:taxes:social:deductible',
+                                        -line.montant_employee,
+                                        comment="CSG déductible de l'impôt"
+                                                " sur le revenu"))
                 continue
             if line.description == 'TOTAL DES COTISATIONS ET CONTRIBUTIONS':
                 assert line.montant_employee is not None
                 total = line.montant_employee
-                assert deductible_csg is not None
-                assert total_nondeductible - deductible_csg.amount == total
-                nondeductible_csg = Posting(
-                        'expenses:taxes:social:nondeductible',
-                        -total_nondeductible)
-                return [deductible_csg, nondeductible_csg], total
+                postings.append(Posting(
+                                'expenses:taxes:social:nondeductible',
+                                -total_nondeductible))
+                assert sum(p.amount for p in postings) == -total
+                return postings, total
             if line.montant_employee is not None:
                 total_nondeductible += line.montant_employee
         raise BuyguesPdfParserError(
