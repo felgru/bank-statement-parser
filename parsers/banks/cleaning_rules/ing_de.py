@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2019 Felix Gruber <felgru@posteo.net>
+# SPDX-FileCopyrightText: 2019, 2021 Felix Gruber <felgru@posteo.net>
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
@@ -98,6 +98,28 @@ def parse_direct_debit_metadata(t):
         description = description[0]
     return description, metadata
 
+def is_giro_card_transaction(t):
+    return (t.type == 'Abbuchung' and
+            re.search(r'^Referenz: .*$', t.description,
+                      flags=re.MULTILINE))
+
+def parse_giro_card_metadata(t):
+    lines = t.description.split('\n')
+    description = []
+    metadata = dict(t.metadata)
+    key_value_pattern = re.compile('(\w+): (.*)')
+    for l in lines:
+        m = key_value_pattern.fullmatch(l)
+        if m is None:
+            description.append(l)
+        else:
+            metadata[m.group(1)] = m.group(2)
+    if len(description) > 1:
+        description = description[0] + ' | ' + ' '.join(description[1:])
+    else:
+        description = description[0]
+    return description, metadata
+
 def is_standing_order(t):
     return t.type == 'Dauerauftrag/Terminueberw.'
 
@@ -148,6 +170,7 @@ def clean_giro_transfer_description(t):
 rules = [
         Rule(is_card_transaction, parse_card_metadata, field=('description', 'external_value_date', 'metadata')),
         Rule(is_direct_debit, parse_direct_debit_metadata, field=('description', 'metadata')),
+        Rule(is_giro_card_transaction, parse_giro_card_metadata, field=('description', 'metadata')),
         Rule(is_standing_order, clean_standing_order_description),
         Rule(is_card_exchange_fee, parse_card_exchange_fee_metadata, field=('description', 'metadata')),
         Rule(is_giro_transfer, clean_giro_transfer_description, field=('description', 'metadata')),
