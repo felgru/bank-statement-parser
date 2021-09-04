@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 
-# SPDX-FileCopyrightText: 2019–2020 Felix Gruber <felgru@posteo.net>
+# SPDX-FileCopyrightText: 2019–2021 Felix Gruber <felgru@posteo.net>
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
@@ -96,8 +96,17 @@ def parse_and_write_bank_statement(parser, src_file: str, dest_file: str,
               file=sys.stderr)
         return False
     if not dry_run:
-        with open(dest_file, 'w') as f:
-            bank_statement.write_ledger(f)
+        try:
+            with open(dest_file, 'w') as f:
+                bank_statement.write_ledger(f)
+        except Exception as e:
+            # Remove hledger file to allow clean import after fixing
+            # whatever caused the Exception.
+            try:
+                os.remove(dest_file)
+            except FileNotFoundError:
+                pass
+            raise e
     else:
         with io.StringIO() as f:
             bank_statement.write_ledger(f)
