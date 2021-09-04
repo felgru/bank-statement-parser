@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2019–2020 Felix Gruber <felgru@posteo.net>
+# SPDX-FileCopyrightText: 2019–2021 Felix Gruber <felgru@posteo.net>
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
@@ -79,7 +79,10 @@ class Transaction(BaseTransaction):
 
     def format_as_ledger_transaction(self) -> str:
         t = self
-        assert('\n' not in t.description)
+        if '\n' in t.description:
+            raise RuntimeError(
+                    'Transaction description contains unallowed'
+                    f' character "\\n": {t.description!r}')
         comment = t.metadata.get('comment', '')
         if comment:
             comment = ' ; ' + comment
