@@ -1,3 +1,9 @@
+<!--
+SPDX-FileCopyrightText: 2019–2021 Felix Gruber <felgru@posteo.net>
+
+SPDX-License-Identifier: GPL-3.0-or-later
+-->
+
 # Bank Statement Parser
 
 > scripts to import bank statement PDFs into hledger files
