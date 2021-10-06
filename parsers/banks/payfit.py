@@ -210,6 +210,7 @@ class PayfitPdfParser:
             raise PayfitPdfParserError('Mutuelle amount not found.')
         elif mutuelle is None:
             mutuelle = complement
+        assert mutuelle is not None
         m = re.search(r"Prévoyance \| Tranche B"
                       r' *(\d[ \d]*,\d\d) +(\d,\d{3}) +'
                       r'(\d[ \d]*,\d\d)', self.transactions_text)
