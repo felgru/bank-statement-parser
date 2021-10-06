@@ -5,7 +5,7 @@
 from datetime import date, timedelta
 from decimal import Decimal
 import re
-from typing import cast, Iterator, List
+from typing import cast, Iterator
 
 from .cleaning_rules import mercedes_benz as cleaning_rules
 from bank_statement import BankStatementMetadata
@@ -135,7 +135,7 @@ class MercedesBenzPdfParser(PdfParser):
                                                 start, end)
 
     def check_transactions_consistency(self,
-                                       transactions: List[AnyTransaction]) \
+                                       transactions: list[AnyTransaction]) \
                                                                     -> None:
         assert self.old_balance.balance + sum(cast(Transaction, t).amount
                                               for t in transactions) \

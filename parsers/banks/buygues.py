@@ -11,7 +11,7 @@ import itertools
 import os
 import re
 import subprocess
-from typing import List, Optional, Tuple, Union
+from typing import Optional, Union
 
 from bank_statement import BankStatement, BankStatementMetadata
 from transaction import MultiTransaction, Posting
@@ -105,12 +105,12 @@ class BuyguesPdfParser:
 
     def _parse_gross_income(self,
                             lines: MainTableIterator,
-                            ) -> Tuple[List[Posting], Decimal]:
+                            ) -> tuple[list[Posting], Decimal]:
         header = next(lines)
         if not header.is_section_header() \
            or not header.description == 'ELEMENTS DE REVENU BRUT':
                raise BuyguesPdfParserError('Missing ELEMENTS DE REVENU BRUT.')
-        postings: List[Posting] = []
+        postings: list[Posting] = []
         for line in lines:
             assert line.montant_employee is not None
             if line.description == 'TOTAL BRUT':
@@ -129,8 +129,8 @@ class BuyguesPdfParser:
 
     def _parse_social_security_payments(self,
                                         lines: MainTableIterator,
-                                        ) -> Tuple[List[Posting], Decimal]:
-        postings: List[Posting] = []
+                                        ) -> tuple[list[Posting], Decimal]:
+        postings: list[Posting] = []
         header = next(lines)
         if not header.is_section_header() \
            or not header.description == 'COTISATIONS ET CONTRIBUTIONS SOCIALES':
@@ -197,12 +197,12 @@ class BuyguesPdfParser:
 
     def _parse_misc(self,
                     lines: MainTableIterator,
-                    ) -> Tuple[List[Posting], Decimal]:
+                    ) -> tuple[list[Posting], Decimal]:
         header = next(lines)
         if not header.is_section_header() \
            or not header.description == 'AUTRES ELEMENTS DE PAIE':
                 raise BuyguesPdfParserError('Missing AUTRES ELEMENTS DE PAIE.')
-        postings: List[Posting] = []
+        postings: list[Posting] = []
         for line in lines:
             assert line.montant_employee is not None
             if line.description == 'TOTAL AUTRES ELEMENTS DE PAIE':
@@ -230,7 +230,7 @@ class BuyguesPdfParser:
 
     def _parse_net_income(self,
                           lines: MainTableIterator,
-                          ) -> Tuple[Decimal, Posting]:
+                          ) -> tuple[Decimal, Posting]:
         net_line = next(lines)
         if not net_line.description == 'NET A PAYER AVANT IMPOT SUR LE REVENU':
             raise BuyguesPdfParserError(
@@ -287,7 +287,7 @@ class MainTableIterator:
             raise BuyguesPdfParserError('Could not find main table.')
         self.pos, self.end = range_
 
-    def _parse_main_table_header(self, page: int) -> Optional[Tuple[int, int]]:
+    def _parse_main_table_header(self, page: int) -> Optional[tuple[int, int]]:
         m = re.search(r'\s*Nombre\s*Collaborateur\s*Employeur\n'
                       r'\s*Libellé\n'
                       r'(\s*)(ou base)\s*(Taux)\s*(Montant)\s*(Taux)\s*(Montant)\n',
@@ -359,7 +359,7 @@ class MainTableIterator:
                     self.pos = eol + 1
                     line = next_line
                     description += ' ' + line[:self.field_offsets[0]].strip()
-        amounts: List[Optional[Decimal]] = []
+        amounts: list[Optional[Decimal]] = []
         for field_start, field_end in zip(self.field_offsets,
                                           itertools.chain(
                                               self.field_offsets[1:],

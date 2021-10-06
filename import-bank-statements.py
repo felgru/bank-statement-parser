@@ -10,7 +10,6 @@ from datetime import date, timedelta
 import io
 import os
 import sys
-from typing import List, Tuple
 
 from git import BaseGit, FakeGit, Git
 from import_transaction import import_transaction, ImportTransactionProtocol
@@ -117,7 +116,7 @@ def parse_and_write_bank_statement(parser, src_file: str, dest_file: str,
     import_transaction.move_file_to_annex(src_file, moved_src)
     return True
 
-def merge_dateranges(dateranges: List[Tuple[date, date]]) -> None:
+def merge_dateranges(dateranges: list[tuple[date, date]]) -> None:
     dateranges.sort(key=lambda t: t[0])
     for i in reversed(range(len(dateranges)-1)):
         if 0 <= (dateranges[i+1][0] - dateranges[i][1]).days <= 1:

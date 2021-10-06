@@ -4,7 +4,7 @@
 
 from contextlib import contextmanager
 import os
-from typing import Iterable, List, Optional, Tuple, TypeVar, Union
+from typing import Iterable, Optional, TypeVar, Union
 
 from git import BaseGit
 
@@ -18,8 +18,8 @@ class ImportTransaction:
         assert self.git.working_directory_is_clean()
         self.old_branch = self.git.current_branch()
         self.git.change_branch(import_branch)
-        self.files_to_move_to_annex: List[Tuple[str, str]] = []
-        self.files_to_add_to_git: List[str] = []
+        self.files_to_move_to_annex: list[tuple[str, str]] = []
+        self.files_to_add_to_git: list[str] = []
 
     def commit(self, commit_message: Optional[str] = None) -> None:
         if commit_message is None:
@@ -64,8 +64,8 @@ class FakeImportTransaction:
     def begin(self, import_branch: str) -> None:
         print("beginning fake import Git transaction on branch "
               + import_branch)
-        self.files_to_move_to_annex: List[Tuple[str, str]] = []
-        self.files_to_add_to_git: List[str] = []
+        self.files_to_move_to_annex: list[tuple[str, str]] = []
+        self.files_to_add_to_git: list[str] = []
 
     def commit(self, commit_message: Optional[str] = None) -> None:
         if commit_message is None:

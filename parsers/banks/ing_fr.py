@@ -5,7 +5,7 @@
 from datetime import date
 from decimal import Decimal
 import re
-from typing import Iterator, Optional, Tuple
+from typing import Iterator, Optional
 
 from .cleaning_rules import ing_fr as cleaning_rules
 from bank_statement import BankStatementMetadata
@@ -57,7 +57,7 @@ class IngFrPdfParser(PdfParser):
                                r'\s*(\d[ \d]*,\d\d)',
                                flags=re.MULTILINE)
 
-    def parse_column_starts(self) -> Tuple[int, int]:
+    def parse_column_starts(self) -> tuple[int, int]:
         m = self.table_heading.search(self.pdf_pages[0])
         assert m is not None, 'Table heading not found.'
         line_start = m.start()

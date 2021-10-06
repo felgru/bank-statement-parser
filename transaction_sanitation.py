@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import os
-from typing import Any, Callable, Tuple, Union
+from typing import Any, Callable, Union
 
 from transaction import AnyTransaction, BaseTransaction, MultiTransaction, Transaction
 
@@ -43,7 +43,7 @@ class TransactionCleaner:
 class TransactionCleanerRule:
     def __init__(self, condition: Callable[[BaseTransaction], bool],
                  cleaner: Callable[[BaseTransaction], Any],
-                 field: Union[str, Tuple[str, ...]] = 'description'):
+                 field: Union[str, tuple[str, ...]] = 'description'):
         self.condition: Callable[[BaseTransaction], bool] = condition
         self.cleaner: Callable[[BaseTransaction], Any] = cleaner
         self.field = field

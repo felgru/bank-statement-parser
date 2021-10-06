@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import os
-from typing import Any, Callable, Dict, Iterator, List, Tuple
+from typing import Any, Callable, Iterator
 
 from transaction import AnyTransaction, MultiTransaction, Transaction
 
@@ -17,11 +17,11 @@ class AccountMapper:
 
     def _read_rules(self) -> None:
         if self.conf_file is None:
-            self.rules: List[Callable[[AnyTransaction], str]] = []
+            self.rules: list[Callable[[AnyTransaction], str]] = []
         else:
             with open(self.conf_file, 'r') as f:
                 content = f.read()
-                parse_globals: Dict[str, Any] = {
+                parse_globals: dict[str, Any] = {
                     'Transaction': Transaction,
                     }
                 exec(compile(content, self.conf_file, 'exec'), parse_globals)
@@ -30,7 +30,7 @@ class AccountMapper:
                             f'{self.conf_file} didn\'t contain any rules.')
                 self.rules = parse_globals['rules']
 
-    def map_transactions(self, transactions: List[AnyTransaction]) -> None:
+    def map_transactions(self, transactions: list[AnyTransaction]) -> None:
         for t in transactions:
             if isinstance(t, MultiTransaction):
                 self._map_multitransaction(t)
@@ -50,7 +50,7 @@ class AccountMapper:
                 return
 
 def extract_unmapped_transactions(mt: MultiTransaction) \
-                                    -> Iterator[Tuple[int, Transaction]]:
+                                    -> Iterator[tuple[int, Transaction]]:
     for i, posting in enumerate(mt.postings):
         if posting.account is None:
             yield (i, Transaction(account='split from MultiTransaction',

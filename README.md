@@ -30,6 +30,7 @@ that tries to parse all bank statements found in
 `~/accounting/bank_statements/incoming/<name_of_bank>`. For each bank statement
 file it creates a corresponding hledger file in `~/accounting/bank_statements`.
 
+The abovementionned scripts are compatible with Python 3.9 or later.
 To parse PDF files the bank statement parser uses `pdftotext`, which in Debian
 is part of the `poppler-utils` package.
 

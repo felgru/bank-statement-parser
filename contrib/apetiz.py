@@ -13,7 +13,7 @@ from getpass import getpass
 import json
 import sys
 import statistics
-from typing import List, Literal, Optional, TypedDict, Union
+from typing import Literal, Optional, TypedDict, Union
 
 from dateutil import parser as dateparser
 from dateutil import tz
@@ -104,11 +104,11 @@ class UserJSON(TypedDict):
     active: str  # "ACTIVE"
     subscriberId: str
     employee: EmployeeJSON
-    holders:List[UserHolderJSON]
+    holders: list[UserHolderJSON]
     login: str
     person: PersonJSON
-    profiles: List[ProfileJSON]
-    secretQuestions: List[SecretQuestionJSON]
+    profiles: list[ProfileJSON]
+    secretQuestions: list[SecretQuestionJSON]
 
 
 class TargetStateJSON(TypedDict):
@@ -135,7 +135,7 @@ class ProfileJSON(TypedDict):
     applicationName: str  # "Site Apetiz"
     type: str  # "EMPLOYEE"
     id: str  # "BENEFICIAIRE_APZ_PROFIL_2"
-    targetStates: List[TargetStateJSON]
+    targetStates: list[TargetStateJSON]
 
 
 class SecretQuestionJSON(TypedDict):
@@ -144,7 +144,7 @@ class SecretQuestionJSON(TypedDict):
 
 
 class TransactionsJSON(TypedDict):
-    items: List[TransactionItemJSON]
+    items: list[TransactionItemJSON]
 
 
 class PaymentJSON(TypedDict, total=False):
@@ -163,7 +163,7 @@ class PaymentJSON(TypedDict, total=False):
 class MerchantJSON(TypedDict):
     id: str
     name: str
-    category: List[MerchantCategoryJSON]
+    category: list[MerchantCategoryJSON]
 
 
 class MerchantCategoryJSON(TypedDict):
@@ -187,7 +187,7 @@ TransactionItemJSON = Union[PaymentJSON, LoadingJSON]
 
 
 class AccountsJSON(TypedDict):
-    items: List[AccountItemJSON]
+    items: list[AccountItemJSON]
     additionalInformation: AdditionalAccountInformationJSON
 
 
@@ -273,7 +273,7 @@ def download_main(args: argparse.Namespace) -> None:
         json.dump(all_transactions, f)
 
 
-def load_json_transactions(json_file: str) -> List[TransactionItemJSON]:
+def load_json_transactions(json_file: str) -> list[TransactionItemJSON]:
     if json_file == '-':
         infile = contextlib.nullcontext(sys.stdin)
     else:
@@ -338,8 +338,8 @@ def print_recharges_main(args: argparse.Namespace) -> None:
 def plot_payment_times_main(args: argparse.Namespace) -> None:
     import matplotlib.pyplot as plt  # type: ignore
     all_transactions = load_json_transactions(args.json_file)
-    dates: List[datetime.date] = []
-    hours: List[float] = []
+    dates: list[datetime.date] = []
+    hours: list[float] = []
     paris_tz = tz.gettz('Europe/Paris')
     for transaction in reversed(all_transactions):
         if transaction['type'] != 'PAYMENT':

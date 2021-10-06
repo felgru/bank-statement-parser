@@ -7,7 +7,7 @@ from decimal import Decimal
 import os
 import re
 import subprocess
-from typing import cast, Iterator, List
+from typing import cast, Iterator
 
 from bank_statement import BankStatement, BankStatementMetadata
 from transaction import (AnyTransaction, Balance,
@@ -176,7 +176,7 @@ class VTB2019PdfParser(PdfParser):
                               transaction_date, value_date, amount)
 
     def check_transactions_consistency(self,
-                                       transactions: List[AnyTransaction]) \
+                                       transactions: list[AnyTransaction]) \
                                                                     -> None:
         assert self.old_balance.balance \
                + sum(cast(Transaction, t).amount for t in transactions) \
@@ -211,7 +211,7 @@ class VTB2014PdfParser(PdfParser):
     account = 'assets:bank:saving:VTB Direktbank'
     ParserError = VTB2014PdfParserError
 
-    def __init__(self, xdg, pdf_pages: List[str]):
+    def __init__(self, xdg, pdf_pages: list[str]):
         self.xdg = xdg
         self.pdf_pages = pdf_pages
         self._parse_metadata()
@@ -364,7 +364,7 @@ class VTB2014PdfParser(PdfParser):
         return t
 
     def check_transactions_consistency(self,
-                                       transactions: List[AnyTransaction]) \
+                                       transactions: list[AnyTransaction]) \
                                                                     -> None:
         sum = Decimal(0)
         for t in transactions:
@@ -394,7 +394,7 @@ class VTB2012PdfParser(PdfParser):
     account = 'assets:bank:saving:VTB Direktbank'
     ParserError = VTB2012PdfParserError
 
-    def __init__(self, xdg, pdf_pages: List[str]):
+    def __init__(self, xdg, pdf_pages: list[str]):
         self.xdg = xdg
         self.pdf_pages = pdf_pages
         self._parse_description_start()
@@ -556,7 +556,7 @@ class VTB2012PdfParser(PdfParser):
         return t
 
     def check_transactions_consistency(self,
-            transactions: List[AnyTransaction]) -> None:
+            transactions: list[AnyTransaction]) -> None:
         sum = self.old_balance.balance
         for t in transactions:
             if isinstance(t, Transaction):

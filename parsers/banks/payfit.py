@@ -8,7 +8,7 @@ from decimal import Decimal
 import os
 import re
 import subprocess
-from typing import List, Optional, Tuple
+from typing import Optional
 
 from bank_statement import BankStatement, BankStatementMetadata
 from transaction import MultiTransaction, Posting
@@ -56,8 +56,8 @@ class PayfitPdfParser:
     def extract_dates_table(self) -> None:
         self.dates_text = self.extract_table(1, (432, 62), (321, 88), 2)
 
-    def extract_table(self, page: int, upper_left: Tuple[int, int],
-                      size: Tuple[int, int], num_cols: int) -> str:
+    def extract_table(self, page: int, upper_left: tuple[int, int],
+                      size: tuple[int, int], num_cols: int) -> str:
         # pdftotext is provided by Poppler on Debian
         pdftext = subprocess.run(['pdftotext', '-r', '100',
                                   '-f', str(page), '-l', str(page),
@@ -129,7 +129,7 @@ class PayfitPdfParser:
             transaction.add_posting(p)
         return BankStatement(None, [transaction])
 
-    def _parse_salary(self) -> Tuple[List[Posting], Decimal]:
+    def _parse_salary(self) -> tuple[list[Posting], Decimal]:
         m = re.search(r'Rémunération brute \(1\) *(\d[ \d]*,\d\d)',
                       self.transactions_text)
         if m is None:
@@ -184,8 +184,8 @@ class PayfitPdfParser:
         assert sum(p.amount for p in salaries) + total_gross_salary == 0
         return salaries, total_gross_salary
 
-    def _parse_social_security_payments(self) -> Tuple[List[Posting], Decimal]:
-        postings: List[Posting] = []
+    def _parse_social_security_payments(self) -> tuple[list[Posting], Decimal]:
+        postings: list[Posting] = []
         m = re.search(r"Mutuelle .*?"
                       r' *(\d[ \d]*,\d\d) +(\d,\d{3}) +'
                       r'(\d[ \d]*,\d\d)', self.transactions_text)
@@ -289,7 +289,7 @@ class PayfitPdfParser:
                                 total - accounted_for))
         return postings, total
 
-    def _parse_travel_reimbursement(self) -> Tuple[List[Posting], Decimal]:
+    def _parse_travel_reimbursement(self) -> tuple[list[Posting], Decimal]:
         m = re.search(r'Frais transport public *(\d[ \d]*,\d\d) *(\d,\d{4}) *'
                       r'(\d[ \d]*,\d\d)', self.transactions_text)
         if m is None:

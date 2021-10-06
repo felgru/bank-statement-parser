@@ -2,18 +2,18 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
+from __future__ import annotations
 from abc import ABCMeta, abstractmethod
 from copy import copy
 from collections import defaultdict, namedtuple
 from datetime import date
 from decimal import Decimal
-from typing import (Any, DefaultDict, Dict, Iterable, List, Optional,
-                    Tuple, TypeVar, Union)
+from typing import Any, Iterable, Optional, TypeVar, Union
 
 class BaseTransaction(metaclass=ABCMeta):
     description: str
     operation_date: date
-    metadata: Dict[str, Any]
+    metadata: dict[str, Any]
 
     @abstractmethod
     def change_property(self, prop: Union[str, Iterable[str]], f) \
@@ -39,7 +39,7 @@ class Transaction(BaseTransaction):
                  amount: Decimal, currency: str = '€',
                  external_account: Optional[str] = None,
                  external_value_date: Optional[date] = None,
-                 metadata: Optional[Dict[str, Any]] = None):
+                 metadata: Optional[dict[str, Any]] = None):
         self.account = account
         self.description = description
         self.operation_date = operation_date
@@ -127,8 +127,8 @@ class Transaction(BaseTransaction):
 
 class MultiTransaction(BaseTransaction):
     def __init__(self, description: str, transaction_date: date,
-                 postings: 'Optional[List[Posting]]' = None,
-                 metadata: Optional[Dict[str, Any]] = None):
+                 postings: Optional[list[Posting]] = None,
+                 metadata: Optional[dict[str, Any]] = None):
         self.description = description
         self.date = transaction_date
         if postings is None:
@@ -169,7 +169,7 @@ class MultiTransaction(BaseTransaction):
 
     def is_balanced(self) -> bool:
         without_amount = 0
-        amounts: DefaultDict[str, Decimal] = defaultdict(lambda: Decimal(0))
+        amounts: defaultdict[str, Decimal] = defaultdict(lambda: Decimal(0))
         for p in self.postings:
             if p.amount is None:
                 without_amount += 1
@@ -192,7 +192,7 @@ class Posting:
     def __init__(self, account: Optional[str], amount: Decimal,
                  currency: str = '€', posting_date: Optional[date] = None,
                  comment: Optional[str] = None, *,
-                 conversion_price: Optional[Tuple[Decimal, str]] = None):
+                 conversion_price: Optional[tuple[Decimal, str]] = None):
         self.account = account
         self.amount = amount
         self.currency = currency

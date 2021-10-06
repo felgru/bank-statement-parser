@@ -4,13 +4,13 @@
 
 from datetime import date
 import json
-from typing import List, Optional, TextIO
+from typing import Optional, TextIO
 
 from transaction import AnyTransaction, Balance
 
 class BankStatement:
     def __init__(self, account: Optional[str],
-                 transactions: List[AnyTransaction],
+                 transactions: list[AnyTransaction],
                  old_balance: Optional[Balance] = None,
                  new_balance: Optional[Balance] = None):
         self.account = account

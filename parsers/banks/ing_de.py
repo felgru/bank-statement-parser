@@ -5,7 +5,7 @@
 from datetime import date, timedelta
 from decimal import Decimal
 import re
-from typing import cast, Iterator, List
+from typing import cast, Iterator
 
 from .cleaning_rules import ing_de as cleaning_rules
 from bank_statement import BankStatement, BankStatementMetadata
@@ -135,7 +135,7 @@ class IngDePdfParser(PdfParser):
             page = page[table_start:]
         return page
 
-    def parse_interest_postings(self) -> List[Posting]:
+    def parse_interest_postings(self) -> list[Posting]:
         interest_table = self.extract_interest_table()
         postings = []
         for m in re.finditer(r'^ +(.+?)  +(.+?%) +(.+?)  +(.+,\d\d)$',
@@ -219,7 +219,7 @@ class IngDePdfParser(PdfParser):
                                                 start, end)
 
     def check_transactions_consistency(self,
-                transactions: List[AnyTransaction]) -> None:
+                transactions: list[AnyTransaction]) -> None:
         assert self.old_balance.balance + sum(cast(Transaction, t).amount
                                               for t in transactions) \
                == self.new_balance.balance

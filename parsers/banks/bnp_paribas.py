@@ -5,7 +5,7 @@
 from datetime import date
 from decimal import Decimal
 import re
-from typing import Iterator, Tuple
+from typing import Iterator
 
 from bank_statement import BankStatementMetadata
 from transaction import Balance, Transaction
@@ -37,7 +37,7 @@ class BnpParibasPdfParser(PdfParser):
                     flags=re.MULTILINE)
         self.debit_start, self.credit_start = self.parse_column_starts()
 
-    def parse_column_starts(self) -> Tuple[int, int]:
+    def parse_column_starts(self) -> tuple[int, int]:
         m = self.table_heading.search(self.pdf_pages[0])
         assert m is not None, 'Table heading not found.'
         line_start = m.start()

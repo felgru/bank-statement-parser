@@ -8,7 +8,7 @@ from datetime import date, timedelta
 from decimal import Decimal
 import os
 import re
-from typing import cast, DefaultDict, Dict, List, Optional, TypedDict
+from typing import cast, Optional, TypedDict
 
 from .cleaning_rules import paypal as cleaning_rules
 from bank_statement import BankStatement, BankStatementMetadata
@@ -38,7 +38,7 @@ class PayPalCsvParser(Parser):
     def _parse_file(self, csv_file: str) -> None:
         if not os.path.exists(csv_file):
             raise IOError('Unknown file: {}'.format(csv_file))
-        postings: OrderedDict[str, List[PostingDict]] = OrderedDict()
+        postings: OrderedDict[str, list[PostingDict]] = OrderedDict()
         related_postings = defaultdict(list)
         with open(csv_file, newline='', encoding='UTF-8-sig') as f:
             reader = csv.DictReader(f, dialect='unix')
@@ -99,7 +99,7 @@ class PayPalCsvParser(Parser):
         transactions = []
         known_keys = {'credit', 'expense', 'currency_conversion'}
         for posting_list in postings.values():
-            by_type: DefaultDict[str, List[PostingDict]] = defaultdict(list)
+            by_type: defaultdict[str, list[PostingDict]] = defaultdict(list)
             for posting in posting_list:
                 by_type[posting['type']].append(posting)
             assert known_keys.issuperset(by_type.keys())
@@ -148,7 +148,7 @@ class PayPalCsvParser(Parser):
     def parse(self) -> BankStatement:
         #self.check_transactions_consistency(self.transactions)
         transactions = self.clean_up_transactions(
-                cast(List[AnyTransaction], self.transactions))
+                cast(list[AnyTransaction], self.transactions))
         self.map_accounts(transactions)
         return BankStatement(self.account, transactions)
 

@@ -6,7 +6,6 @@ from abc import ABCMeta, abstractmethod
 from datetime import date
 from decimal import Decimal
 import os
-from typing import List
 
 from account_mapping import AccountMapper
 from bank_statement import BankStatement, BankStatementMetadata
@@ -42,7 +41,7 @@ class QifParser(Parser, metaclass=ABCMeta):
         return BankStatement(account=self.account,
                       transactions=transactions)
 
-    def _parse_transactions(self, file_) -> List[Transaction]:
+    def _parse_transactions(self, file_) -> list[Transaction]:
         transactions = []
         while line := file_.readline():
             type_, rest = line[0], line[1:]

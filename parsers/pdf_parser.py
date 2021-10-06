@@ -7,7 +7,7 @@ from datetime import date
 from decimal import Decimal
 import os
 import subprocess
-from typing import Iterable, List, Union
+from typing import Iterable, Union
 
 from account_mapping import AccountMapper
 from bank_statement import BankStatement, BankStatementMetadata
@@ -73,7 +73,7 @@ class PdfParser(Parser, metaclass=ABCMeta):
                                     -> Iterable[AnyTransaction]: pass
 
     def check_transactions_consistency(self,
-                                       transactions: List[AnyTransaction]) \
+                                       transactions: list[AnyTransaction]) \
                                                                     -> None:
         assert self.old_balance.balance \
                + self.total_credit - self.total_debit \
