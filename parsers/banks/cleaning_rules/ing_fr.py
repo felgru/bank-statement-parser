@@ -49,7 +49,7 @@ def clean_sepa_direct_debit(t):
     if m is None:
         description = prefix + t.description[len(prefix):]
         return description, t.metadata
-    recipient = m.group(1).strip().title()
+    recipient = m.group(1).strip().title().replace('\n', ' ')
     # Creditor Identifier (CI)
     # https://www.sepaforcorporates.com/sepa-direct-debits/sepa-creditor-identifier/
     # https://www.europeanpaymentscouncil.eu/sites/default/files/kb/file/2019-09/EPC262-08%20v7.0%20Creditor%20Identifier%20Overview_0.pdf
