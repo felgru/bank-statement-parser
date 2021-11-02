@@ -6,6 +6,7 @@ from abc import ABCMeta, abstractmethod
 from datetime import date
 from decimal import Decimal
 import os
+from pathlib import Path
 import subprocess
 from typing import Iterable, Union
 
@@ -24,16 +25,16 @@ class PdfParser(Parser, metaclass=ABCMeta):
     total_debit: Decimal
     num_cols: int = 5
 
-    def __init__(self, pdf_file: str):
+    def __init__(self, pdf_file: Path):
         super().__init__(pdf_file)
         self._parse_file(pdf_file)
 
-    def _parse_file(self, pdf_file: str) -> None:
-        if not os.path.exists(pdf_file):
-            raise IOError('Unknown file: {}'.format(pdf_file))
+    def _parse_file(self, pdf_file: Path) -> None:
+        if not pdf_file.exists():
+            raise IOError(f'Unknown file: {pdf_file}')
         # pdftotext is provided by poppler-utils on Debian
         pdftext = subprocess.run(['pdftotext', '-fixed', str(self.num_cols),
-                                  pdf_file, '-'],
+                                  str(pdf_file), '-'],
                                  capture_output=True, encoding='UTF8',
                                  check=True).stdout
         # Careful: There's a trailing \f on the last page

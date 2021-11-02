@@ -4,7 +4,6 @@
 
 from datetime import date, timedelta
 from decimal import Decimal
-import os
 from pathlib import Path
 import re
 import subprocess
@@ -21,17 +20,17 @@ class VTBPdfParser(Parser):
     bank_folder = 'vtb'
     file_extension = '.pdf'
 
-    def __init__(self, pdf_file: str):
+    def __init__(self, pdf_file: Path):
         super().__init__(pdf_file)
         self._parse_file(pdf_file)
         self.parser = self._choose_parser()
 
-    def _parse_file(self, pdf_file: str):
-        if not os.path.exists(pdf_file):
+    def _parse_file(self, pdf_file: Path) -> None:
+        if not pdf_file.exists():
             raise IOError('Unknown file: {}'.format(pdf_file))
         # pdftotext is provided by Poppler on Debian
         pdftext = subprocess.run(['pdftotext',
-                                  '-fixed', '6', pdf_file, '-'],
+                                  '-fixed', '6', str(pdf_file), '-'],
                                  capture_output=True, encoding='UTF8',
                                  check=True).stdout
         # Careful: There's a trailing \f on the last page

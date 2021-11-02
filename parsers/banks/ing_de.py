@@ -1,9 +1,10 @@
-# SPDX-FileCopyrightText: 2019–2020 Felix Gruber <felgru@posteo.net>
+# SPDX-FileCopyrightText: 2019–2021 Felix Gruber <felgru@posteo.net>
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 from datetime import date, timedelta
 from decimal import Decimal
+from pathlib import Path
 import re
 from typing import cast, Iterator
 
@@ -19,7 +20,7 @@ class IngDePdfParser(PdfParser):
     account = 'assets:bank:TODO:ING.de' # exact account is set in __init__
     num_cols = 5
 
-    def __init__(self, pdf_file: str):
+    def __init__(self, pdf_file: Path):
         super().__init__(pdf_file)
         self._parse_metadata()
         self._parse_description_start()

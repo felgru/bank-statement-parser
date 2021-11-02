@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 from abc import ABCMeta, abstractmethod
+from pathlib import Path
 from typing import Optional, Sequence
 
 from account_mapping import AccountMapper
@@ -17,7 +18,7 @@ class Parser(metaclass=ABCMeta):
     account: str
     cleaning_rules: Optional[list[TransactionCleanerRule]] = None
 
-    def __init__(self, infile):
+    def __init__(self, infile: Path):
         self.xdg = getXDGdirectories('bank-statement-parser/'
                                      + self.bank_folder)
 

@@ -4,6 +4,7 @@
 
 from datetime import date
 from decimal import Decimal
+from pathlib import Path
 import re
 from typing import Iterator, Optional
 
@@ -19,7 +20,7 @@ class IngFrPdfParser(PdfParser):
     bank_folder = 'ing.fr'
     account = 'assets:bank:TODO:ING.fr' # exact account is set in __init__
 
-    def __init__(self, pdf_file: str):
+    def __init__(self, pdf_file: Path):
         super().__init__(pdf_file)
         m = re.search('RELEVE ([A-Z ]+)', self.pdf_pages[0])
         assert m is not None, 'Account type not found.'
@@ -278,7 +279,7 @@ class IngFrQifParser(QifParser):
     currency = '€'
     cleaning_rules = cleaning_rules.qif_checkings_rules
 
-    def __init__(self, qif_file: str):
+    def __init__(self, qif_file: Path):
         super().__init__(qif_file)
         # TODO: determine exact account type
 
