@@ -1,10 +1,11 @@
-# SPDX-FileCopyrightText: 2020 Felix Gruber <felgru@posteo.net>
+# SPDX-FileCopyrightText: 2020–2021 Felix Gruber <felgru@posteo.net>
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 from datetime import date, timedelta
 from decimal import Decimal
 import os
+from pathlib import Path
 import re
 import subprocess
 from typing import cast, Iterator
@@ -62,7 +63,7 @@ class VTB2019PdfParser(PdfParser):
     account = 'assets:bank:saving:VTB Direktbank'
     ParserError = VTB2019PdfParserError
 
-    def __init__(self, xdg, pdf_pages):
+    def __init__(self, xdg: dict[str, Path], pdf_pages: list[str]):
         self.xdg = xdg
         self.pdf_pages = pdf_pages
         self._parse_metadata()
@@ -211,7 +212,7 @@ class VTB2014PdfParser(PdfParser):
     account = 'assets:bank:saving:VTB Direktbank'
     ParserError = VTB2014PdfParserError
 
-    def __init__(self, xdg, pdf_pages: list[str]):
+    def __init__(self, xdg: dict[str, Path], pdf_pages: list[str]):
         self.xdg = xdg
         self.pdf_pages = pdf_pages
         self._parse_metadata()
@@ -394,7 +395,7 @@ class VTB2012PdfParser(PdfParser):
     account = 'assets:bank:saving:VTB Direktbank'
     ParserError = VTB2012PdfParserError
 
-    def __init__(self, xdg, pdf_pages: list[str]):
+    def __init__(self, xdg: dict[str, Path], pdf_pages: list[str]):
         self.xdg = xdg
         self.pdf_pages = pdf_pages
         self._parse_description_start()

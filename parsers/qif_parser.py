@@ -7,12 +7,9 @@ from datetime import date
 from decimal import Decimal
 import os
 
-from account_mapping import AccountMapper
 from bank_statement import BankStatement, BankStatementMetadata
 from .parser import Parser
 from transaction import AnyTransaction, Balance, MultiTransaction, Transaction
-from transaction_sanitation import TransactionCleaner
-from xdg_dirs import getXDGdirectories
 
 class QifParser(Parser, metaclass=ABCMeta):
     file_extension = '.qif'

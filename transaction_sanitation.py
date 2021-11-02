@@ -1,16 +1,17 @@
-# SPDX-FileCopyrightText: 2019–2020 Felix Gruber <felgru@posteo.net>
+# SPDX-FileCopyrightText: 2019–2021 Felix Gruber <felgru@posteo.net>
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-import os
-from typing import Any, Callable, Union
+from pathlib import Path
+from typing import Any, Callable, Optional, Union
 
 from transaction import AnyTransaction, BaseTransaction, MultiTransaction, Transaction
 
 class TransactionCleaner:
-    def __init__(self, xdg_dirs, builtin_rules=None):
-        conf_file = xdg_dirs['config'] + '/cleaning_rules.py'
-        if not os.path.exists(conf_file):
+    def __init__(self, xdg_dirs: dict[str, Path], builtin_rules=None):
+        conf_file: Optional[Path]
+        conf_file = xdg_dirs['config'] / 'account_mappings.py'
+        if not conf_file.exists():
             conf_file = None
         self.conf_file = conf_file
         self._read_rules()

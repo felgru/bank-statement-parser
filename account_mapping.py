@@ -1,16 +1,17 @@
-# SPDX-FileCopyrightText: 2019–2020 Felix Gruber <felgru@posteo.net>
+# SPDX-FileCopyrightText: 2019–2021 Felix Gruber <felgru@posteo.net>
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-import os
-from typing import Any, Callable, Iterator
+from pathlib import Path
+from typing import Any, Callable, Iterator, Optional
 
 from transaction import AnyTransaction, MultiTransaction, Transaction
 
 class AccountMapper:
-    def __init__(self, xdg_dirs):
-        conf_file = xdg_dirs['config'] + '/account_mappings.py'
-        if not os.path.exists(conf_file):
+    def __init__(self, xdg_dirs: dict[str, Path]):
+        conf_file: Optional[Path]
+        conf_file = xdg_dirs['config'] / 'account_mappings.py'
+        if not conf_file.exists():
             conf_file = None
         self.conf_file = conf_file
         self._read_rules()

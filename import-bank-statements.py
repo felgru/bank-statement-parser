@@ -151,7 +151,7 @@ def write_include_files(ledger_root: str, git: BaseGit) -> None:
 def read_config() -> configparser.ConfigParser:
     config = configparser.ConfigParser()
     xdg = getXDGdirectories('bank-statement-parser')
-    config.read(os.path.join(xdg['config'], 'import.cfg'))
+    config.read(xdg['config'] / 'import.cfg')
     if 'dirs' not in config:
         config['dirs'] = {}
     dirs = config['dirs']

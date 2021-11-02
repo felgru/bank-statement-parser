@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2019–2020 Felix Gruber <felgru@posteo.net>
+# SPDX-FileCopyrightText: 2019–2021 Felix Gruber <felgru@posteo.net>
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
@@ -9,12 +9,9 @@ import os
 import subprocess
 from typing import Iterable, Union
 
-from account_mapping import AccountMapper
 from bank_statement import BankStatement, BankStatementMetadata
 from .parser import Parser
 from transaction import AnyTransaction, Balance, MultiTransaction, Transaction
-from transaction_sanitation import TransactionCleaner
-from xdg_dirs import getXDGdirectories
 
 class PdfParser(Parser, metaclass=ABCMeta):
     file_extension = '.pdf'
