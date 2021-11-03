@@ -1,10 +1,10 @@
-# SPDX-FileCopyrightText: 2019–2020 Felix Gruber <felgru@posteo.net>
+# SPDX-FileCopyrightText: 2019–2021 Felix Gruber <felgru@posteo.net>
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 from datetime import date
 import json
-from typing import Optional, TextIO
+from typing import Any, Optional, TextIO
 
 from transaction import AnyTransaction, Balance
 
@@ -57,7 +57,7 @@ class BankStatementMetadata:
                  owner_number: Optional[str] = None,
                  card_number: Optional[str] = None,
                  account_number: Optional[str] = None,
-                 **extra):
+                 **extra: Any):
         self.account_owner = account_owner
         self.iban = iban
         self.bic = bic
@@ -68,7 +68,7 @@ class BankStatementMetadata:
         self.end_date = end_date
         self.extra = dict(extra)
 
-    def __getattr__(self, key: str):
+    def __getattr__(self, key: str) -> Any:
         return self.extra[key]
 
     def write(self, outfile: TextIO) -> None:

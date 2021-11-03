@@ -17,7 +17,7 @@ class BaseTransaction(metaclass=ABCMeta):
 
     @abstractmethod
     def change_property(self, prop: Union[str, Iterable[str]], f) \
-                                            -> 'BaseTransaction': pass
+                                            -> BaseTransaction: pass
 
     @abstractmethod
     def format_as_ledger_transaction(self) -> str: pass
@@ -26,7 +26,7 @@ class BaseTransaction(metaclass=ABCMeta):
     def __repr__(self) -> str: pass
 
     @property
-    def type(self):
+    def type(self) -> str:
         try:
             return self.metadata['type']
         except KeyError:
@@ -104,7 +104,7 @@ class Transaction(BaseTransaction):
         result += f'    {ext_acc}{ext_date}\n'
         return result
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         s = self
         if s.external_account is not None:
             ext_account = f', external_account={s.external_account!r}'
@@ -179,7 +179,7 @@ class MultiTransaction(BaseTransaction):
         return (unbalanced_currencies == 0 and without_amount == 0) \
                or (unbalanced_currencies <= 1 and without_amount == 1)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         s = self
         if s.metadata:
             meta = f', metadata={s.metadata!r}'
@@ -221,7 +221,7 @@ class Posting:
             comments_str = ''
         return f'    {account}  {amount}{comments_str}\n'
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         s = self
         if s.date is not None:
             date = f', posting_date={s.date!r}'

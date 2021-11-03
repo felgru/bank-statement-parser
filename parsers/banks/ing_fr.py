@@ -238,8 +238,9 @@ class IngFrPdfParser(PdfParser):
         assert accumulated_debit == self.total_debit
         assert accumulated_credit == self.total_credit
 
-    def transactions_in_block(self, transaction_type, start: int, end: int) \
-                                                    -> Iterator[Transaction]:
+    def transactions_in_block(self,
+                              transaction_type: Optional[str],
+                              start: int, end: int) -> Iterator[Transaction]:
         while True:
             m = self.first_line_pattern.search(self.transactions_text, start,
                                                start+self.debit_start)

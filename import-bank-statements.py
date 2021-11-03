@@ -12,6 +12,7 @@ import io
 import os
 from pathlib import Path
 import sys
+from typing import Iterable, Protocol, Union
 
 from git import BaseGit, FakeGit, Git
 from import_transaction import import_transaction, ImportTransactionProtocol
@@ -131,7 +132,10 @@ def merge_dateranges(dateranges: list[tuple[date, date]]) -> None:
             dateranges[i] = (dateranges[i][0], dateranges[i+1][1])
             dateranges.pop(i+1)
 
-def write_include_files(ledger_root: str, git: BaseGit) -> None:
+class AddFileTransaction(Protocol):
+    def add_files(self, files: Iterable[Union[Path, str]]) -> None: ...
+
+def write_include_files(ledger_root: str, git: AddFileTransaction) -> None:
     ledger_name = 'journal.hledger'
     ledger_files = []
     for(dirpath, dirnames, filenames) in os.walk(ledger_root):
