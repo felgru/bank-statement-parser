@@ -10,7 +10,7 @@ import subprocess
 from typing import cast, Iterator
 
 from bank_statement import BankStatement, BankStatementMetadata
-from transaction import (AnyTransaction, Balance,
+from transaction import (BaseTransaction, Balance,
                          MultiTransaction, Posting, Transaction)
 
 from ..parser import Parser
@@ -176,7 +176,7 @@ class VTB2019PdfParser(PdfParser):
                               transaction_date, value_date, amount)
 
     def check_transactions_consistency(self,
-                                       transactions: list[AnyTransaction]) \
+                                       transactions: list[BaseTransaction]) \
                                                                     -> None:
         assert self.old_balance.balance \
                + sum(cast(Transaction, t).amount for t in transactions) \
@@ -307,7 +307,7 @@ class VTB2014PdfParser(PdfParser):
             flags=re.MULTILINE)
 
     def generate_transactions(self, start: int, end: int) \
-                                            -> Iterator[AnyTransaction]:
+                                            -> Iterator[BaseTransaction]:
         while True:
             m = self.transaction_pattern.search(self.transactions_text,
                                                 start, end)
@@ -364,14 +364,16 @@ class VTB2014PdfParser(PdfParser):
         return t
 
     def check_transactions_consistency(self,
-                                       transactions: list[AnyTransaction]) \
+                                       transactions: list[BaseTransaction]) \
                                                                     -> None:
         sum = Decimal(0)
         for t in transactions:
             if isinstance(t, Transaction):
                 amount = t.amount
-            else:
+            elif isinstance(t, MultiTransaction):
                 amount = t.postings[0].amount
+            else:
+                raise RuntimeError(f'Unknown transaction type {type(t)}.')
             sum += amount
         assert sum == self.transactions_sum
 
@@ -494,7 +496,7 @@ class VTB2012PdfParser(PdfParser):
             flags=re.MULTILINE)
 
     def generate_transactions(self, start: int, end: int) \
-                                        -> Iterator[AnyTransaction]:
+                                        -> Iterator[BaseTransaction]:
         while True:
             m = self.transaction_pattern.search(self.transactions_text,
                                                 start, end)
@@ -556,13 +558,15 @@ class VTB2012PdfParser(PdfParser):
         return t
 
     def check_transactions_consistency(self,
-            transactions: list[AnyTransaction]) -> None:
+            transactions: list[BaseTransaction]) -> None:
         sum = self.old_balance.balance
         for t in transactions:
             if isinstance(t, Transaction):
                 amount = t.amount
-            else:
+            elif isinstance(t, MultiTransaction):
                 amount = t.postings[0].amount
+            else:
+                raise RuntimeError(f'Unknown transaction type {type(t)}.')
             sum += amount
         assert sum == self.new_balance.balance
 

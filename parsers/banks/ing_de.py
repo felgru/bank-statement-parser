@@ -10,7 +10,7 @@ from typing import cast, Iterator
 
 from .cleaning_rules import ing_de as cleaning_rules
 from bank_statement import BankStatement, BankStatementMetadata
-from transaction import (AnyTransaction, Balance, MultiTransaction,
+from transaction import (BaseTransaction, Balance, MultiTransaction,
                          Posting, Transaction)
 
 from ..pdf_parser import PdfParser
@@ -196,7 +196,7 @@ class IngDePdfParser(PdfParser):
         self.transactions_end = m.start()
 
     def generate_transactions(self, start: int, end: int) \
-                                            -> Iterator[AnyTransaction]:
+                                            -> Iterator[BaseTransaction]:
         m = self.transaction_pattern.search(self.transactions_text, start, end)
         while m is not None:
             transaction_date = parse_date(m.group(1))
@@ -220,7 +220,7 @@ class IngDePdfParser(PdfParser):
                                                 start, end)
 
     def check_transactions_consistency(self,
-                transactions: list[AnyTransaction]) -> None:
+                transactions: list[BaseTransaction]) -> None:
         assert self.old_balance.balance + sum(cast(Transaction, t).amount
                                               for t in transactions) \
                == self.new_balance.balance

@@ -8,12 +8,12 @@ from datetime import date, timedelta
 from decimal import Decimal
 from pathlib import Path
 import re
-from typing import cast, Optional, TypedDict
+from typing import Optional, TypedDict
 
 from .cleaning_rules import paypal as cleaning_rules
 from bank_statement import BankStatement, BankStatementMetadata
 from ..parser import Parser
-from transaction import AnyTransaction, MultiTransaction, Posting
+from transaction import BaseTransaction, MultiTransaction, Posting
 from xdg_dirs import getXDGdirectories
 
 class PostingDict(TypedDict):
@@ -147,8 +147,7 @@ class PayPalCsvParser(Parser):
 
     def parse(self) -> BankStatement:
         #self.check_transactions_consistency(self.transactions)
-        transactions = self.clean_up_transactions(
-                cast(list[AnyTransaction], self.transactions))
+        transactions = self.clean_up_transactions(self.transactions)
         self.map_accounts(transactions)
         return BankStatement(self.account, transactions)
 

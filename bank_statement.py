@@ -2,19 +2,20 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
+from collections.abc import Sequence
 from datetime import date
 import json
 from typing import Any, Optional, TextIO
 
-from transaction import AnyTransaction, Balance
+from transaction import BaseTransaction, Balance
 
 class BankStatement:
     def __init__(self, account: Optional[str],
-                 transactions: list[AnyTransaction],
+                 transactions: Sequence[BaseTransaction],
                  old_balance: Optional[Balance] = None,
                  new_balance: Optional[Balance] = None):
         self.account = account
-        self.transactions = transactions
+        self.transactions = list(transactions)
         self.old_balance = old_balance
         self.new_balance = new_balance
 

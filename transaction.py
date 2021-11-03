@@ -8,7 +8,7 @@ from copy import copy
 from collections import defaultdict, namedtuple
 from datetime import date
 from decimal import Decimal
-from typing import Any, Iterable, Optional, TypeVar, Union
+from typing import Any, Callable, Iterable, Optional, TypeVar, Union
 
 class BaseTransaction(metaclass=ABCMeta):
     description: str
@@ -16,8 +16,10 @@ class BaseTransaction(metaclass=ABCMeta):
     metadata: dict[str, Any]
 
     @abstractmethod
-    def change_property(self, prop: Union[str, Iterable[str]], f) \
-                                            -> BaseTransaction: pass
+    def change_property(self,
+                        prop: Union[str, Iterable[str]],
+                        f: Callable[[BaseTransaction], Any],
+                        ) -> BaseTransaction: pass
 
     @abstractmethod
     def format_as_ledger_transaction(self) -> str: pass
@@ -52,7 +54,11 @@ class Transaction(BaseTransaction):
             metadata = {}
         self.metadata = metadata
 
-    def change_property(self, prop: Union[str, Iterable[str]], f):
+    # TODO: Overload to handle different types of f
+    def change_property(self,
+                        prop: Union[str, Iterable[str]],
+                        f: Callable[[BaseTransaction], Any],
+                        ) -> Transaction:
         res = copy(self)
         const_properties = ('amount', 'currency', 'sub_total')
         if isinstance(prop, str):
@@ -67,7 +73,7 @@ class Transaction(BaseTransaction):
                 setattr(res, p, v)
         return res
 
-    def to_multi_transaction(self) -> 'MultiTransaction':
+    def to_multi_transaction(self) -> MultiTransaction:
         mt = MultiTransaction(description=self.description,
                               transaction_date=self.operation_date,
                               metadata=self.metadata)
@@ -139,10 +145,14 @@ class MultiTransaction(BaseTransaction):
             metadata = {}
         self.metadata = metadata
 
-    def add_posting(self, posting: 'Posting') -> None:
+    def add_posting(self, posting: Posting) -> None:
         self.postings.append(posting)
 
-    def change_property(self, prop: Union[str, Iterable[str]], f):
+    # TODO: Overload to handle different types of f
+    def change_property(self,
+                        prop: Union[str, Iterable[str]],
+                        f: Callable[[MultiTransaction], Any],
+                        ) -> MultiTransaction:
         res = copy(self)
         if isinstance(prop, str):
             setattr(res, prop, f(self))
@@ -233,7 +243,5 @@ class Posting:
             comment = ''
         return (f'Posting({s.account!r}, {s.amount!r}, {s.currency!r}'
                 f'{date}{comment})')
-
-AnyTransaction = Union[Transaction, MultiTransaction]
 
 Balance = namedtuple('Balance', 'balance date')

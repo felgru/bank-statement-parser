@@ -10,7 +10,7 @@ from typing import cast, Iterator
 
 from .cleaning_rules import mercedes_benz as cleaning_rules
 from bank_statement import BankStatementMetadata
-from transaction import (AnyTransaction, Balance, MultiTransaction,
+from transaction import (BaseTransaction, Balance, MultiTransaction,
                          Posting, Transaction)
 
 from ..pdf_parser import PdfParser
@@ -136,7 +136,7 @@ class MercedesBenzPdfParser(PdfParser):
                                                 start, end)
 
     def check_transactions_consistency(self,
-                                       transactions: list[AnyTransaction]) \
+                                       transactions: list[BaseTransaction]) \
                                                                     -> None:
         assert self.old_balance.balance + sum(cast(Transaction, t).amount
                                               for t in transactions) \

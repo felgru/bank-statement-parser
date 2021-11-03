@@ -10,7 +10,7 @@ from typing import Iterator, Optional
 
 from .cleaning_rules import ing_fr as cleaning_rules
 from bank_statement import BankStatementMetadata
-from transaction import AnyTransaction, Balance, Transaction
+from transaction import Balance, BaseTransaction, Transaction
 
 from ..pdf_parser import PdfParser
 from ..qif_parser import QifParser
@@ -176,7 +176,7 @@ class IngFrPdfParser(PdfParser):
         self.transactions_end = m.start()
 
     def generate_transactions(self, start: int, end: int) \
-                                            -> Iterator[AnyTransaction]:
+                                            -> Iterator[BaseTransaction]:
         if self.account_type == 'Compte Courant':
             yield from self.generate_transactions_compte_courant(start, end)
         elif self.account_type in ('Livret A', 'LDD'):

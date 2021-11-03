@@ -12,7 +12,7 @@ from typing import Iterable, Union
 
 from bank_statement import BankStatement, BankStatementMetadata
 from .parser import Parser
-from transaction import AnyTransaction, Balance, MultiTransaction, Transaction
+from transaction import BaseTransaction, Balance, MultiTransaction, Transaction
 
 class PdfParser(Parser, metaclass=ABCMeta):
     file_extension = '.pdf'
@@ -68,10 +68,10 @@ class PdfParser(Parser, metaclass=ABCMeta):
 
     @abstractmethod
     def generate_transactions(self, start: int, end: int) \
-                                    -> Iterable[AnyTransaction]: pass
+                                    -> Iterable[BaseTransaction]: pass
 
     def check_transactions_consistency(self,
-                                       transactions: list[AnyTransaction]) \
+                                       transactions: list[BaseTransaction]) \
                                                                     -> None:
         assert self.old_balance.balance \
                + self.total_credit - self.total_debit \

@@ -10,7 +10,7 @@ from typing import TextIO
 
 from bank_statement import BankStatement, BankStatementMetadata
 from .parser import Parser
-from transaction import AnyTransaction, Balance, MultiTransaction, Transaction
+from transaction import Transaction
 
 class QifParser(Parser, metaclass=ABCMeta):
     file_extension = '.qif'
