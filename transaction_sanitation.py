@@ -1,44 +1,52 @@
-# SPDX-FileCopyrightText: 2019–2020 Felix Gruber <felgru@posteo.net>
+# SPDX-FileCopyrightText: 2019–2021 Felix Gruber <felgru@posteo.net>
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-import os
-from typing import Any, Callable, Union
+from __future__ import annotations
+from collections.abc import Sequence
+from pathlib import Path
+from typing import Any, Callable, Optional, Union
 
-from transaction import AnyTransaction, BaseTransaction, MultiTransaction, Transaction
+from transaction import BaseTransaction, MultiTransaction, Transaction
 
 class TransactionCleaner:
-    def __init__(self, xdg_dirs, builtin_rules=None):
-        conf_file = xdg_dirs['config'] + '/cleaning_rules.py'
-        if not os.path.exists(conf_file):
+    def __init__(self,
+                 xdg_dirs: dict[str, Path],
+                 builtin_rules: Optional[Sequence[AnyCleanerRule]] = None):
+        conf_file: Optional[Path]
+        conf_file = xdg_dirs['config'] / 'account_mappings.py'
+        if not conf_file.exists():
             conf_file = None
         self.conf_file = conf_file
         self._read_rules()
         if builtin_rules is not None:
             self.rules[0:0] = builtin_rules
 
-    def _read_rules(self):
+    def _read_rules(self) -> None:
         if self.conf_file is None:
-            self.rules = []
+            self.rules: list[AnyCleanerRule] = []
         else:
             with open(self.conf_file, 'r') as f:
-                f = f.read()
-                parse_globals = {
+                content = f.read()
+                parse_globals: dict[str, Any] = {
                     'Rule': TransactionCleanerRule,
                     'ToMultiRule': ToMultiTransactionRule,
                     'Transaction': Transaction,
                     **globals(),
                     }
-                exec(compile(f, self.conf_file, 'exec'), parse_globals)
+                exec(compile(content, self.conf_file, 'exec'), parse_globals)
                 if 'rules' not in parse_globals:
-                    raise Error(f'{self.conf_file} didn\'t contain any rules.')
+                    raise RuntimeError(
+                            f'{self.conf_file} didn\'t contain any rules.')
                 self.rules = parse_globals['rules']
 
-    def clean(self, transaction: AnyTransaction) -> AnyTransaction:
+    def clean(self, transaction: BaseTransaction) -> BaseTransaction:
         for r in self.rules:
             if r.applies_to(transaction):
                 transaction = r.clean(transaction)
         return transaction
+
+AnyCleanerRule = Union[TransactionCleanerRule, ToMultiTransactionRule]
 
 class TransactionCleanerRule:
     def __init__(self, condition: Callable[[BaseTransaction], bool],
@@ -60,9 +68,10 @@ class ToMultiTransactionRule:
         self.condition = condition
         self.cleaner = cleaner
 
-    def applies_to(self, transaction: AnyTransaction) -> bool:
+    def applies_to(self, transaction: BaseTransaction) -> bool:
         return (isinstance(transaction, Transaction)
                 and self.condition(transaction))
 
-    def clean(self, t: Transaction) -> MultiTransaction:
+    def clean(self, t: BaseTransaction) -> MultiTransaction:
+        assert isinstance(t, Transaction)
         return self.cleaner(t)

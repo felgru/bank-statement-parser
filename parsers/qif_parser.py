@@ -5,20 +5,18 @@
 from abc import ABCMeta, abstractmethod
 from datetime import date
 from decimal import Decimal
-import os
+from pathlib import Path
+from typing import TextIO
 
-from account_mapping import AccountMapper
 from bank_statement import BankStatement, BankStatementMetadata
 from .parser import Parser
-from transaction import AnyTransaction, Balance, MultiTransaction, Transaction
-from transaction_sanitation import TransactionCleaner
-from xdg_dirs import getXDGdirectories
+from transaction import Transaction
 
 class QifParser(Parser, metaclass=ABCMeta):
     file_extension = '.qif'
     currency: str
 
-    def __init__(self, qif_file: str):
+    def __init__(self, qif_file: Path):
         super().__init__(qif_file)
         self.qif_file = qif_file
 
@@ -30,8 +28,8 @@ class QifParser(Parser, metaclass=ABCMeta):
                 end_date=end_date)
 
     def parse(self) -> BankStatement:
-        if not os.path.exists(self.qif_file):
-            raise IOError('Unknown file: {}'.format(self.qif_file))
+        if not self.qif_file.exists():
+            raise IOError(f'Unknown file: {self.qif_file}')
         with open(self.qif_file) as f:
             header = f.readline()
             if not header == '!Type:Bank\n':
@@ -41,7 +39,7 @@ class QifParser(Parser, metaclass=ABCMeta):
         return BankStatement(account=self.account,
                       transactions=transactions)
 
-    def _parse_transactions(self, file_) -> list[Transaction]:
+    def _parse_transactions(self, file_: TextIO) -> list[Transaction]:
         transactions = []
         while line := file_.readline():
             type_, rest = line[0], line[1:]

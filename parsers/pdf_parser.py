@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2019–2020 Felix Gruber <felgru@posteo.net>
+# SPDX-FileCopyrightText: 2019–2021 Felix Gruber <felgru@posteo.net>
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
@@ -6,15 +6,13 @@ from abc import ABCMeta, abstractmethod
 from datetime import date
 from decimal import Decimal
 import os
+from pathlib import Path
 import subprocess
 from typing import Iterable, Union
 
-from account_mapping import AccountMapper
 from bank_statement import BankStatement, BankStatementMetadata
 from .parser import Parser
-from transaction import AnyTransaction, Balance, MultiTransaction, Transaction
-from transaction_sanitation import TransactionCleaner
-from xdg_dirs import getXDGdirectories
+from transaction import BaseTransaction, Balance, MultiTransaction, Transaction
 
 class PdfParser(Parser, metaclass=ABCMeta):
     file_extension = '.pdf'
@@ -27,16 +25,16 @@ class PdfParser(Parser, metaclass=ABCMeta):
     total_debit: Decimal
     num_cols: int = 5
 
-    def __init__(self, pdf_file: str):
+    def __init__(self, pdf_file: Path):
         super().__init__(pdf_file)
         self._parse_file(pdf_file)
 
-    def _parse_file(self, pdf_file: str) -> None:
-        if not os.path.exists(pdf_file):
-            raise IOError('Unknown file: {}'.format(pdf_file))
+    def _parse_file(self, pdf_file: Path) -> None:
+        if not pdf_file.exists():
+            raise IOError(f'Unknown file: {pdf_file}')
         # pdftotext is provided by poppler-utils on Debian
         pdftext = subprocess.run(['pdftotext', '-fixed', str(self.num_cols),
-                                  pdf_file, '-'],
+                                  str(pdf_file), '-'],
                                  capture_output=True, encoding='UTF8',
                                  check=True).stdout
         # Careful: There's a trailing \f on the last page
@@ -70,10 +68,10 @@ class PdfParser(Parser, metaclass=ABCMeta):
 
     @abstractmethod
     def generate_transactions(self, start: int, end: int) \
-                                    -> Iterable[AnyTransaction]: pass
+                                    -> Iterable[BaseTransaction]: pass
 
     def check_transactions_consistency(self,
-                                       transactions: list[AnyTransaction]) \
+                                       transactions: list[BaseTransaction]) \
                                                                     -> None:
         assert self.old_balance.balance \
                + self.total_credit - self.total_debit \

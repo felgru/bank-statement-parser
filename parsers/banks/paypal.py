@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2019 Felix Gruber <felgru@posteo.net>
+# SPDX-FileCopyrightText: 2019, 2021 Felix Gruber <felgru@posteo.net>
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
@@ -6,14 +6,14 @@ from collections import defaultdict, OrderedDict
 import csv
 from datetime import date, timedelta
 from decimal import Decimal
-import os
+from pathlib import Path
 import re
-from typing import cast, Optional, TypedDict
+from typing import Optional, TypedDict
 
 from .cleaning_rules import paypal as cleaning_rules
 from bank_statement import BankStatement, BankStatementMetadata
 from ..parser import Parser
-from transaction import AnyTransaction, MultiTransaction, Posting
+from transaction import BaseTransaction, MultiTransaction, Posting
 from xdg_dirs import getXDGdirectories
 
 class PostingDict(TypedDict):
@@ -31,13 +31,13 @@ class PayPalCsvParser(Parser):
     file_extension = '.csv'
     cleaning_rules = cleaning_rules.rules
 
-    def __init__(self, csv_file: str):
+    def __init__(self, csv_file: Path):
         super().__init__(csv_file)
         self._parse_file(csv_file)
 
-    def _parse_file(self, csv_file: str) -> None:
-        if not os.path.exists(csv_file):
-            raise IOError('Unknown file: {}'.format(csv_file))
+    def _parse_file(self, csv_file: Path) -> None:
+        if not csv_file.exists():
+            raise IOError(f'Unknown file: {csv_file}')
         postings: OrderedDict[str, list[PostingDict]] = OrderedDict()
         related_postings = defaultdict(list)
         with open(csv_file, newline='', encoding='UTF-8-sig') as f:
@@ -147,8 +147,7 @@ class PayPalCsvParser(Parser):
 
     def parse(self) -> BankStatement:
         #self.check_transactions_consistency(self.transactions)
-        transactions = self.clean_up_transactions(
-                cast(list[AnyTransaction], self.transactions))
+        transactions = self.clean_up_transactions(self.transactions)
         self.map_accounts(transactions)
         return BankStatement(self.account, transactions)
 

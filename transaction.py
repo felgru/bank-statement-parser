@@ -8,7 +8,7 @@ from copy import copy
 from collections import defaultdict, namedtuple
 from datetime import date
 from decimal import Decimal
-from typing import Any, Iterable, Optional, TypeVar, Union
+from typing import Any, Callable, Iterable, Optional, TypeVar, Union
 
 class BaseTransaction(metaclass=ABCMeta):
     description: str
@@ -16,8 +16,10 @@ class BaseTransaction(metaclass=ABCMeta):
     metadata: dict[str, Any]
 
     @abstractmethod
-    def change_property(self, prop: Union[str, Iterable[str]], f) \
-                                            -> 'BaseTransaction': pass
+    def change_property(self,
+                        prop: Union[str, Iterable[str]],
+                        f: Callable[[BaseTransaction], Any],
+                        ) -> BaseTransaction: pass
 
     @abstractmethod
     def format_as_ledger_transaction(self) -> str: pass
@@ -26,7 +28,7 @@ class BaseTransaction(metaclass=ABCMeta):
     def __repr__(self) -> str: pass
 
     @property
-    def type(self):
+    def type(self) -> str:
         try:
             return self.metadata['type']
         except KeyError:
@@ -52,7 +54,11 @@ class Transaction(BaseTransaction):
             metadata = {}
         self.metadata = metadata
 
-    def change_property(self, prop: Union[str, Iterable[str]], f):
+    # TODO: Overload to handle different types of f
+    def change_property(self,
+                        prop: Union[str, Iterable[str]],
+                        f: Callable[[BaseTransaction], Any],
+                        ) -> Transaction:
         res = copy(self)
         const_properties = ('amount', 'currency', 'sub_total')
         if isinstance(prop, str):
@@ -67,7 +73,7 @@ class Transaction(BaseTransaction):
                 setattr(res, p, v)
         return res
 
-    def to_multi_transaction(self) -> 'MultiTransaction':
+    def to_multi_transaction(self) -> MultiTransaction:
         mt = MultiTransaction(description=self.description,
                               transaction_date=self.operation_date,
                               metadata=self.metadata)
@@ -104,7 +110,7 @@ class Transaction(BaseTransaction):
         result += f'    {ext_acc}{ext_date}\n'
         return result
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         s = self
         if s.external_account is not None:
             ext_account = f', external_account={s.external_account!r}'
@@ -139,10 +145,14 @@ class MultiTransaction(BaseTransaction):
             metadata = {}
         self.metadata = metadata
 
-    def add_posting(self, posting: 'Posting') -> None:
+    def add_posting(self, posting: Posting) -> None:
         self.postings.append(posting)
 
-    def change_property(self, prop: Union[str, Iterable[str]], f):
+    # TODO: Overload to handle different types of f
+    def change_property(self,
+                        prop: Union[str, Iterable[str]],
+                        f: Callable[[MultiTransaction], Any],
+                        ) -> MultiTransaction:
         res = copy(self)
         if isinstance(prop, str):
             setattr(res, prop, f(self))
@@ -179,7 +189,7 @@ class MultiTransaction(BaseTransaction):
         return (unbalanced_currencies == 0 and without_amount == 0) \
                or (unbalanced_currencies <= 1 and without_amount == 1)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         s = self
         if s.metadata:
             meta = f', metadata={s.metadata!r}'
@@ -221,7 +231,7 @@ class Posting:
             comments_str = ''
         return f'    {account}  {amount}{comments_str}\n'
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         s = self
         if s.date is not None:
             date = f', posting_date={s.date!r}'
@@ -233,7 +243,5 @@ class Posting:
             comment = ''
         return (f'Posting({s.account!r}, {s.amount!r}, {s.currency!r}'
                 f'{date}{comment})')
-
-AnyTransaction = Union[Transaction, MultiTransaction]
 
 Balance = namedtuple('Balance', 'balance date')

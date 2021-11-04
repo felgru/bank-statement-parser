@@ -1,16 +1,16 @@
-# SPDX-FileCopyrightText: 2020 Felix Gruber <felgru@posteo.net>
+# SPDX-FileCopyrightText: 2020–2021 Felix Gruber <felgru@posteo.net>
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 from datetime import date, timedelta
 from decimal import Decimal
-import os
+from pathlib import Path
 import re
 import subprocess
 from typing import cast, Iterator
 
 from bank_statement import BankStatement, BankStatementMetadata
-from transaction import (AnyTransaction, Balance,
+from transaction import (BaseTransaction, Balance,
                          MultiTransaction, Posting, Transaction)
 
 from ..parser import Parser
@@ -20,17 +20,17 @@ class VTBPdfParser(Parser):
     bank_folder = 'vtb'
     file_extension = '.pdf'
 
-    def __init__(self, pdf_file: str):
+    def __init__(self, pdf_file: Path):
         super().__init__(pdf_file)
         self._parse_file(pdf_file)
         self.parser = self._choose_parser()
 
-    def _parse_file(self, pdf_file: str):
-        if not os.path.exists(pdf_file):
+    def _parse_file(self, pdf_file: Path) -> None:
+        if not pdf_file.exists():
             raise IOError('Unknown file: {}'.format(pdf_file))
         # pdftotext is provided by Poppler on Debian
         pdftext = subprocess.run(['pdftotext',
-                                  '-fixed', '6', pdf_file, '-'],
+                                  '-fixed', '6', str(pdf_file), '-'],
                                  capture_output=True, encoding='UTF8',
                                  check=True).stdout
         # Careful: There's a trailing \f on the last page
@@ -62,7 +62,7 @@ class VTB2019PdfParser(PdfParser):
     account = 'assets:bank:saving:VTB Direktbank'
     ParserError = VTB2019PdfParserError
 
-    def __init__(self, xdg, pdf_pages):
+    def __init__(self, xdg: dict[str, Path], pdf_pages: list[str]):
         self.xdg = xdg
         self.pdf_pages = pdf_pages
         self._parse_metadata()
@@ -176,7 +176,7 @@ class VTB2019PdfParser(PdfParser):
                               transaction_date, value_date, amount)
 
     def check_transactions_consistency(self,
-                                       transactions: list[AnyTransaction]) \
+                                       transactions: list[BaseTransaction]) \
                                                                     -> None:
         assert self.old_balance.balance \
                + sum(cast(Transaction, t).amount for t in transactions) \
@@ -211,7 +211,7 @@ class VTB2014PdfParser(PdfParser):
     account = 'assets:bank:saving:VTB Direktbank'
     ParserError = VTB2014PdfParserError
 
-    def __init__(self, xdg, pdf_pages: list[str]):
+    def __init__(self, xdg: dict[str, Path], pdf_pages: list[str]):
         self.xdg = xdg
         self.pdf_pages = pdf_pages
         self._parse_metadata()
@@ -307,7 +307,7 @@ class VTB2014PdfParser(PdfParser):
             flags=re.MULTILINE)
 
     def generate_transactions(self, start: int, end: int) \
-                                            -> Iterator[AnyTransaction]:
+                                            -> Iterator[BaseTransaction]:
         while True:
             m = self.transaction_pattern.search(self.transactions_text,
                                                 start, end)
@@ -364,14 +364,16 @@ class VTB2014PdfParser(PdfParser):
         return t
 
     def check_transactions_consistency(self,
-                                       transactions: list[AnyTransaction]) \
+                                       transactions: list[BaseTransaction]) \
                                                                     -> None:
         sum = Decimal(0)
         for t in transactions:
             if isinstance(t, Transaction):
                 amount = t.amount
-            else:
+            elif isinstance(t, MultiTransaction):
                 amount = t.postings[0].amount
+            else:
+                raise RuntimeError(f'Unknown transaction type {type(t)}.')
             sum += amount
         assert sum == self.transactions_sum
 
@@ -394,7 +396,7 @@ class VTB2012PdfParser(PdfParser):
     account = 'assets:bank:saving:VTB Direktbank'
     ParserError = VTB2012PdfParserError
 
-    def __init__(self, xdg, pdf_pages: list[str]):
+    def __init__(self, xdg: dict[str, Path], pdf_pages: list[str]):
         self.xdg = xdg
         self.pdf_pages = pdf_pages
         self._parse_description_start()
@@ -494,7 +496,7 @@ class VTB2012PdfParser(PdfParser):
             flags=re.MULTILINE)
 
     def generate_transactions(self, start: int, end: int) \
-                                        -> Iterator[AnyTransaction]:
+                                        -> Iterator[BaseTransaction]:
         while True:
             m = self.transaction_pattern.search(self.transactions_text,
                                                 start, end)
@@ -556,13 +558,15 @@ class VTB2012PdfParser(PdfParser):
         return t
 
     def check_transactions_consistency(self,
-            transactions: list[AnyTransaction]) -> None:
+            transactions: list[BaseTransaction]) -> None:
         sum = self.old_balance.balance
         for t in transactions:
             if isinstance(t, Transaction):
                 amount = t.amount
-            else:
+            elif isinstance(t, MultiTransaction):
                 amount = t.postings[0].amount
+            else:
+                raise RuntimeError(f'Unknown transaction type {type(t)}.')
             sum += amount
         assert sum == self.new_balance.balance
 

@@ -3,11 +3,12 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 from abc import ABCMeta, abstractmethod
+from pathlib import Path
 from typing import Optional, Sequence
 
 from account_mapping import AccountMapper
 from bank_statement import BankStatement, BankStatementMetadata
-from transaction import AnyTransaction, Transaction, MultiTransaction
+from transaction import BaseTransaction, Transaction, MultiTransaction
 from transaction_sanitation import TransactionCleaner, TransactionCleanerRule
 from xdg_dirs import getXDGdirectories
 
@@ -17,7 +18,7 @@ class Parser(metaclass=ABCMeta):
     account: str
     cleaning_rules: Optional[list[TransactionCleanerRule]] = None
 
-    def __init__(self, infile):
+    def __init__(self, infile: Path):
         self.xdg = getXDGdirectories('bank-statement-parser/'
                                      + self.bank_folder)
 
@@ -29,12 +30,12 @@ class Parser(metaclass=ABCMeta):
     def parse(self) -> BankStatement:
         pass
 
-    def clean_up_transactions(self, transactions: Sequence[AnyTransaction]) \
-                                                    -> list[AnyTransaction]:
+    def clean_up_transactions(self, transactions: Sequence[BaseTransaction]) \
+                                                    -> list[BaseTransaction]:
         cleaner = TransactionCleaner(self.xdg,
                                      builtin_rules=self.cleaning_rules)
         return [cleaner.clean(t) for t in transactions]
 
-    def map_accounts(self, transactions: list[AnyTransaction]) -> None:
+    def map_accounts(self, transactions: list[BaseTransaction]) -> None:
         mapper = AccountMapper(self.xdg)
         mapper.map_transactions(transactions)

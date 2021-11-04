@@ -279,7 +279,7 @@ def parse_date(d: str) -> date:
 
 
 class MainTableIterator:
-    def __init__(self, pdf_pages):
+    def __init__(self, pdf_pages: list[str]):
         self.pdf_pages = pdf_pages
         self.page = 0
         range_ = self._parse_main_table_header(self.page)
@@ -389,7 +389,7 @@ class MainTableItem:
     taux_employer: Optional[Decimal]
     montant_employer: Optional[Decimal]
 
-    def is_section_header(self):
+    def is_section_header(self) -> bool:
         return all(field is None for field in (
             self.base,
             self.taux_employee,
@@ -398,7 +398,7 @@ class MainTableItem:
             self.montant_employer,
             ))
 
-    def concerns_employee(self):
+    def concerns_employee(self) -> bool:
         return self.montant_employee is not None
 
 

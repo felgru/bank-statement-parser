@@ -5,20 +5,27 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import argparse
+from collections.abc import Mapping
 import configparser
 from datetime import date, timedelta
 import io
 import os
+from pathlib import Path
 import sys
+from typing import Iterable, Protocol, Union
 
 from git import BaseGit, FakeGit, Git
 from import_transaction import import_transaction, ImportTransactionProtocol
 from parsers.banks import parsers
+from parsers.parser import Parser
 from xdg_dirs import getXDGdirectories
 
 
-def import_incoming_statements(dirs, git: BaseGit, import_branch: str,
-                               force: bool, dry_run: bool):
+def import_incoming_statements(dirs: Mapping[str, str],
+                               git: BaseGit,
+                               import_branch: str,
+                               force: bool,
+                               dry_run: bool) -> None:
     with import_transaction(git, import_branch, dry_run) as transaction:
         incoming_dir = dirs['incoming']
         import_summary = dict()
@@ -41,11 +48,10 @@ def import_incoming_statements(dirs, git: BaseGit, import_branch: str,
                     Parser = bank_parsers[extension]
                 except KeyError:
                     continue
-                src_file = os.path.join(dirpath, f)
+                src_file = Path(dirpath, f)
                 parser = Parser(src_file)
                 m = parser.parse_metadata()
-                print('{m.start_date} → {m.end_date}: {src_file}'
-                      .format(src_file=src_file, m=m))
+                print(f'{m.start_date} → {m.end_date}: {src_file}')
                 mid_date = m.start_date + (m.end_date - m.start_date) / 2
                 year = str(mid_date.year)
                 if m.end_date - m.start_date <= timedelta(weeks=6):
@@ -54,8 +60,7 @@ def import_incoming_statements(dirs, git: BaseGit, import_branch: str,
                 else:
                     dest_dir = os.path.join(dirs['ledgers'], year, bank)
                 os.makedirs(dest_dir, exist_ok=True)
-                dest_file = os.path.join(dest_dir,
-                                         os.path.splitext(f)[0] + '.hledger')
+                dest_file = Path(dest_dir, f).with_suffix('.hledger')
                 if parse_and_write_bank_statement(parser, src_file, dest_file,
                                                   transaction, force, dry_run):
                     imported_files.append((f, m.start_date, m.end_date))
@@ -77,10 +82,14 @@ def import_incoming_statements(dirs, git: BaseGit, import_branch: str,
                                                                .items()))
             transaction.set_commit_message(commit_message)
 
-def parse_and_write_bank_statement(parser, src_file: str, dest_file: str,
-            import_transaction: ImportTransactionProtocol,
-            force: bool, dry_run: bool) -> bool:
-    if os.path.exists(dest_file):
+def parse_and_write_bank_statement(
+        parser: Parser,
+        src_file: Path,
+        dest_file: Path,
+        import_transaction: ImportTransactionProtocol,
+        force: bool,
+        dry_run: bool) -> bool:
+    if dest_file.exists():
         if force:
             print(f'WARNING: existing {dest_file} will be overwritten',
                   file=sys.stderr)
@@ -102,7 +111,7 @@ def parse_and_write_bank_statement(parser, src_file: str, dest_file: str,
             # Remove hledger file to allow clean import after fixing
             # whatever caused the Exception.
             try:
-                os.remove(dest_file)
+                dest_file.unlink()
             except FileNotFoundError:
                 pass
             raise e
@@ -111,8 +120,8 @@ def parse_and_write_bank_statement(parser, src_file: str, dest_file: str,
             bank_statement.write_ledger(f)
             print(f.getvalue())
     import_transaction.add_file(dest_file)
-    src_ext = os.path.splitext(src_file)[1]
-    moved_src = os.path.splitext(dest_file)[0] + src_ext
+    src_ext = src_file.suffix
+    moved_src = dest_file.with_suffix(src_ext)
     import_transaction.move_file_to_annex(src_file, moved_src)
     return True
 
@@ -123,7 +132,10 @@ def merge_dateranges(dateranges: list[tuple[date, date]]) -> None:
             dateranges[i] = (dateranges[i][0], dateranges[i+1][1])
             dateranges.pop(i+1)
 
-def write_include_files(ledger_root: str, git: BaseGit) -> None:
+class AddFileTransaction(Protocol):
+    def add_files(self, files: Iterable[Union[Path, str]]) -> None: ...
+
+def write_include_files(ledger_root: str, git: AddFileTransaction) -> None:
     ledger_name = 'journal.hledger'
     ledger_files = []
     for(dirpath, dirnames, filenames) in os.walk(ledger_root):
@@ -151,7 +163,7 @@ def write_include_files(ledger_root: str, git: BaseGit) -> None:
 def read_config() -> configparser.ConfigParser:
     config = configparser.ConfigParser()
     xdg = getXDGdirectories('bank-statement-parser')
-    config.read(os.path.join(xdg['config'], 'import.cfg'))
+    config.read(xdg['config'] / 'import.cfg')
     if 'dirs' not in config:
         config['dirs'] = {}
     dirs = config['dirs']

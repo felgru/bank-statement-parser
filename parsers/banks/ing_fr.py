@@ -4,12 +4,13 @@
 
 from datetime import date
 from decimal import Decimal
+from pathlib import Path
 import re
 from typing import Iterator, Optional
 
 from .cleaning_rules import ing_fr as cleaning_rules
 from bank_statement import BankStatementMetadata
-from transaction import AnyTransaction, Balance, Transaction
+from transaction import Balance, BaseTransaction, Transaction
 
 from ..pdf_parser import PdfParser
 from ..qif_parser import QifParser
@@ -19,7 +20,7 @@ class IngFrPdfParser(PdfParser):
     bank_folder = 'ing.fr'
     account = 'assets:bank:TODO:ING.fr' # exact account is set in __init__
 
-    def __init__(self, pdf_file: str):
+    def __init__(self, pdf_file: Path):
         super().__init__(pdf_file)
         m = re.search('RELEVE ([A-Z ]+)', self.pdf_pages[0])
         assert m is not None, 'Account type not found.'
@@ -175,7 +176,7 @@ class IngFrPdfParser(PdfParser):
         self.transactions_end = m.start()
 
     def generate_transactions(self, start: int, end: int) \
-                                            -> Iterator[AnyTransaction]:
+                                            -> Iterator[BaseTransaction]:
         if self.account_type == 'Compte Courant':
             yield from self.generate_transactions_compte_courant(start, end)
         elif self.account_type in ('Livret A', 'LDD'):
@@ -237,8 +238,9 @@ class IngFrPdfParser(PdfParser):
         assert accumulated_debit == self.total_debit
         assert accumulated_credit == self.total_credit
 
-    def transactions_in_block(self, transaction_type, start: int, end: int) \
-                                                    -> Iterator[Transaction]:
+    def transactions_in_block(self,
+                              transaction_type: Optional[str],
+                              start: int, end: int) -> Iterator[Transaction]:
         while True:
             m = self.first_line_pattern.search(self.transactions_text, start,
                                                start+self.debit_start)
@@ -278,7 +280,7 @@ class IngFrQifParser(QifParser):
     currency = '€'
     cleaning_rules = cleaning_rules.qif_checkings_rules
 
-    def __init__(self, qif_file: str):
+    def __init__(self, qif_file: Path):
         super().__init__(qif_file)
         # TODO: determine exact account type
 

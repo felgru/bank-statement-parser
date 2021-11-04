@@ -1,12 +1,13 @@
 #!/usr/bin/python3
 
-# SPDX-FileCopyrightText: 2019 Felix Gruber <felgru@posteo.net>
+# SPDX-FileCopyrightText: 2019, 2021 Felix Gruber <felgru@posteo.net>
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import argparse
 import os
 import sys
+from typing import TextIO
 
 from parsers.banks import parsers
 
@@ -31,7 +32,7 @@ aparser.add_argument('infile', action='store',
 
 args = aparser.parse_args()
 
-def open_outfile():
+def open_outfile() -> TextIO:
     if args.outfile is None:
         outfile = sys.stdout
     else:
