@@ -14,7 +14,7 @@ class TransactionCleaner:
                  xdg_dirs: dict[str, Path],
                  builtin_rules: Optional[Sequence[AnyCleanerRule]] = None):
         conf_file: Optional[Path]
-        conf_file = xdg_dirs['config'] / 'account_mappings.py'
+        conf_file = xdg_dirs['config'] / 'cleaning_rules.py'
         if not conf_file.exists():
             conf_file = None
         self.conf_file = conf_file
@@ -46,8 +46,6 @@ class TransactionCleaner:
                 transaction = r.clean(transaction)
         return transaction
 
-AnyCleanerRule = Union[TransactionCleanerRule, ToMultiTransactionRule]
-
 class TransactionCleanerRule:
     def __init__(self, condition: Callable[[BaseTransaction], bool],
                  cleaner: Callable[[BaseTransaction], Any],
@@ -75,3 +73,5 @@ class ToMultiTransactionRule:
     def clean(self, t: BaseTransaction) -> MultiTransaction:
         assert isinstance(t, Transaction)
         return self.cleaner(t)
+
+AnyCleanerRule = Union[TransactionCleanerRule, ToMultiTransactionRule]
