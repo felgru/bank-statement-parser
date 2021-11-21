@@ -5,7 +5,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import argparse
-import os
+from pathlib import Path
 import sys
 from typing import TextIO
 
@@ -27,6 +27,7 @@ aparser.add_argument('--json', dest='json', default=False,
 aparser.add_argument('bank', action='store',
                      help='bank to parse from ({})'.format(', '.join(sorted(parsers))))
 aparser.add_argument('infile', action='store',
+                     type=Path,
                      help='the account statement file downloaded from your bank'
                           ' (probably a pdf or csv file)')
 
@@ -46,7 +47,7 @@ except KeyError:
     exit(1)
 
 try:
-    extension = os.path.splitext(args.infile)[1].lower()
+    extension = args.infile.suffix.lower()
     Parser = bank_parsers[extension]
 except KeyError:
     print(f"Don't know how to parse file of type {extension}", file=sys.stderr)
