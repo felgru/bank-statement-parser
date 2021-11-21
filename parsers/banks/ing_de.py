@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
+import csv
 from datetime import date, timedelta
 from decimal import Decimal
 from pathlib import Path
@@ -13,6 +14,7 @@ from bank_statement import BankStatement, BankStatementMetadata
 from transaction import (BaseTransaction, Balance, MultiTransaction,
                          Posting, Transaction)
 
+from ..parser import Parser
 from ..pdf_parser import PdfParser
 
 class IngDePdfParser(PdfParser):
@@ -77,7 +79,6 @@ class IngDePdfParser(PdfParser):
             mt.add_posting(posting)
 
         bank_statement.transactions[-1] = mt
-
 
     def _parse_metadata(self) -> None:
         self._parse_balances()
@@ -224,6 +225,98 @@ class IngDePdfParser(PdfParser):
         assert self.old_balance.balance + sum(cast(Transaction, t).amount
                                               for t in transactions) \
                == self.new_balance.balance
+
+class IngDeCsvParser(Parser):
+    bank_folder = 'ing.de'
+    account = 'assets:bank:TODO:ING.de' # exact account is set in __init__
+    file_extension = '.csv'
+
+    def __init__(self, csv_file: Path):
+        super().__init__(csv_file)
+        self.csv_file = csv_file
+        self._parse_metadata()
+        if self.metadata.account_type == 'Girokonto':
+            self.account = 'assets:bank:checking:ING.de'
+        elif self.metadata.account_type == 'Extra-Konto':
+            self.account = 'assets:bank:saving:ING.de'
+        else:
+            RuntimeError(
+                    f'Unknown account type: {self.metadata.account_type!r}.')
+
+    def _parse_metadata(self) -> None:
+        metadata = dict[str, str]()
+        with self.csv_file.open(encoding='LATIN1') as f:
+            line = f.readline()
+            assert line.startswith('Umsatzanzeige;')
+            while (line := f.readline()) != '\n':
+                pass
+            while (line := f.readline()) != '\n':
+                key, semicolon, value = line.partition(';')
+                assert semicolon != ''
+                metadata[key] = value.rstrip('\n')
+            while (line := f.readline()) != '':
+                line = line.rstrip('\n')
+                if line == (
+                        'Buchung;Valuta;Auftraggeber/Empfänger;Buchungstext;'
+                        'Verwendungszweck;Saldo;Währung;Betrag;Währung'):
+                    self.csv_start = f.tell()
+                    self.csv_fieldnames = line.split(';')
+                    self.csv_fieldnames[self.csv_fieldnames.index('Währung')] \
+                            = 'SaldoWährung'
+                    break
+            else:
+                raise RuntimeError(f'{self.csv_file} does not contain any CSV data.')
+        start, _, end = metadata['Zeitraum'].partition(' - ')
+        meta = BankStatementMetadata(
+                start_date=parse_date(start),
+                end_date=parse_date(end),
+                iban=metadata['IBAN'],
+                account_owner=metadata['Kunde'],
+                account_type=metadata['Kontoname'],
+               )
+        self.metadata = meta
+        balance, _, currency = metadata['Saldo'].partition(';')
+        self.balance = parse_amount(balance)
+        self.currency = currency
+
+    def parse_metadata(self) -> BankStatementMetadata:
+        return self.metadata
+
+    def parse(self) -> BankStatement:
+        with self.csv_file.open(encoding='LATIN1', newline='') as f:
+            f.seek(self.csv_start)
+            reader = csv.DictReader(f, fieldnames=self.csv_fieldnames,
+                                    dialect=IngCsvDialect)
+            transactions: list[BaseTransaction] = []
+            for row in reader:
+                transaction_type = row['Buchungstext']
+                destination = row['Auftraggeber/Empfänger']
+                description = destination + ' | ' + row['Verwendungszweck']
+                currency = row['Währung']
+                if currency == 'EUR':
+                    currency = '€'
+                transaction = Transaction(
+                        account=self.account,
+                        description=description,
+                        operation_date=parse_date(row['Buchung']),
+                        value_date=parse_date(row['Valuta']),
+                        amount=parse_amount(row['Betrag']),
+                        currency=currency,
+                        metadata={
+                            'type': transaction_type,
+                            },
+                        )
+                transactions.append(transaction)
+            transactions = list(reversed(transactions))
+            transactions = self.clean_up_transactions(transactions)
+            self.map_accounts(transactions)
+            return BankStatement(self.account, transactions)
+
+class IngCsvDialect(csv.Dialect):
+    delimiter: str = ';'
+    quoting = csv.QUOTE_NONE
+    lineterminator = '\n'
+
 
 def parse_date(d: str) -> date:
     """ parse a date in "dd.mm.yyyy" format """
