@@ -106,7 +106,7 @@ class MercedesBenzPdfParser(PdfParser):
                                    parse_date_with_year(m.group(1)))
 
     transaction_pattern = re.compile(
-            r'^ *(\d{2}.\d{2}.) +(\d{2}.\d{2}.) +(\S+) +(-?\d[.\d]*,\d\d)\n'
+            r'^ *(\d{2}.\d{2}.) +(\d{2}.\d{2}.) +(\S+) +(\d[.\d]*,\d\d-?)\n'
             r' *([^\n]*)\n*',
             flags=re.MULTILINE)
 
@@ -138,9 +138,11 @@ class MercedesBenzPdfParser(PdfParser):
     def check_transactions_consistency(self,
                                        transactions: list[BaseTransaction]) \
                                                                     -> None:
-        assert self.old_balance.balance + sum(cast(Transaction, t).amount
-                                              for t in transactions) \
-               == self.new_balance.balance
+        calculated_balance = self.old_balance.balance \
+                             + sum(cast(Transaction, t).amount
+                                   for t in transactions)
+        assert calculated_balance == self.new_balance.balance, \
+               f"new balance {self.new_balance.balance} does not match sum {calculated_balance}."
 
     def parse_short_date(self, d: str) -> date:
         return parse_date_relative_to(d, self.new_balance.date)
@@ -173,6 +175,8 @@ def parse_date_relative_to(s: str, ref_d: date) -> date:
     return d
 
 def parse_amount(a: str) -> Decimal:
-    """ parse a decimal amount like -1.200,00 """
+    """parse a decimal amount like 1.200,00-."""
     a = a.replace('.', '').replace(',', '.')
+    if a.endswith('-'):
+        a = '-' + a[:-1]
     return Decimal(a)

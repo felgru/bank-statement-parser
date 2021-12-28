@@ -19,6 +19,19 @@ def clean_interest_calculation(t):
     description = f'{t.type} {description[0]}'
     return description, metadata
 
+def is_giro_transfer(t):
+    return t.type == 'Überweisung'
+
+def clean_giro_transfer(t):
+    lines = t.metadata['raw_description'].split('\n')
+    assert len(lines) >= 2
+    description = f'{lines[1]} | {" ".join(lines[2:])}'
+    reference = lines[0]
+    metadata = dict(t.metadata)
+    metadata['block_comment'] = reference
+    return description, metadata
+
 rules = [
         Rule(is_interest_calculation, clean_interest_calculation, field=('description', 'metadata')),
+        Rule(is_giro_transfer, clean_giro_transfer, field=('description', 'metadata')),
         ]
