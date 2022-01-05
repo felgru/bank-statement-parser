@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2019, 2021 Felix Gruber <felgru@posteo.net>
+# SPDX-FileCopyrightText: 2019, 2021–2022 Felix Gruber <felgru@posteo.net>
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
@@ -67,7 +67,8 @@ class PayPalCsvParser(Parser):
                     amount = net_amount
                 else:
                     if (type_.startswith('Allgemeine Gutschrift')
-                            or type_ == 'Bankgutschrift auf PayPal-Konto'):
+                        # can contain trailing whitespace :-(
+                        or type_.startswith('Bankgutschrift auf PayPal-Konto')):
                         type_ = 'credit'
                         account = self.balancing_account
                     else:
