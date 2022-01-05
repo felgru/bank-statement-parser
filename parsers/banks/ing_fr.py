@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2019–2021 Felix Gruber <felgru@posteo.net>
+# SPDX-FileCopyrightText: 2019–2022 Felix Gruber <felgru@posteo.net>
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
@@ -41,7 +41,7 @@ class IngFrPdfParser(PdfParser):
                     f'unknown ING.fr account type: {self.account_type}')
         self.debit_start, self.credit_start = self.parse_column_starts()
 
-    table_heading = re.compile(r"^\s*Date de\s*Date de\s*Nature de l'opération\s*"
+    table_heading = re.compile(r"^ *Date de\s*Date de\s*Nature de l'opération\s*"
                                r"(Débit\(EUR\))\s*(Crédit\(EUR\))"
                                r"\n\s*l'opération\s*valeur\n",
                                flags=re.MULTILINE)
