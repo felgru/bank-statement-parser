@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 
-# SPDX-FileCopyrightText: 2019–2021 Felix Gruber <felgru@posteo.net>
+# SPDX-FileCopyrightText: 2019–2022 Felix Gruber <felgru@posteo.net>
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
@@ -15,7 +15,11 @@ import sys
 from typing import Iterable, Protocol, Union
 
 from git import BaseGit, FakeGit, Git
-from import_transaction import import_transaction, ImportTransactionProtocol
+from import_transaction import (
+        DirtyWorkingDirectoryException,
+        import_transaction,
+        ImportTransactionProtocol,
+        )
 from parsers.banks import parsers
 from parsers.parser import Parser
 from xdg_dirs import getXDGdirectories
@@ -207,15 +211,22 @@ if __name__ == '__main__':
     os.chdir(config['dirs']['ledgers'])
     git: BaseGit
     if 'git' in config:
-        git = Git(config['dirs']['ledgers'], config['git']['git_dir'])
+        git_dir = config['git']['git_dir']
+        git = Git(config['dirs']['ledgers'], git_dir)
         import_branch = config['git']['import_branch']
     else:
+        git_dir = ''
         git = FakeGit()
         import_branch = git.current_branch()
 
     if args.regenerate_includes:
         write_include_files(config['dirs']['ledgers'], git)
     else:
-        import_incoming_statements(config['dirs'], git, import_branch,
-                                   args.force, args.dry_run)
+        try:
+            import_incoming_statements(config['dirs'], git, import_branch,
+                                       args.force, args.dry_run)
+        except DirtyWorkingDirectoryException:
+            print(f'{Path(git_dir).parent} contains uncommitted changes,'
+                  ' please commit those before continuing.', file=sys.stderr)
+            exit(1)
         # TODO: merge import_branch into default_branch

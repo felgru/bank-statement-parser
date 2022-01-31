@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2020–2021 Felix Gruber <felgru@posteo.net>
+# SPDX-FileCopyrightText: 2020–2022 Felix Gruber <felgru@posteo.net>
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
@@ -29,13 +29,18 @@ class ImportTransactionProtocol(Protocol):
     def set_commit_message(self, commit_message: str) -> None: ...
 
 
+class DirtyWorkingDirectoryException(Exception):
+    pass
+
+
 class ImportTransaction:
 
     def __init__(self, git: BaseGit):
         self.git = git
 
     def begin(self, import_branch: str) -> None:
-        assert self.git.working_directory_is_clean()
+        if not self.git.working_directory_is_clean():
+            raise DirtyWorkingDirectoryException()
         self.old_branch = self.git.current_branch()
         self.git.change_branch(import_branch)
         self.files_to_move_to_annex: list[tuple[Path, Path]] = []
