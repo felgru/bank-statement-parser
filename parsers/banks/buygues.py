@@ -290,7 +290,7 @@ class MainTableIterator:
         self.pos, self.end = range_
 
     def _parse_main_table_header(self, page: int) -> Optional[tuple[int, int]]:
-        m = re.search(r'\s*Nombre\s*Collaborateur\s*Employeur\n'
+        m = re.search(r' *Nombre\s*Collaborateur\s*Employeur\n'
                       r'\s*Libellé\n'
                       r'(\s*)(ou base)\s*(Taux)\s*(Montant)\s*(Taux)\s*(Montant)\n',
                       self.pdf_pages[page],
@@ -338,7 +338,7 @@ class MainTableIterator:
         # It can happen that lines with long descriptions are split to two
         # lines.
         if not set(line[self.field_offsets[0]:self.field_offsets[1]]).issubset(
-                ' ,0123456789'):
+                ' ,-0123456789'):
             description = line.strip()
             eol = page.find('\n', self.pos, self.end)
             assert eol != -1
