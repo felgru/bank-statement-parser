@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2021 Felix Gruber <felgru@posteo.net>
+# SPDX-FileCopyrightText: 2021–2022 Felix Gruber <felgru@posteo.net>
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
@@ -214,6 +214,8 @@ class BuyguesPdfParser:
                 account = 'expenses:food:meal_vouchers'
                 # remove excessive whitespaces
                 description = ' '.join(description.split())
+            elif description.startswith('Rbt Part Patronale TR'):
+                account = 'income:salary'
             elif description.startswith('Frais de transports'):
                 account = 'expenses:reimbursable:transportation'
                 # remove excessive whitespaces
