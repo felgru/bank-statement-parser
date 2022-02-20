@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2019–2021 Felix Gruber <felgru@posteo.net>
+# SPDX-FileCopyrightText: 2019–2022 Felix Gruber <felgru@posteo.net>
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
@@ -8,7 +8,7 @@ from decimal import Decimal
 import os
 from pathlib import Path
 import subprocess
-from typing import Iterable, Union
+from typing import Iterable, Optional, Union
 
 from bank_statement import BankStatement, BankStatementMetadata
 from .parser import Parser
@@ -25,8 +25,8 @@ class PdfParser(Parser, metaclass=ABCMeta):
     total_debit: Decimal
     num_cols: int = 5
 
-    def __init__(self, pdf_file: Path):
-        super().__init__(pdf_file)
+    def __init__(self, pdf_file: Path, rules_dir: Optional[Path]):
+        super().__init__(pdf_file, rules_dir)
         self._parse_file(pdf_file)
 
     def _parse_file(self, pdf_file: Path) -> None:

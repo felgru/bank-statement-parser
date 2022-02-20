@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2020–2021 Felix Gruber <felgru@posteo.net>
+# SPDX-FileCopyrightText: 2020–2022 Felix Gruber <felgru@posteo.net>
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
@@ -6,7 +6,7 @@ from datetime import date, timedelta
 from decimal import Decimal
 from pathlib import Path
 import re
-from typing import cast, Iterator
+from typing import cast, Iterator, Optional
 
 from .cleaning_rules import mercedes_benz as cleaning_rules
 from bank_statement import BankStatementMetadata
@@ -21,8 +21,8 @@ class MercedesBenzPdfParser(PdfParser):
     cleaning_rules = cleaning_rules.rules
     num_cols = 4
 
-    def __init__(self, pdf_file: Path):
-        super().__init__(pdf_file)
+    def __init__(self, pdf_file: Path, rules_dir: Optional[Path]):
+        super().__init__(pdf_file, rules_dir)
         self._parse_metadata()
         self._parse_description_start()
         self.transaction_description_pattern = re.compile(

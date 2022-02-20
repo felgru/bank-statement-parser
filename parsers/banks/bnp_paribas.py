@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2019–2021 Felix Gruber <felgru@posteo.net>
+# SPDX-FileCopyrightText: 2019–2022 Felix Gruber <felgru@posteo.net>
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
@@ -6,7 +6,7 @@ from datetime import date
 from decimal import Decimal
 from pathlib import Path
 import re
-from typing import Iterator
+from typing import Iterator, Optional
 
 from bank_statement import BankStatementMetadata
 from transaction import Balance, Transaction
@@ -18,8 +18,8 @@ class BnpParibasPdfParser(PdfParser):
     bank_folder = 'bnp'
     account = 'assets:bank:TODO:BNP' # exact account is set in __init__
 
-    def __init__(self, pdf_file: Path):
-        super().__init__(pdf_file)
+    def __init__(self, pdf_file: Path, rules_dir: Optional[Path]):
+        super().__init__(pdf_file, rules_dir)
         m = re.search('RELEVE DE ([A-Z ]+?) +P.', self.pdf_pages[0])
         assert m is not None, 'Account type not found.'
         self.account_type = m.group(1).title()

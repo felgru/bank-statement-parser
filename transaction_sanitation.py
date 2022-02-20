@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2019–2021 Felix Gruber <felgru@posteo.net>
+# SPDX-FileCopyrightText: 2019–2022 Felix Gruber <felgru@posteo.net>
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
@@ -11,12 +11,11 @@ from transaction import BaseTransaction, MultiTransaction, Transaction
 
 class TransactionCleaner:
     def __init__(self,
-                 xdg_dirs: dict[str, Path],
+                 rules_file: Optional[Path],
                  builtin_rules: Optional[Sequence[AnyCleanerRule]] = None):
-        conf_file: Optional[Path]
-        conf_file = xdg_dirs['config'] / 'cleaning_rules.py'
-        if not conf_file.exists():
-            conf_file = None
+        conf_file: Optional[Path] = None
+        if rules_file is not None and rules_file.exists():
+            conf_file = rules_file
         self.conf_file = conf_file
         self._read_rules()
         if builtin_rules is not None:

@@ -1,5 +1,5 @@
 <!--
-SPDX-FileCopyrightText: 2019–2021 Felix Gruber <felgru@posteo.net>
+SPDX-FileCopyrightText: 2019–2022 Felix Gruber <felgru@posteo.net>
 
 SPDX-License-Identifier: GPL-3.0-or-later
 -->
@@ -30,6 +30,16 @@ that tries to parse all bank statements found in
 `~/accounting/bank_statements/incoming/<name_of_bank>`. For each bank statement
 file it creates a corresponding hledger file in `~/accounting/bank_statements`.
 
+Those directories can be changed in the configuration file
+`$XDG_CONFIG_HOME/bank-statement-parser/import.cfg` (where `$XDG_CONFIG_HOME`
+defaults to `$HOME/.config` if unset). The default directories correspond to
+the following entries in this configuration file:
+```
+[dirs]
+ledgers = ~/accounting/bank_statements
+incoming = ~/accounting/bank_statements/incoming
+```
+
 The abovementionned scripts are compatible with Python 3.9 or later.
 To parse PDF files the bank statement parser uses `pdftotext`, which in Debian
 is part of the `poppler-utils` package.
@@ -42,8 +52,7 @@ cleaned up (e.g. to prettify the subject line) and assigned to the right
 accounts.
 
 To this end, the scripts optionally read two Python files from the directory
-`$XDG_CONFIG_HOME/bank-statement-parser/<name_of_bank>` (where
-`$XDG_CONFIG_HOME` defaults to `$HOME/.config` if unset).
+`<ledgers dir>/rules/<name_of_bank>`.
 
 ### Transaction cleaning rules
 

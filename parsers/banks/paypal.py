@@ -14,7 +14,6 @@ from .cleaning_rules import paypal as cleaning_rules
 from bank_statement import BankStatement, BankStatementMetadata
 from ..parser import Parser
 from transaction import BaseTransaction, MultiTransaction, Posting
-from xdg_dirs import getXDGdirectories
 
 class PostingDict(TypedDict):
     type: str
@@ -31,8 +30,8 @@ class PayPalCsvParser(Parser):
     file_extension = '.csv'
     cleaning_rules = cleaning_rules.rules
 
-    def __init__(self, csv_file: Path):
-        super().__init__(csv_file)
+    def __init__(self, csv_file: Path, rules_dir: Optional[Path]):
+        super().__init__(csv_file, rules_dir)
         self._parse_file(csv_file)
 
     def _parse_file(self, csv_file: Path) -> None:
