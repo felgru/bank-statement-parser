@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 
-# SPDX-FileCopyrightText: 2019, 2021 Felix Gruber <felgru@posteo.net>
+# SPDX-FileCopyrightText: 2019, 2021–2022 Felix Gruber <felgru@posteo.net>
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
@@ -15,6 +15,8 @@ aparser = argparse.ArgumentParser(
         description='parse a bank statement into hledger format')
 aparser.add_argument('-o', metavar='OUTFILE', dest='outfile', default=None,
                      help='write to OUTFILE instead of stdout')
+aparser.add_argument('--rules', metavar='RULES_DIR', default=None, type=Path,
+                     help='read cleaning and mapping rules from this dir')
 aparser.add_argument('--raw', dest='raw', default=False,
                      action='store_true',
                      help='write raw parsing results (useful when creating filters)')
@@ -53,7 +55,7 @@ except KeyError:
     print(f"Don't know how to parse file of type {extension}", file=sys.stderr)
     exit(1)
 
-transactions_parser = Parser(args.infile)
+transactions_parser = Parser(args.infile, args.rules)
 if args.meta:
     try:
         metadata = transactions_parser.parse_metadata()

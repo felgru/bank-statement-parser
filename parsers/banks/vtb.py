@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2020–2021 Felix Gruber <felgru@posteo.net>
+# SPDX-FileCopyrightText: 2020–2022 Felix Gruber <felgru@posteo.net>
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
@@ -7,7 +7,7 @@ from decimal import Decimal
 from pathlib import Path
 import re
 import subprocess
-from typing import cast, Iterator
+from typing import cast, Iterator, Optional
 
 from bank_statement import BankStatement, BankStatementMetadata
 from transaction import (BaseTransaction, Balance,
@@ -20,8 +20,8 @@ class VTBPdfParser(Parser):
     bank_folder = 'vtb'
     file_extension = '.pdf'
 
-    def __init__(self, pdf_file: Path):
-        super().__init__(pdf_file)
+    def __init__(self, pdf_file: Path, rules_dir: Optional[Path]):
+        super().__init__(pdf_file, rules_dir)
         self._parse_file(pdf_file)
         self.parser = self._choose_parser()
 
@@ -40,12 +40,12 @@ class VTBPdfParser(Parser):
         m = re.search(r' *_+\n +IHR KONTOSTAND AUF EINEN BLICK\n *_+\n',
                       self.pdf_pages[0])
         if m is not None:
-            return VTB2014PdfParser(self.xdg, self.pdf_pages)
+            return VTB2014PdfParser(self.rules_dir, self.pdf_pages)
         m = re.search('K O N T O A U S Z U G +Kontokorrent',
                       self.pdf_pages[0])
         if m is not None:
-            return VTB2012PdfParser(self.xdg, self.pdf_pages)
-        return VTB2019PdfParser(self.xdg, self.pdf_pages)
+            return VTB2012PdfParser(self.rules_dir, self.pdf_pages)
+        return VTB2019PdfParser(self.rules_dir, self.pdf_pages)
 
     def parse_metadata(self) -> BankStatementMetadata:
         return self.parser.parse_metadata()
@@ -62,8 +62,8 @@ class VTB2019PdfParser(PdfParser):
     account = 'assets:bank:saving:VTB Direktbank'
     ParserError = VTB2019PdfParserError
 
-    def __init__(self, xdg: dict[str, Path], pdf_pages: list[str]):
-        self.xdg = xdg
+    def __init__(self, rules_dir: Optional[Path], pdf_pages: list[str]):
+        self.rules_dir = rules_dir
         self.pdf_pages = pdf_pages
         self._parse_metadata()
         self._parse_description_start()
@@ -211,8 +211,8 @@ class VTB2014PdfParser(PdfParser):
     account = 'assets:bank:saving:VTB Direktbank'
     ParserError = VTB2014PdfParserError
 
-    def __init__(self, xdg: dict[str, Path], pdf_pages: list[str]):
-        self.xdg = xdg
+    def __init__(self, rules_dir: Optional[Path], pdf_pages: list[str]):
+        self.rules_dir = rules_dir
         self.pdf_pages = pdf_pages
         self._parse_metadata()
         self._parse_description_start()
@@ -396,8 +396,8 @@ class VTB2012PdfParser(PdfParser):
     account = 'assets:bank:saving:VTB Direktbank'
     ParserError = VTB2012PdfParserError
 
-    def __init__(self, xdg: dict[str, Path], pdf_pages: list[str]):
-        self.xdg = xdg
+    def __init__(self, rules_dir: Optional[Path], pdf_pages: list[str]):
+        self.rules_dir = rules_dir
         self.pdf_pages = pdf_pages
         self._parse_description_start()
         self._parse_metadata()

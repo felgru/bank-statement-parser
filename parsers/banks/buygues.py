@@ -23,8 +23,8 @@ class BuyguesPdfParser(Parser):
     file_extension = '.pdf'
     num_cols = 6
 
-    def __init__(self, pdf_file: Path):
-        super().__init__(pdf_file)
+    def __init__(self, pdf_file: Path, rules_dir: Optional[Path]):
+        super().__init__(pdf_file, rules_dir)
         self._parse_file(pdf_file)
 
     def _parse_file(self, pdf_file: Path) -> None:

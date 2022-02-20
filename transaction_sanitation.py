@@ -11,10 +11,10 @@ from transaction import BaseTransaction, MultiTransaction, Transaction
 
 class TransactionCleaner:
     def __init__(self,
-                 rules_file: Path,
+                 rules_file: Optional[Path],
                  builtin_rules: Optional[Sequence[AnyCleanerRule]] = None):
         conf_file: Optional[Path] = None
-        if rules_file.exists():
+        if rules_file is not None and rules_file.exists():
             conf_file = rules_file
         self.conf_file = conf_file
         self._read_rules()

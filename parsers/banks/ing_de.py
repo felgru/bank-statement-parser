@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2019–2021 Felix Gruber <felgru@posteo.net>
+# SPDX-FileCopyrightText: 2019–2022 Felix Gruber <felgru@posteo.net>
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
@@ -7,7 +7,7 @@ from datetime import date, timedelta
 from decimal import Decimal
 from pathlib import Path
 import re
-from typing import cast, Iterator
+from typing import cast, Iterator, Optional
 
 from .cleaning_rules import ing_de as cleaning_rules
 from bank_statement import BankStatement, BankStatementMetadata
@@ -22,8 +22,8 @@ class IngDePdfParser(PdfParser):
     account = 'assets:bank:TODO:ING.de' # exact account is set in __init__
     num_cols = 5
 
-    def __init__(self, pdf_file: Path):
-        super().__init__(pdf_file)
+    def __init__(self, pdf_file: Path, rules_dir: Optional[Path]):
+        super().__init__(pdf_file, rules_dir)
         self._parse_metadata()
         self._parse_description_start()
         self.transaction_description_pattern = re.compile(
@@ -231,8 +231,8 @@ class IngDeCsvParser(Parser):
     account = 'assets:bank:TODO:ING.de' # exact account is set in __init__
     file_extension = '.csv'
 
-    def __init__(self, csv_file: Path):
-        super().__init__(csv_file)
+    def __init__(self, csv_file: Path, rules_dir: Optional[Path]):
+        super().__init__(csv_file, rules_dir)
         self.csv_file = csv_file
         self._parse_metadata()
         if self.metadata.account_type == 'Girokonto':

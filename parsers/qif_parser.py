@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2021 Felix Gruber <felgru@posteo.net>
+# SPDX-FileCopyrightText: 2021–2022 Felix Gruber <felgru@posteo.net>
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
@@ -6,7 +6,7 @@ from abc import ABCMeta, abstractmethod
 from datetime import date
 from decimal import Decimal
 from pathlib import Path
-from typing import TextIO
+from typing import Optional, TextIO
 
 from bank_statement import BankStatement, BankStatementMetadata
 from .parser import Parser
@@ -16,8 +16,8 @@ class QifParser(Parser, metaclass=ABCMeta):
     file_extension = '.qif'
     currency: str
 
-    def __init__(self, qif_file: Path):
-        super().__init__(qif_file)
+    def __init__(self, qif_file: Path, rules_dir: Optional[Path]):
+        super().__init__(qif_file, rules_dir)
         self.qif_file = qif_file
 
     def parse_metadata(self) -> BankStatementMetadata:

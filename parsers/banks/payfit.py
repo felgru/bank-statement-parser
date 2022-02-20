@@ -19,8 +19,8 @@ class PayfitPdfParser(Parser):
     bank_folder = 'payfit'
     file_extension = '.pdf'
 
-    def __init__(self, pdf_file: Path):
-        super().__init__(pdf_file)
+    def __init__(self, pdf_file: Path, rules_dir: Optional[Path]):
+        super().__init__(pdf_file, rules_dir)
         if not pdf_file.exists():
             raise IOError(f'Unknown file: {pdf_file}')
         self.pdf_file = pdf_file

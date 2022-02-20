@@ -8,9 +8,9 @@ from typing import Any, Callable, Iterator, Optional
 from transaction import BaseTransaction, MultiTransaction, Transaction
 
 class AccountMapper:
-    def __init__(self, rules_file: Path):
+    def __init__(self, rules_file: Optional[Path]):
         conf_file: Optional[Path] = None
-        if rules_file.exists():
+        if rules_file is not None and rules_file.exists():
             conf_file = rules_file
         self.conf_file = conf_file
         self._read_rules()

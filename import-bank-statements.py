@@ -30,6 +30,7 @@ def import_incoming_statements(dirs: Mapping[str, str],
                                import_branch: str,
                                force: bool,
                                dry_run: bool) -> None:
+    rules_dir = Path(dirs['ledgers'], 'rules')
     with import_transaction(git, import_branch, dry_run) as transaction:
         incoming_dir = dirs['incoming']
         import_summary = dict()
@@ -53,7 +54,7 @@ def import_incoming_statements(dirs: Mapping[str, str],
                 except KeyError:
                     continue
                 src_file = Path(dirpath, f)
-                parser = Parser(src_file)
+                parser = Parser(src_file, rules_dir=rules_dir)
                 m = parser.parse_metadata()
                 print(f'{m.start_date} → {m.end_date}: {src_file}')
                 mid_date = m.start_date + (m.end_date - m.start_date) / 2
