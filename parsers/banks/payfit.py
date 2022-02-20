@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2019–2021 Felix Gruber <felgru@posteo.net>
+# SPDX-FileCopyrightText: 2019–2022 Felix Gruber <felgru@posteo.net>
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
@@ -6,30 +6,30 @@ from copy import copy
 from datetime import date
 from decimal import Decimal
 import os
+from pathlib import Path
 import re
 import subprocess
 from typing import Optional
 
+from ..parser import Parser
 from bank_statement import BankStatement, BankStatementMetadata
 from transaction import MultiTransaction, Posting
-from xdg_dirs import getXDGdirectories
 
-class PayfitPdfParser:
+class PayfitPdfParser(Parser):
     bank_folder = 'payfit'
     file_extension = '.pdf'
 
-    def __init__(self, pdf_file: str):
-        if not os.path.exists(pdf_file):
-            raise IOError('Unknown file: {}'.format(pdf_file))
+    def __init__(self, pdf_file: Path):
+        super().__init__(pdf_file)
+        if not pdf_file.exists():
+            raise IOError(f'Unknown file: {pdf_file}')
         self.pdf_file = pdf_file
         self.num_pages = self._num_pdf_pages()
         self.extract_main_transactions_table()
         self.extract_dates_table()
-        self.xdg = getXDGdirectories('bank-statement-parser/'
-                                     + self.bank_folder)
 
     def _num_pdf_pages(self) -> int:
-        info = subprocess.run(['pdfinfo', self.pdf_file],
+        info = subprocess.run(['pdfinfo', str(self.pdf_file)],
                               capture_output=True, encoding='UTF8',
                               check=True).stdout
         for line in info.split('\n'):
@@ -65,7 +65,7 @@ class PayfitPdfParser:
                                   '-y', str(upper_left[1]),
                                   '-W', str(size[0]), '-H', str(size[1]),
                                   '-fixed', str(num_cols),
-                                  self.pdf_file, '-'],
+                                  str(self.pdf_file), '-'],
                                  capture_output=True, encoding='UTF8',
                                  check=True).stdout
         return pdftext
