@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2019–2021 Felix Gruber <felgru@posteo.net>
+# SPDX-FileCopyrightText: 2019–2022 Felix Gruber <felgru@posteo.net>
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
@@ -32,10 +32,12 @@ class Parser(metaclass=ABCMeta):
 
     def clean_up_transactions(self, transactions: Sequence[BaseTransaction]) \
                                                     -> list[BaseTransaction]:
-        cleaner = TransactionCleaner(self.xdg,
+        conf_file = self.xdg['config'] / 'cleaning_rules.py'
+        cleaner = TransactionCleaner(conf_file,
                                      builtin_rules=self.cleaning_rules)
         return [cleaner.clean(t) for t in transactions]
 
     def map_accounts(self, transactions: list[BaseTransaction]) -> None:
-        mapper = AccountMapper(self.xdg)
+        conf_file = self.xdg['config'] / 'account_mappings.py'
+        mapper = AccountMapper(conf_file)
         mapper.map_transactions(transactions)
