@@ -3,7 +3,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 from contextlib import contextmanager
-import os
 from pathlib import Path
 from typing import Iterable, Iterator, Optional, Protocol, TypeVar, Union
 
@@ -52,7 +51,7 @@ class ImportTransaction:
         self.git.add_files(self.files_to_add_to_git)
         files_to_annex = []
         for from_, to in self.files_to_move_to_annex:
-            os.rename(from_, to)
+            from_.rename(to)
             files_to_annex.append(to)
         self.git.add_files_to_annex(files_to_annex)
         self.git.commit(commit_message)

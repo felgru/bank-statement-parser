@@ -5,7 +5,6 @@
 from copy import copy
 from datetime import date
 from decimal import Decimal
-import os
 from pathlib import Path
 import re
 import subprocess
