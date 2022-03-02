@@ -14,6 +14,32 @@ from bank_statement import BankStatement, BankStatementMetadata
 from .parser import Parser
 from transaction import BaseTransaction, Balance, MultiTransaction, Transaction
 
+
+def read_pdf_file(pdf_file: Path, *, cols: Optional[int] = None) -> list[str]:
+    """Read PDF file.
+
+    This function reads the text of a PDF file into a list of pages.
+    Internally it uses the `pdftotext` program which is part of the
+    poppler-utils package on Debian.
+
+    Given the `cols` option, the PDF is parsed as a table with that many
+    columns, otherwise we try to keep the existing formating.
+    """
+    if not pdf_file.exists():
+        raise IOError(f'Unknown file: {pdf_file}')
+    if cols is not None:
+        formatting = ['-fixed', str(cols)]
+    else:
+        formatting = ['-layout']
+    # pdftotext is provided by poppler-utils on Debian
+    pdftext = subprocess.run(['pdftotext', *formatting, str(pdf_file), '-'],
+                             capture_output=True, encoding='UTF8',
+                             check=True).stdout
+    # Careful: There's a trailing \f on the last page
+    pdf_pages = pdftext.split('\f')[:-1]
+    return pdf_pages
+
+
 class PdfParser(Parser, metaclass=ABCMeta):
     file_extension = '.pdf'
 
@@ -30,15 +56,7 @@ class PdfParser(Parser, metaclass=ABCMeta):
         self._parse_file(pdf_file)
 
     def _parse_file(self, pdf_file: Path) -> None:
-        if not pdf_file.exists():
-            raise IOError(f'Unknown file: {pdf_file}')
-        # pdftotext is provided by poppler-utils on Debian
-        pdftext = subprocess.run(['pdftotext', '-fixed', str(self.num_cols),
-                                  str(pdf_file), '-'],
-                                 capture_output=True, encoding='UTF8',
-                                 check=True).stdout
-        # Careful: There's a trailing \f on the last page
-        self.pdf_pages = pdftext.split('\f')[:-1]
+        self.pdf_pages = read_pdf_file(pdf_file, cols=self.num_cols)
 
     @abstractmethod
     def parse_metadata(self) -> BankStatementMetadata:

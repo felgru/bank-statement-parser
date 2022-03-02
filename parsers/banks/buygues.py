@@ -3,7 +3,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 from __future__ import annotations
-from copy import copy
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
@@ -14,6 +13,7 @@ import subprocess
 from typing import Optional, Union
 
 from ..parser import Parser
+from ..pdf_parser import read_pdf_file
 from bank_statement import BankStatement, BankStatementMetadata
 from transaction import MultiTransaction, Posting
 
@@ -27,15 +27,7 @@ class BuyguesPdfParser(Parser):
         self._parse_file(pdf_file)
 
     def _parse_file(self, pdf_file: Path) -> None:
-        if not pdf_file.exists():
-            raise IOError(f'Unknown file: {pdf_file}')
-        # pdftotext is provided by poppler-utils on Debian
-        pdftext = subprocess.run(['pdftotext', '-fixed', str(self.num_cols),
-                                  str(pdf_file), '-'],
-                                 capture_output=True, encoding='UTF8',
-                                 check=True).stdout
-        # Careful: There's a trailing \f on the last page
-        self.pdf_pages = pdftext.split('\f')[:-1]
+        self.pdf_pages = read_pdf_file(pdf_file, cols=self.num_cols)
 
     def iter_main_table(self) -> MainTableIterator:
         return MainTableIterator(self.pdf_pages)

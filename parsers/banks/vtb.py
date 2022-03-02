@@ -14,7 +14,7 @@ from transaction import (BaseTransaction, Balance,
                          MultiTransaction, Posting, Transaction)
 
 from ..parser import Parser
-from ..pdf_parser import PdfParser
+from ..pdf_parser import PdfParser, read_pdf_file
 
 class VTBPdfParser(Parser):
     bank_folder = 'vtb'
@@ -26,15 +26,7 @@ class VTBPdfParser(Parser):
         self.parser = self._choose_parser()
 
     def _parse_file(self, pdf_file: Path) -> None:
-        if not pdf_file.exists():
-            raise IOError('Unknown file: {}'.format(pdf_file))
-        # pdftotext is provided by Poppler on Debian
-        pdftext = subprocess.run(['pdftotext',
-                                  '-fixed', '6', str(pdf_file), '-'],
-                                 capture_output=True, encoding='UTF8',
-                                 check=True).stdout
-        # Careful: There's a trailing \f on the last page
-        self.pdf_pages = pdftext.split('\f')[:-1]
+        self.pdf_pages = read_pdf_file(pdf_file, cols=6)
 
     def _choose_parser(self) -> Parser:
         m = re.search(r' *_+\n +IHR KONTOSTAND AUF EINEN BLICK\n *_+\n',
