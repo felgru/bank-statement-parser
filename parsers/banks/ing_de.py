@@ -15,9 +15,9 @@ from transaction import (BaseTransaction, Balance, MultiTransaction,
                          Posting, Transaction)
 
 from ..parser import Parser
-from ..pdf_parser import PdfParser
+from ..pdf_parser import OldPdfParser
 
-class IngDePdfParser(PdfParser):
+class IngDePdfParser(OldPdfParser):
     bank_folder = 'ing.de'
     account = 'assets:bank:TODO:ING.de' # exact account is set in __init__
     num_cols = 5

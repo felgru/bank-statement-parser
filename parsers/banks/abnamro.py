@@ -62,15 +62,6 @@ class AbnAmroPdfParser(PdfParser):
                 currency=meta.currency,
                 account=self.account)
 
-    def extract_table_from_page(self, page: str) -> str:
-        pass
-
-    def parse_balances(self) -> None:
-        pass
-
-    def generate_transactions(self, start: int, end: int) -> Iterator[Transaction]:
-        pass
-
 
 class FirstPageMetadata:
     def __init__(self, page: str):

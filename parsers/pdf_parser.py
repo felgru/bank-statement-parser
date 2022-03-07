@@ -62,10 +62,14 @@ class PdfParser(Parser, metaclass=ABCMeta):
     def parse_metadata(self) -> BankStatementMetadata:
         pass
 
-    @abstractmethod
-    def parse_balances(self) -> None:
-        pass
+    def check_transactions_consistency(self,
+                                       transactions: list[BaseTransaction]) \
+                                                                    -> None:
+        assert self.old_balance.balance \
+               + self.total_credit - self.total_debit \
+                == self.new_balance.balance
 
+class OldPdfParser(PdfParser):
     def parse(self) -> BankStatement:
         self.transactions_text = self.extract_transactions_table()
         self.parse_balances()
@@ -78,6 +82,10 @@ class PdfParser(Parser, metaclass=ABCMeta):
         return BankStatement(self.account, transactions,
                              self.old_balance, self.new_balance)
 
+    @abstractmethod
+    def parse_balances(self) -> None:
+        pass
+
     def extract_transactions_table(self) -> str:
         return ''.join(self.extract_table_from_page(p) for p in self.pdf_pages)
 
@@ -87,10 +95,3 @@ class PdfParser(Parser, metaclass=ABCMeta):
     @abstractmethod
     def generate_transactions(self, start: int, end: int) \
                                     -> Iterable[BaseTransaction]: pass
-
-    def check_transactions_consistency(self,
-                                       transactions: list[BaseTransaction]) \
-                                                                    -> None:
-        assert self.old_balance.balance \
-               + self.total_credit - self.total_debit \
-                == self.new_balance.balance

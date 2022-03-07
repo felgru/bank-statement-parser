@@ -12,11 +12,11 @@ from .cleaning_rules import ing_fr as cleaning_rules
 from bank_statement import BankStatementMetadata
 from transaction import Balance, BaseTransaction, Transaction
 
-from ..pdf_parser import PdfParser
+from ..pdf_parser import OldPdfParser
 from ..qif_parser import QifParser
 
 
-class IngFrPdfParser(PdfParser):
+class IngFrPdfParser(OldPdfParser):
     bank_folder = 'ing.fr'
     account = 'assets:bank:TODO:ING.fr' # exact account is set in __init__
     num_cols = 5

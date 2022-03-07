@@ -13,9 +13,9 @@ from bank_statement import BankStatementMetadata
 from transaction import (BaseTransaction, Balance, MultiTransaction,
                          Posting, Transaction)
 
-from ..pdf_parser import PdfParser
+from ..pdf_parser import OldPdfParser
 
-class MercedesBenzPdfParser(PdfParser):
+class MercedesBenzPdfParser(OldPdfParser):
     bank_folder = 'mercedes-benz'
     account = 'assets:bank:saving:Mercedes-Benz Bank'
     cleaning_rules = cleaning_rules.rules

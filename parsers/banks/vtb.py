@@ -14,7 +14,7 @@ from transaction import (BaseTransaction, Balance,
                          MultiTransaction, Posting, Transaction)
 
 from ..parser import Parser
-from ..pdf_parser import PdfParser, read_pdf_file
+from ..pdf_parser import OldPdfParser, read_pdf_file
 
 class VTBPdfParser(Parser):
     bank_folder = 'vtb'
@@ -47,7 +47,7 @@ class VTBPdfParser(Parser):
 
 class VTB2019PdfParserError(RuntimeError): pass
 
-class VTB2019PdfParser(PdfParser):
+class VTB2019PdfParser(OldPdfParser):
     # Do not define bank_folder, so that it is not registered as a Parser by
     # the Parsers class. Instead it should only be used through the
     # VTBPdfParser class.
@@ -196,7 +196,7 @@ class VTB2019PdfParser(PdfParser):
 
 class VTB2014PdfParserError(RuntimeError): pass
 
-class VTB2014PdfParser(PdfParser):
+class VTB2014PdfParser(OldPdfParser):
     # Do not define bank_folder, so that it is not registered as a Parser by
     # the Parsers class. Instead it should only be used through the
     # VTBPdfParser class.
@@ -381,7 +381,7 @@ class VTB2014PdfParser(PdfParser):
 
 class VTB2012PdfParserError(RuntimeError): pass
 
-class VTB2012PdfParser(PdfParser):
+class VTB2012PdfParser(OldPdfParser):
     # Do not define bank_folder, so that it is not registered as a Parser by
     # the Parsers class. Instead it should only be used through the
     # VTBPdfParser class.

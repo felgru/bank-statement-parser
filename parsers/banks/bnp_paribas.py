@@ -11,10 +11,10 @@ from typing import Iterator, Optional
 from bank_statement import BankStatementMetadata
 from transaction import Balance, Transaction
 
-from ..pdf_parser import PdfParser
+from ..pdf_parser import OldPdfParser
 
 
-class BnpParibasPdfParser(PdfParser):
+class BnpParibasPdfParser(OldPdfParser):
     bank_folder = 'bnp'
     account = 'assets:bank:TODO:BNP' # exact account is set in __init__
     num_cols = 5
