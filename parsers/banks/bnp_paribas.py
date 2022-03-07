@@ -17,6 +17,7 @@ from ..pdf_parser import PdfParser
 class BnpParibasPdfParser(PdfParser):
     bank_folder = 'bnp'
     account = 'assets:bank:TODO:BNP' # exact account is set in __init__
+    num_cols = 5
 
     def __init__(self, pdf_file: Path, rules_dir: Optional[Path]):
         super().__init__(pdf_file, rules_dir)

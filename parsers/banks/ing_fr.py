@@ -19,6 +19,7 @@ from ..qif_parser import QifParser
 class IngFrPdfParser(PdfParser):
     bank_folder = 'ing.fr'
     account = 'assets:bank:TODO:ING.fr' # exact account is set in __init__
+    num_cols = 5
 
     def __init__(self, pdf_file: Path, rules_dir: Optional[Path]):
         super().__init__(pdf_file, rules_dir)

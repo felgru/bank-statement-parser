@@ -49,7 +49,7 @@ class PdfParser(Parser, metaclass=ABCMeta):
     new_balance: Balance
     total_credit: Decimal
     total_debit: Decimal
-    num_cols: int = 5
+    num_cols: Optional[int] = None
 
     def __init__(self, pdf_file: Path, rules_dir: Optional[Path]):
         super().__init__(pdf_file, rules_dir)
