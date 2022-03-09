@@ -13,7 +13,7 @@ from pathlib import Path
 import sys
 from typing import Iterable, Protocol, Union
 
-from config import ImportConfig, ImportConfigDirs
+from config import ImportConfig
 from git import BaseGit, FakeGit, Git
 from import_transaction import (
         DirtyWorkingDirectoryException,
@@ -25,14 +25,14 @@ from parsers.parser import Parser
 from xdg_dirs import getXDGdirectories
 
 
-def import_incoming_statements(dirs: ImportConfigDirs,
+def import_incoming_statements(incoming_dir: Path,
+                               ledger_dir: Path,
                                git: BaseGit,
                                import_branch: str,
                                force: bool,
                                dry_run: bool) -> None:
-    rules_dir = dirs.ledgers / 'rules'
+    rules_dir = ledger_dir / 'rules'
     with import_transaction(git, import_branch, dry_run) as transaction:
-        incoming_dir = dirs.incoming
         import_summary = dict()
         for (dirpath, dirnames, filenames) in os.walk(incoming_dir):
             if dirpath == incoming_dir:
@@ -61,9 +61,9 @@ def import_incoming_statements(dirs: ImportConfigDirs,
                 year = str(mid_date.year)
                 if m.end_date - m.start_date <= timedelta(weeks=6):
                     month = str(mid_date.month).zfill(2)
-                    dest_dir = dirs.ledgers / year / month / bank
+                    dest_dir = ledger_dir / year / month / bank
                 else:
-                    dest_dir = dirs.ledgers / year / bank
+                    dest_dir = ledger_dir / year / bank
                 dest_dir.mkdir(parents=True, exist_ok=True)
                 dest_file = Path(dest_dir, f).with_suffix('.hledger')
                 if parse_and_write_bank_statement(parser, src_file, dest_file,
@@ -80,7 +80,7 @@ def import_incoming_statements(dirs: ImportConfigDirs,
                                       for im in imported_files)
                 import_summary[bank] = summary
         if not dry_run:
-            write_include_files(dirs.ledgers, transaction)
+            write_include_files(ledger_dir, transaction)
         if import_summary:
             commit_message = 'import bank statements\n\n'
             commit_message += '\n\n'.join(s for _, s in sorted(import_summary
@@ -186,24 +186,29 @@ if __name__ == '__main__':
     args = aparser.parse_args()
 
     config = read_config()
+    # TODO: For now it only works with exactly one ledger directory.
+    assert len(config.ledgers) == 1
     # change working directory for git status to work correctly
-    os.chdir(config.dirs.ledgers)
+    ledger_config = config.ledgers[0]
+    os.chdir(ledger_config.ledger_dir)
     git: BaseGit
-    if config.git is not None:
-        git = Git(config.dirs.ledgers, config.git.git_dir)
-        import_branch = config.git.import_branch
+    if ledger_config.git_dir is not None:
+        git = Git(ledger_config.ledger_dir, ledger_config.git_dir)
+        import_branch = ledger_config.import_branch
     else:
         git = FakeGit()
         import_branch = git.current_branch()
 
     if args.regenerate_includes:
-        write_include_files(config.dirs.ledgers, git)
+        write_include_files(ledger_config.ledger_dir, git)
     else:
         try:
-            import_incoming_statements(config.dirs, git, import_branch,
+            import_incoming_statements(config.incoming_dir,
+                                       ledger_config.ledger_dir,
+                                       git, import_branch,
                                        args.force, args.dry_run)
         except DirtyWorkingDirectoryException:
-            print(f'{config.dirs.ledgers} contains uncommitted changes,'
+            print(f'{ledger_config.ledger_dir} contains uncommitted changes,'
                   ' please commit those before continuing.', file=sys.stderr)
             exit(1)
         # TODO: merge import_branch into default_branch

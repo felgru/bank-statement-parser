@@ -11,56 +11,50 @@ from typing import Optional
 
 
 @dataclass
-class ImportConfigDirs:
-    ledgers: Path
-    incoming: Path
-
-    @classmethod
-    def from_config(cls, config: configparser.ConfigParser) -> ImportConfigDirs:
-        if 'dirs' not in config:
-            config['dirs'] = {}
-        dirs = config['dirs']
-        ledgers = Path(os.path.expanduser(
-            dirs.get('ledgers', '~/accounting/bank_statements')))
-        assert ledgers.exists(), f'Ledgers directory {ledgers} does not exist.'
-        if 'incoming' in dirs:
-            incoming = Path(os.path.expanduser(dirs['incoming']))
-        else:
-            incoming = ledgers / 'incoming'
-        assert incoming.exists(), \
-                f'Incoming directory {incoming} does not exist.'
-        return cls(ledgers=ledgers, incoming=incoming)
-
-
-@dataclass
-class ImportConfigGit:
-    git_dir: Path
+class LedgerConfig:
+    ledger_dir: Path
+    git_dir: Optional[Path]
     import_branch: str
 
     @classmethod
     def from_config(cls,
-                    config: configparser.ConfigParser,
-                    dirs: ImportConfigDirs) -> Optional[ImportConfigGit]:
-        if 'git' not in config:
-            config['git'] = {}
-        git_config = config['git']
-        git_dir = Path(git_config.get('git_dir', str(dirs.ledgers / '.git')))
-        import_branch = git_config.get('import_branch', 'import')
-        if not git_dir.exists():
-            return None
+                    config: configparser.SectionProxy,
+                    ) -> LedgerConfig:
+        ledger_dir = Path(os.path.expanduser(config.get('ledger_dir')))
+        assert ledger_dir.exists(), \
+                f'Ledger directory {ledger_dir} does not exist.'
+        git_dir_str = config.get('git_dir')
+        if git_dir_str is not None:
+            git_dir = Path(os.path.expanduser(git_dir_str))
         else:
-            return cls(git_dir=git_dir, import_branch=import_branch)
+            git_dir = ledger_dir / '.git'
+        import_branch = config.get('import_branch', 'import')
+        return cls(ledger_dir=ledger_dir,
+                   git_dir=git_dir if git_dir.exists() else None,
+                   import_branch=import_branch)
 
 
 @dataclass
 class ImportConfig:
-    dirs: ImportConfigDirs
-    git: Optional[ImportConfigGit]
+    incoming_dir: Path
+    ledgers: list[LedgerConfig]
 
     @classmethod
     def read_from_file(cls, config_file: Path) -> ImportConfig:
         config = configparser.ConfigParser()
         config.read(config_file)
-        dirs = ImportConfigDirs.from_config(config)
-        git = ImportConfigGit.from_config(config, dirs)
-        return cls(dirs=dirs, git=git)
+        default_incoming_dir = '~/accounting/incoming'
+        try:
+            common_section = config.pop('common')
+            incoming_str = common_section.get('incoming_dir',
+                                              default_incoming_dir)
+        except KeyError:
+            incoming_str = default_incoming_dir
+        incoming_dir = Path(os.path.expanduser(incoming_str))
+        assert incoming_dir.exists(), \
+                f'Incoming directory {incoming_dir} does not exist.'
+        ledgers = []
+        for ledger_name, ledger_config in config.items():
+            ledgers.append(LedgerConfig.from_config(ledger_config))
+        assert len(ledgers) > 1, 'Missing configuration for ledger directories.'
+        return cls(incoming_dir=incoming_dir, ledgers=ledgers)
