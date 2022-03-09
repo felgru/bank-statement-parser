@@ -10,6 +10,7 @@ SPDX-License-Identifier: GPL-3.0-or-later
 
 Supported banks:
 
+* ABN AMRO
 * BNP Paribas
 * ING.de
 * ING.fr
@@ -21,6 +22,7 @@ Not actual banks, but bank statement-like files:
 * PayPal csv reports
 * PayFit payslips
 * Buygues Télécom payslips
+* Thermo Fisher Scientific payslips
 
 ## Usage
 
