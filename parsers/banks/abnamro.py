@@ -11,8 +11,7 @@ from typing import Iterator, Optional
 
 from .cleaning_rules import abnamro as cleaning_rules
 from bank_statement import BankStatement, BankStatementMetadata
-from transaction import (BaseTransaction, Balance, MultiTransaction,
-                         Posting, Transaction)
+from transaction import Balance, Transaction
 
 from ..pdf_parser import PdfParser
 
@@ -23,8 +22,8 @@ class AbnAmroPdfParser(PdfParser):
     num_cols = None
     cleaning_rules = cleaning_rules.rules
 
-    def __init__(self, pdf_file: Path, rules_dir: Optional[Path]):
-        super().__init__(pdf_file, rules_dir)
+    def __init__(self, pdf_file: Path):
+        super().__init__(pdf_file)
         meta = self.parse_first_page_metadata()
         self.first_page_metadata = meta
         self.old_balance = Balance(meta.previous_balance,
@@ -47,10 +46,8 @@ class AbnAmroPdfParser(PdfParser):
         assert len(self.pdf_pages) == meta.no_of_pages
         return meta
 
-    def parse(self) -> BankStatement:
-        transactions = self.clean_up_transactions(
-                list(reversed(list(self._iter_main_table()))))
-        self.map_accounts(transactions)
+    def parse_raw(self) -> BankStatement:
+        transactions = list(reversed(list(self._iter_main_table())))
         return BankStatement(self.account, transactions,
                              self.old_balance, self.new_balance)
 

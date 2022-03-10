@@ -11,7 +11,7 @@ import subprocess
 from typing import Iterable, Optional, Union
 
 from bank_statement import BankStatement, BankStatementMetadata
-from .parser import Parser
+from .parser import CleaningParser
 from transaction import BaseTransaction, Balance, MultiTransaction, Transaction
 
 
@@ -40,7 +40,7 @@ def read_pdf_file(pdf_file: Path, *, cols: Optional[int] = None) -> list[str]:
     return pdf_pages
 
 
-class PdfParser(Parser, metaclass=ABCMeta):
+class PdfParser(CleaningParser, metaclass=ABCMeta):
     file_extension = '.pdf'
 
     transactions_start: int
@@ -51,8 +51,8 @@ class PdfParser(Parser, metaclass=ABCMeta):
     total_debit: Decimal
     num_cols: Optional[int] = None
 
-    def __init__(self, pdf_file: Path, rules_dir: Optional[Path]):
-        super().__init__(pdf_file, rules_dir)
+    def __init__(self, pdf_file: Path):
+        super().__init__(pdf_file)
         self._parse_file(pdf_file)
 
     def _parse_file(self, pdf_file: Path) -> None:
@@ -62,6 +62,11 @@ class PdfParser(Parser, metaclass=ABCMeta):
     def parse_metadata(self) -> BankStatementMetadata:
         pass
 
+    def parse(self, rules_dir: Optional[Path]) -> BankStatement:
+        statement = super().parse(rules_dir)
+        self.check_transactions_consistency(statement.transactions)
+        return statement
+
     def check_transactions_consistency(self,
                                        transactions: list[BaseTransaction]) \
                                                                     -> None:
@@ -70,15 +75,12 @@ class PdfParser(Parser, metaclass=ABCMeta):
                 == self.new_balance.balance
 
 class OldPdfParser(PdfParser):
-    def parse(self) -> BankStatement:
+    def parse_raw(self) -> BankStatement:
         self.transactions_text = self.extract_transactions_table()
         self.parse_balances()
         transactions = [t for t in self.generate_transactions(
                                             self.transactions_start,
                                             self.transactions_end)]
-        self.check_transactions_consistency(transactions)
-        transactions = self.clean_up_transactions(transactions)
-        self.map_accounts(transactions)
         return BankStatement(self.account, transactions,
                              self.old_balance, self.new_balance)
 

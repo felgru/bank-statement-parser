@@ -21,8 +21,8 @@ class MercedesBenzPdfParser(OldPdfParser):
     cleaning_rules = cleaning_rules.rules
     num_cols = 4
 
-    def __init__(self, pdf_file: Path, rules_dir: Optional[Path]):
-        super().__init__(pdf_file, rules_dir)
+    def __init__(self, pdf_file: Path):
+        super().__init__(pdf_file)
         self._parse_metadata()
         self._parse_description_start()
         self.transaction_description_pattern = re.compile(

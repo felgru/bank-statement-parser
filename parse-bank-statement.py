@@ -55,7 +55,7 @@ except KeyError:
     print(f"Don't know how to parse file of type {extension}", file=sys.stderr)
     exit(1)
 
-transactions_parser = Parser(args.infile, args.rules)
+transactions_parser = Parser(args.infile)
 if args.meta:
     try:
         metadata = transactions_parser.parse_metadata()
@@ -69,7 +69,7 @@ if args.meta:
         metadata.write(open_outfile())
 else:
     try:
-        bank_statement = transactions_parser.parse()
+        bank_statement = transactions_parser.parse(args.rules)
     except NotImplementedError as e:
         print(f'Warning: couldn\'t parse {args.infile}:', e.args,
               file=sys.stderr)

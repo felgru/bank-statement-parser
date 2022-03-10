@@ -11,7 +11,7 @@ import io
 import os
 from pathlib import Path
 import sys
-from typing import Iterable, Protocol, Union
+from typing import Iterable, Optional, Protocol, Union
 
 from config import ImportConfig
 from git import BaseGit, FakeGit, Git
@@ -54,7 +54,7 @@ def import_incoming_statements(incoming_dir: Path,
                 except KeyError:
                     continue
                 src_file = Path(dirpath, f)
-                parser = Parser(src_file, rules_dir=rules_dir)
+                parser = Parser(src_file)
                 m = parser.parse_metadata()
                 print(f'{m.start_date} → {m.end_date}: {src_file}')
                 mid_date = m.start_date + (m.end_date - m.start_date) / 2
@@ -67,6 +67,7 @@ def import_incoming_statements(incoming_dir: Path,
                 dest_dir.mkdir(parents=True, exist_ok=True)
                 dest_file = Path(dest_dir, f).with_suffix('.hledger')
                 if parse_and_write_bank_statement(parser, src_file, dest_file,
+                                                  rules_dir,
                                                   transaction, force, dry_run):
                     imported_files.append((f, m.start_date, m.end_date))
                     dateranges.append((m.start_date, m.end_date))
@@ -91,6 +92,7 @@ def parse_and_write_bank_statement(
         parser: Parser,
         src_file: Path,
         dest_file: Path,
+        rules_dir: Optional[Path],
         import_transaction: ImportTransactionProtocol,
         force: bool,
         dry_run: bool) -> bool:
@@ -103,7 +105,7 @@ def parse_and_write_bank_statement(
                   file=sys.stderr)
             return False
     try:
-        bank_statement = parser.parse()
+        bank_statement = parser.parse(rules_dir=rules_dir)
     except NotImplementedError as e:
         print(f'Warning: couldn\'t parse {src_file}:', e.args,
               file=sys.stderr)

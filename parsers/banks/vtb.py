@@ -20,8 +20,8 @@ class VTBPdfParser(Parser):
     bank_folder = 'vtb'
     file_extension = '.pdf'
 
-    def __init__(self, pdf_file: Path, rules_dir: Optional[Path]):
-        super().__init__(pdf_file, rules_dir)
+    def __init__(self, pdf_file: Path):
+        super().__init__(pdf_file)
         self._parse_file(pdf_file)
         self.parser = self._choose_parser()
 
@@ -32,18 +32,18 @@ class VTBPdfParser(Parser):
         m = re.search(r' *_+\n +IHR KONTOSTAND AUF EINEN BLICK\n *_+\n',
                       self.pdf_pages[0])
         if m is not None:
-            return VTB2014PdfParser(self.rules_dir, self.pdf_pages)
+            return VTB2014PdfParser(self.pdf_pages)
         m = re.search('K O N T O A U S Z U G +Kontokorrent',
                       self.pdf_pages[0])
         if m is not None:
-            return VTB2012PdfParser(self.rules_dir, self.pdf_pages)
-        return VTB2019PdfParser(self.rules_dir, self.pdf_pages)
+            return VTB2012PdfParser(self.pdf_pages)
+        return VTB2019PdfParser(self.pdf_pages)
 
     def parse_metadata(self) -> BankStatementMetadata:
         return self.parser.parse_metadata()
 
-    def parse(self) -> BankStatement:
-        return self.parser.parse()
+    def parse(self, rules_dir: Optional[Path]) -> BankStatement:
+        return self.parser.parse(rules_dir)
 
 class VTB2019PdfParserError(RuntimeError): pass
 
@@ -54,8 +54,7 @@ class VTB2019PdfParser(OldPdfParser):
     account = 'assets:bank:saving:VTB Direktbank'
     ParserError = VTB2019PdfParserError
 
-    def __init__(self, rules_dir: Optional[Path], pdf_pages: list[str]):
-        self.rules_dir = rules_dir
+    def __init__(self, pdf_pages: list[str]):
         self.pdf_pages = pdf_pages
         self._parse_metadata()
         self._parse_description_start()
@@ -203,8 +202,7 @@ class VTB2014PdfParser(OldPdfParser):
     account = 'assets:bank:saving:VTB Direktbank'
     ParserError = VTB2014PdfParserError
 
-    def __init__(self, rules_dir: Optional[Path], pdf_pages: list[str]):
-        self.rules_dir = rules_dir
+    def __init__(self, pdf_pages: list[str]):
         self.pdf_pages = pdf_pages
         self._parse_metadata()
         self._parse_description_start()
@@ -388,8 +386,7 @@ class VTB2012PdfParser(OldPdfParser):
     account = 'assets:bank:saving:VTB Direktbank'
     ParserError = VTB2012PdfParserError
 
-    def __init__(self, rules_dir: Optional[Path], pdf_pages: list[str]):
-        self.rules_dir = rules_dir
+    def __init__(self, pdf_pages: list[str]):
         self.pdf_pages = pdf_pages
         self._parse_description_start()
         self._parse_metadata()
@@ -572,6 +569,7 @@ class VTB2012PdfParser(OldPdfParser):
         a = a[-1] + a[:-1]
         return Decimal(a)
 
+
 def parse_date_with_year(d: str) -> date:
     """parse a date in "dd.mm.yyyy" or "dd.mm.yy" format
 
@@ -583,6 +581,7 @@ def parse_date_with_year(d: str) -> date:
     if year < 100:
         year += 2000
     return date(year, month, day)
+
 
 def parse_date_relative_to(s: str, ref_d: date) -> date:
     """parse a date in "dd.mm." format while guessing year relative to date ref_d"""

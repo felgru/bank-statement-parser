@@ -21,8 +21,8 @@ class ThermoFisherPdfParser(Parser):
     bank_folder = 'thermofisher'
     file_extension = '.pdf'
 
-    def __init__(self, pdf_file: Path, rules_dir: Optional[Path]):
-        super().__init__(pdf_file, rules_dir)
+    def __init__(self, pdf_file: Path):
+        super().__init__(pdf_file)
         self._parse_file(pdf_file)
 
     def _parse_file(self, pdf_file: Path) -> None:
@@ -82,7 +82,7 @@ class ThermoFisherPdfParser(Parser):
                 description=description,
                 )
 
-    def parse(self) -> BankStatement:
+    def parse(self, rules_dir: Optional[Path]) -> BankStatement:
         metadata = self.parse_metadata()
         transaction = MultiTransaction(metadata.description,
                                        metadata.payment_date)

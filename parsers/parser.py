@@ -15,30 +15,53 @@ class Parser(metaclass=ABCMeta):
     bank_folder: str
     file_extension: str
     account: str
-    cleaning_rules: Optional[list[TransactionCleanerRule]] = None
 
-    def __init__(self, infile: Path, rules_dir: Optional[Path]):
-        self.rules_dir = rules_dir / self.bank_folder \
-                         if rules_dir is not None else None
+    def __init__(self, infile: Path):
+        pass
 
     @abstractmethod
     def parse_metadata(self) -> BankStatementMetadata:
         pass
 
     @abstractmethod
-    def parse(self) -> BankStatement:
+    def parse(self, rules_dir: Optional[Path]) -> BankStatement:
         pass
 
-    def clean_up_transactions(self, transactions: Sequence[BaseTransaction]) \
-                                                    -> list[BaseTransaction]:
-        conf_file = self.rules_dir / 'cleaning_rules.py' \
-                    if self.rules_dir is not None else None
+
+class CleaningParser(Parser, metaclass=ABCMeta):
+    cleaning_rules: Optional[list[TransactionCleanerRule]] = None
+
+    @abstractmethod
+    def parse_raw(self) -> BankStatement:
+        pass
+
+    def parse(self, rules_dir: Optional[Path]) -> BankStatement:
+        rules_dir = rules_dir / self.bank_folder
+        statement = self.parse_raw()
+        transactions = self.clean_up_transactions(
+                statement.transactions,
+                rules_dir)
+        self.map_accounts(transactions, rules_dir)
+        statement.transactions = transactions
+        return statement
+
+    def clean_up_transactions(self,
+                              transactions: Sequence[BaseTransaction],
+                              rules_dir: Optional[Path],
+                              ) -> list[BaseTransaction]:
+        rules_dir = rules_dir / self.bank_folder \
+                    if rules_dir is not None else None
+        conf_file = rules_dir / 'cleaning_rules.py' \
+                    if rules_dir is not None else None
         cleaner = TransactionCleaner(conf_file,
                                      builtin_rules=self.cleaning_rules)
         return [cleaner.clean(t) for t in transactions]
 
-    def map_accounts(self, transactions: list[BaseTransaction]) -> None:
-        conf_file = self.rules_dir / 'account_mappings.py' \
-                    if self.rules_dir is not None else None
+    def map_accounts(self,
+                     transactions: list[BaseTransaction],
+                     rules_dir: Optional[Path],
+                     ) -> None:
+        conf_file = rules_dir / 'account_mappings.py' \
+                    if rules_dir is not None else None
         mapper = AccountMapper(conf_file)
         mapper.map_transactions(transactions)
