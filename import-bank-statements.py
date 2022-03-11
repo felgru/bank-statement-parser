@@ -103,7 +103,8 @@ def import_incoming_statements(incoming_statements: list[IncomingStatement],
                     dest_dir = ledger_dir / year / month / bank
                 else:
                     dest_dir = ledger_dir / year / bank
-                dest_dir.mkdir(parents=True, exist_ok=True)
+                if not dry_run:
+                    dest_dir.mkdir(parents=True, exist_ok=True)
                 dest_file = (dest_dir / f).with_suffix('.hledger')
                 if parse_and_write_bank_statement(incoming.parser,
                                                   src_file, dest_file,
