@@ -36,7 +36,8 @@ class CleaningParser(Parser, metaclass=ABCMeta):
         pass
 
     def parse(self, rules_dir: Optional[Path]) -> BankStatement:
-        rules_dir = rules_dir / self.bank_folder
+        if rules_dir is not None:
+            rules_dir = rules_dir / self.bank_folder
         statement = self.parse_raw()
         transactions = self.clean_up_transactions(
                 statement.transactions,
