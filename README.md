@@ -48,6 +48,15 @@ incoming_dir = ~/accounting/incoming
 [my bank statements]
 ledger_dir = ~/accounting/bank_statements
 ```
+If you have more than one ledger config section in your `import.cfg`, you have
+to have a file `$XDG_CONFIG_HOME/bank-statement-parser/select_ledger.py` that
+contains a function
+```python
+def select_ledger(metadata: BankStatementMetadata) -> str:
+    ...
+```
+that maps the metadata of a bank statement (normally containing IBAN, account
+owner and other identifying data) to a section name from your `import.cfg`.
 
 The abovementionned scripts are compatible with Python 3.9 or later.
 To parse PDF files the bank statement parser uses `pdftotext`, which in Debian

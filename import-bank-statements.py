@@ -5,13 +5,15 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import argparse
+from collections import defaultdict
 from collections.abc import Mapping
+from dataclasses import dataclass
 from datetime import date, timedelta
 import io
 import os
 from pathlib import Path
 import sys
-from typing import Iterable, Optional, Protocol, Union
+from typing import Any, Callable, Iterable, Optional, Protocol, Union
 
 from config import ImportConfig
 from git import BaseGit, FakeGit, Git
@@ -21,11 +23,61 @@ from import_transaction import (
         ImportTransactionProtocol,
         )
 from parsers.banks import parsers
-from parsers.parser import Parser
+from parsers.parser import BankStatementMetadata, Parser
 from xdg_dirs import getXDGdirectories
 
 
-def import_incoming_statements(incoming_dir: Path,
+@dataclass
+class IncomingStatement:
+    statement_path: Path
+    parser: Parser
+    metadata: BankStatementMetadata
+
+
+def get_metadata_of_incoming_statements(incoming_dir: Path,
+                                        ) -> list[IncomingStatement]:
+    incoming_statements = []
+    for (dirpath, dirnames, filenames) in os.walk(incoming_dir):
+        if Path(dirpath) == incoming_dir:
+            continue
+        bank = os.path.basename(dirpath)
+        if bank not in parsers:
+            print('unknown bank:', bank, file=sys.stderr)
+            continue
+        bank_parsers = parsers[bank]
+        if filenames:
+            print('importing bank statements from', bank)
+        filenames.sort()
+        for f in filenames:
+            try:
+                extension = os.path.splitext(f)[1].lower()
+                Parser = bank_parsers[extension]
+            except KeyError:
+                continue
+            src_file = Path(dirpath, f)
+            parser = Parser(src_file)
+            m = parser.parse_metadata()
+            print(f'{m.start_date} → {m.end_date}: {src_file}')
+            incoming_statements.append(IncomingStatement(
+                statement_path=src_file,
+                parser=parser,
+                metadata=m,
+                ))
+    return incoming_statements
+
+
+def sort_incoming_statements_to_ledger_dirs(
+        incoming_statements: list[IncomingStatement],
+        classify: Callable[[BankStatementMetadata], str],
+        ) -> dict[str, list[IncomingStatement]]:
+    classified: dict[str, list[IncomingStatement]] = defaultdict(list)
+    for statement in incoming_statements:
+        ledger = classify(statement.metadata)
+        classified[ledger].append(statement)
+    return classified
+
+
+def import_incoming_statements(incoming_statements: list[IncomingStatement],
                                ledger_dir: Path,
                                git: BaseGit,
                                import_branch: str,
@@ -34,29 +86,16 @@ def import_incoming_statements(incoming_dir: Path,
     rules_dir = ledger_dir / 'rules'
     with import_transaction(git, import_branch, dry_run) as transaction:
         import_summary = dict()
-        for (dirpath, dirnames, filenames) in os.walk(incoming_dir):
-            if dirpath == incoming_dir:
-                continue
-            bank = os.path.basename(dirpath)
-            if bank not in parsers:
-                print('unknown bank:', bank, file=sys.stderr)
-                continue
-            bank_parsers = parsers[bank]
-            if filenames:
-                print('importing bank statements from', bank)
+        by_bank: dict[str, list[IncomingStatement]] = defaultdict(list)
+        for incoming in incoming_statements:
+            by_bank[incoming.parser.bank_folder].append(incoming)
+        for bank, incoming_statements in by_bank.items():
             dateranges = []
             imported_files = []
-            filenames.sort()
-            for f in filenames:
-                try:
-                    extension = os.path.splitext(f)[1].lower()
-                    Parser = bank_parsers[extension]
-                except KeyError:
-                    continue
-                src_file = Path(dirpath, f)
-                parser = Parser(src_file)
-                m = parser.parse_metadata()
-                print(f'{m.start_date} → {m.end_date}: {src_file}')
+            for incoming in incoming_statements:
+                src_file = incoming.statement_path
+                f = src_file.name
+                m = incoming.metadata
                 mid_date = m.start_date + (m.end_date - m.start_date) / 2
                 year = str(mid_date.year)
                 if m.end_date - m.start_date <= timedelta(weeks=6):
@@ -65,8 +104,9 @@ def import_incoming_statements(incoming_dir: Path,
                 else:
                     dest_dir = ledger_dir / year / bank
                 dest_dir.mkdir(parents=True, exist_ok=True)
-                dest_file = Path(dest_dir, f).with_suffix('.hledger')
-                if parse_and_write_bank_statement(parser, src_file, dest_file,
+                dest_file = (dest_dir / f).with_suffix('.hledger')
+                if parse_and_write_bank_statement(incoming.parser,
+                                                  src_file, dest_file,
                                                   rules_dir,
                                                   transaction, force, dry_run):
                     imported_files.append((f, m.start_date, m.end_date))
@@ -167,11 +207,24 @@ def write_include_files(ledger_root: Path, git: AddFileTransaction) -> None:
         ledger_files.append(ledger)
     git.add_files(ledger_files)
 
-def read_config() -> ImportConfig:
-    xdg = getXDGdirectories('bank-statement-parser')
-    return ImportConfig.read_from_file(xdg['config'] / 'import.cfg')
 
-if __name__ == '__main__':
+def regenerate_includes(config: ImportConfig) -> None:
+    for ledger_config in config.ledgers.values():
+        print(f'regenerate includes in {ledger_config.ledger_dir}.')
+        # change working directory for git status to work correctly
+        os.chdir(ledger_config.ledger_dir)
+        git: BaseGit
+        if ledger_config.git_dir is not None:
+            git = Git(ledger_config.ledger_dir, ledger_config.git_dir)
+            import_branch = ledger_config.import_branch
+        else:
+            git = FakeGit()
+            import_branch = git.current_branch()
+
+        write_include_files(ledger_config.ledger_dir, git)
+
+
+def main() -> None:
     aparser = argparse.ArgumentParser(
             description='import account statement PDFs into hledger')
     aparser.add_argument('--force', dest='force', default=False,
@@ -187,25 +240,69 @@ if __name__ == '__main__':
 
     args = aparser.parse_args()
 
-    config = read_config()
-    # TODO: For now it only works with exactly one ledger directory.
-    assert len(config.ledgers) == 1
-    # change working directory for git status to work correctly
-    ledger_config = config.ledgers[0]
-    os.chdir(ledger_config.ledger_dir)
-    git: BaseGit
-    if ledger_config.git_dir is not None:
-        git = Git(ledger_config.ledger_dir, ledger_config.git_dir)
-        import_branch = ledger_config.import_branch
-    else:
-        git = FakeGit()
-        import_branch = git.current_branch()
+    xdg = getXDGdirectories('bank-statement-parser')
+    config_file = xdg['config'] / 'import.cfg'
+    config = ImportConfig.read_from_file(config_file)
 
     if args.regenerate_includes:
-        write_include_files(ledger_config.ledger_dir, git)
+        regenerate_includes(config)
+        exit(0)
+
+    selection_script = xdg['config'] / 'select_ledger.py'
+    select_ledger: Callable[[BankStatementMetadata], str]
+    if selection_script.exists():
+        with open(selection_script, 'r') as f:
+            content = f.read()
+            parse_globals: dict[str, Any] = {
+                'BankStatementMetadata': BankStatementMetadata,
+                }
+            exec(compile(content, selection_script, 'exec'), parse_globals)
+            if 'select_ledger' not in parse_globals:
+                print(f'{selection_script} doesn\'t contain select_ledger'
+                      ' function.',
+                      file=sys.stderr)
+                exit(1)
+            select_ledger = parse_globals['select_ledger']
+    elif len(config.ledgers) == 1:
+        ledger_name = next(iter(config.ledgers))
+        def select_ledger(meta: BankStatementMetadata) -> str:
+            return ledger_name
     else:
+        print(f'Error: {config_file} contains more than one ledger,'
+              f' but {selection_script} is missing.',
+              file=sys.stderr)
+        exit(1)
+    incoming_statements = get_metadata_of_incoming_statements(
+            config.incoming_dir)
+    classified = sort_incoming_statements_to_ledger_dirs(
+            incoming_statements,
+            select_ledger,
+            )
+    if any(key not in config.ledgers for key in classified.keys()):
+        for key, statements in classified.items():
+            if key in config.ledgers:
+                continue
+            mismatched_files = ', '.join(str(s.statement_path)
+                                         for s in statements)
+            print(f'Error: {mismatched_files} were assigned to unknown ledger'
+                  f' configuration {key}. Please check {selection_script}.',
+                  file=sys.stderr)
+        exit(1)
+    for key, statements in classified.items():
+        ledger_config = config.ledgers[key]
+        print(f'Importing bank statements to {ledger_config.ledger_dir}.')
+        # change working directory for git status to work correctly
+        os.chdir(ledger_config.ledger_dir)
+        git: BaseGit
+        if ledger_config.git_dir is not None:
+            git = Git(ledger_config.ledger_dir, ledger_config.git_dir)
+            import_branch = ledger_config.import_branch
+        else:
+            git = FakeGit()
+            import_branch = git.current_branch()
+
         try:
-            import_incoming_statements(config.incoming_dir,
+            import_incoming_statements(statements,
                                        ledger_config.ledger_dir,
                                        git, import_branch,
                                        args.force, args.dry_run)
@@ -214,3 +311,7 @@ if __name__ == '__main__':
                   ' please commit those before continuing.', file=sys.stderr)
             exit(1)
         # TODO: merge import_branch into default_branch
+
+
+if __name__ == '__main__':
+    main()

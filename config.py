@@ -20,7 +20,10 @@ class LedgerConfig:
     def from_config(cls,
                     config: configparser.SectionProxy,
                     ) -> LedgerConfig:
-        ledger_dir = Path(os.path.expanduser(config.get('ledger_dir')))
+        if 'ledger_dir' not in config:
+            raise RuntimeError(f'Ledger config {config.name} does not '
+                               f'contain ledger_dir.')
+        ledger_dir = Path(os.path.expanduser(config['ledger_dir']))
         assert ledger_dir.exists(), \
                 f'Ledger directory {ledger_dir} does not exist.'
         git_dir_str = config.get('git_dir')
@@ -37,7 +40,7 @@ class LedgerConfig:
 @dataclass
 class ImportConfig:
     incoming_dir: Path
-    ledgers: list[LedgerConfig]
+    ledgers: dict[str, LedgerConfig]
 
     @classmethod
     def read_from_file(cls, config_file: Path) -> ImportConfig:
@@ -53,8 +56,14 @@ class ImportConfig:
         incoming_dir = Path(os.path.expanduser(incoming_str))
         assert incoming_dir.exists(), \
                 f'Incoming directory {incoming_dir} does not exist.'
-        ledgers = []
+        ledgers = {}
         for ledger_name, ledger_config in config.items():
-            ledgers.append(LedgerConfig.from_config(ledger_config))
+            if ledger_name == 'DEFAULT':
+                # This is a special config section that is included
+                # into all other config sections.
+                continue
+            ledgers[ledger_name] = LedgerConfig.from_config(ledger_config)
         assert len(ledgers) > 1, 'Missing configuration for ledger directories.'
+        assert len({l.ledger_dir for l in ledgers.values()}) == len(ledgers), \
+               'You have configured ledger directories with the same path!'
         return cls(incoming_dir=incoming_dir, ledgers=ledgers)
