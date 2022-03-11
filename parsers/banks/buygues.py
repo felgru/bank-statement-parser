@@ -22,8 +22,8 @@ class BuyguesPdfParser(Parser):
     file_extension = '.pdf'
     num_cols = 6
 
-    def __init__(self, pdf_file: Path, rules_dir: Optional[Path]):
-        super().__init__(pdf_file, rules_dir)
+    def __init__(self, pdf_file: Path):
+        super().__init__(pdf_file)
         self._parse_file(pdf_file)
 
     def _parse_file(self, pdf_file: Path) -> None:
@@ -55,7 +55,7 @@ class BuyguesPdfParser(Parser):
                 )
         return meta
 
-    def parse(self) -> BankStatement:
+    def parse(self, rules_dir: Optional[Path]) -> BankStatement:
         m = re.search(r'Date de paiement\s*Période de paie\n'
                       r'\s*BULLETIN DE PAIE'
                       r'\s*(\d\d/\d\d/\d{4})\s*'

@@ -9,15 +9,15 @@ from pathlib import Path
 from typing import Optional, TextIO
 
 from bank_statement import BankStatement, BankStatementMetadata
-from .parser import Parser
+from .parser import CleaningParser
 from transaction import Transaction
 
-class QifParser(Parser, metaclass=ABCMeta):
+class QifParser(CleaningParser, metaclass=ABCMeta):
     file_extension = '.qif'
     currency: str
 
-    def __init__(self, qif_file: Path, rules_dir: Optional[Path]):
-        super().__init__(qif_file, rules_dir)
+    def __init__(self, qif_file: Path):
+        super().__init__(qif_file)
         self.qif_file = qif_file
 
     def parse_metadata(self) -> BankStatementMetadata:
@@ -27,15 +27,14 @@ class QifParser(Parser, metaclass=ABCMeta):
                 start_date=start_date,
                 end_date=end_date)
 
-    def parse(self) -> BankStatement:
+    def parse_raw(self) -> BankStatement:
         if not self.qif_file.exists():
             raise IOError(f'Unknown file: {self.qif_file}')
         with open(self.qif_file) as f:
             header = f.readline()
             if not header == '!Type:Bank\n':
                 raise RuntimeError(f'Unknown QIF account type: {header}')
-            transactions = self.clean_up_transactions(
-                    self._parse_transactions(f))
+            transactions = self._parse_transactions(f)
         return BankStatement(account=self.account,
                       transactions=transactions)
 

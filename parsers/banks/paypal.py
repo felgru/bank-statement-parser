@@ -12,8 +12,9 @@ from typing import Optional, TypedDict
 
 from .cleaning_rules import paypal as cleaning_rules
 from bank_statement import BankStatement, BankStatementMetadata
-from ..parser import Parser
+from ..parser import CleaningParser
 from transaction import BaseTransaction, MultiTransaction, Posting
+
 
 class PostingDict(TypedDict):
     type: str
@@ -23,15 +24,16 @@ class PostingDict(TypedDict):
     amount: Decimal
     currency: str
 
-class PayPalCsvParser(Parser):
+
+class PayPalCsvParser(CleaningParser):
     bank_folder = 'paypal'
     account = 'assets:online:paypal'
     balancing_account = 'assets:balancing:paypal'
     file_extension = '.csv'
     cleaning_rules = cleaning_rules.rules
 
-    def __init__(self, csv_file: Path, rules_dir: Optional[Path]):
-        super().__init__(csv_file, rules_dir)
+    def __init__(self, csv_file: Path):
+        super().__init__(csv_file)
         self._parse_file(csv_file)
 
     def _parse_file(self, csv_file: Path) -> None:
@@ -145,11 +147,10 @@ class PayPalCsvParser(Parser):
                 end_date=end_date,
                )
 
-    def parse(self) -> BankStatement:
+    def parse_raw(self) -> BankStatement:
         #self.check_transactions_consistency(self.transactions)
-        transactions = self.clean_up_transactions(self.transactions)
-        self.map_accounts(transactions)
-        return BankStatement(self.account, transactions)
+        return BankStatement(self.account, self.transactions)
+
 
 def parse_date(d: str) -> date:
     """ parse a date in "dd.mm.yyyy" format """
@@ -158,10 +159,12 @@ def parse_date(d: str) -> date:
     year = int(d[6:])
     return date(year, month, day)
 
+
 def parse_amount(a: str) -> Decimal:
     """ parse a decimal amount like -1.200,00 """
     a = a.replace('.', '').replace(',', '.')
     return Decimal(a)
+
 
 def translate_currency(currency: str) -> str:
     if currency == 'EUR':

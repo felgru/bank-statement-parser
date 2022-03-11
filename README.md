@@ -29,18 +29,34 @@ Not actual banks, but bank statement-like files:
 To parse a single bank statement PDF you can use the `parse-bank-statement.py`
 script. For bulk imports you can use the `import-bank-statements.py` script
 that tries to parse all bank statements found in
-`~/accounting/bank_statements/incoming/<name_of_bank>`. For each bank statement
-file it creates a corresponding hledger file in `~/accounting/bank_statements`.
+`<incoming_dir>/<name_of_bank>`. For each bank statement file it creates a
+corresponding hledger file in one of multiple configurable ledger directories.
 
 Those directories can be changed in the configuration file
 `$XDG_CONFIG_HOME/bank-statement-parser/import.cfg` (where `$XDG_CONFIG_HOME`
-defaults to `$HOME/.config` if unset). The default directories correspond to
-the following entries in this configuration file:
+defaults to `$HOME/.config` if unset). The default `<incoming_directory>` is
+`~/accounting/incoming` and can be set via the `incoming_dir` key in the
+`common` section. Ledger directories can be configured by adding a new section
+with a `ledger_dir` entry.
+
+Here's an example configuration file with one ledger dir at
+`~/accounting/bank_statements`:
 ```
-[dirs]
-ledgers = ~/accounting/bank_statements
-incoming = ~/accounting/bank_statements/incoming
+[common]
+incoming_dir = ~/accounting/incoming
+
+[my bank statements]
+ledger_dir = ~/accounting/bank_statements
 ```
+If you have more than one ledger config section in your `import.cfg`, you have
+to have a file `$XDG_CONFIG_HOME/bank-statement-parser/select_ledger.py` that
+contains a function
+```python
+def select_ledger(metadata: BankStatementMetadata) -> str:
+    ...
+```
+that maps the metadata of a bank statement (normally containing IBAN, account
+owner and other identifying data) to a section name from your `import.cfg`.
 
 The abovementionned scripts are compatible with Python 3.9 or later.
 To parse PDF files the bank statement parser uses `pdftotext`, which in Debian
@@ -54,7 +70,7 @@ cleaned up (e.g. to prettify the subject line) and assigned to the right
 accounts.
 
 To this end, the scripts optionally read two Python files from the directory
-`<ledgers dir>/rules/<name_of_bank>`.
+`<ledger_dir>/rules/<name_of_bank>`.
 
 ### Transaction cleaning rules
 

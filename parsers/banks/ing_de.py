@@ -14,7 +14,7 @@ from bank_statement import BankStatement, BankStatementMetadata
 from transaction import (BaseTransaction, Balance, MultiTransaction,
                          Posting, Transaction)
 
-from ..parser import Parser
+from ..parser import CleaningParser
 from ..pdf_parser import OldPdfParser
 
 class IngDePdfParser(OldPdfParser):
@@ -22,8 +22,8 @@ class IngDePdfParser(OldPdfParser):
     account = 'assets:bank:TODO:ING.de' # exact account is set in __init__
     num_cols = 5
 
-    def __init__(self, pdf_file: Path, rules_dir: Optional[Path]):
-        super().__init__(pdf_file, rules_dir)
+    def __init__(self, pdf_file: Path):
+        super().__init__(pdf_file)
         self._parse_metadata()
         self._parse_description_start()
         self.transaction_description_pattern = re.compile(
@@ -48,11 +48,11 @@ class IngDePdfParser(OldPdfParser):
     def parse_metadata(self) -> BankStatementMetadata:
         return self.metadata
 
-    def parse(self) -> BankStatement:
+    def parse_raw(self) -> BankStatement:
         if self.metadata.account_type not in ('Girokonto', 'Extra-Konto'):
             raise NotImplementedError('parsing of %s not supported.'
                                       % self.metadata.account_type)
-        bank_statement = super().parse()
+        bank_statement = super().parse_raw()
         if self.metadata.account_type == 'Extra-Konto':
             self._add_interest_details(bank_statement)
         return bank_statement
@@ -226,13 +226,13 @@ class IngDePdfParser(OldPdfParser):
                                               for t in transactions) \
                == self.new_balance.balance
 
-class IngDeCsvParser(Parser):
+class IngDeCsvParser(CleaningParser):
     bank_folder = 'ing.de'
     account = 'assets:bank:TODO:ING.de' # exact account is set in __init__
     file_extension = '.csv'
 
-    def __init__(self, csv_file: Path, rules_dir: Optional[Path]):
-        super().__init__(csv_file, rules_dir)
+    def __init__(self, csv_file: Path):
+        super().__init__(csv_file)
         self.csv_file = csv_file
         self._parse_metadata()
         if self.metadata.account_type == 'Girokonto':
@@ -282,7 +282,7 @@ class IngDeCsvParser(Parser):
     def parse_metadata(self) -> BankStatementMetadata:
         return self.metadata
 
-    def parse(self) -> BankStatement:
+    def parse_raw(self) -> BankStatement:
         with self.csv_file.open(encoding='LATIN1', newline='') as f:
             f.seek(self.csv_start)
             reader = csv.DictReader(f, fieldnames=self.csv_fieldnames,
@@ -308,8 +308,6 @@ class IngDeCsvParser(Parser):
                         )
                 transactions.append(transaction)
             transactions = list(reversed(transactions))
-            transactions = self.clean_up_transactions(transactions)
-            self.map_accounts(transactions)
             return BankStatement(self.account, transactions)
 
 class IngCsvDialect(csv.Dialect):
