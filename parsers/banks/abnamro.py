@@ -30,6 +30,14 @@ class AbnAmroPdfParser(PdfParser):
                                    meta.date.replace(day=1))
         self.new_balance = Balance(meta.new_balance, meta.date)
 
+    @property
+    def total_debit(self) -> Decimal:
+        return self.first_page_metadata.total_amount_debit
+
+    @property
+    def total_credit(self) -> Decimal:
+        return self.first_page_metadata.total_amount_credit
+
     def parse_metadata(self) -> BankStatementMetadata:
         meta = self.first_page_metadata
         return BankStatementMetadata(
