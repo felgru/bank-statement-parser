@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 from __future__ import annotations
+import csv
 from datetime import date
 from decimal import Decimal
 from pathlib import Path
@@ -13,12 +14,11 @@ from .cleaning_rules import abnamro as cleaning_rules
 from bank_statement import BankStatement, BankStatementMetadata
 from transaction import Balance, Transaction
 
-from ..pdf_parser import PdfParser
+from ..pdf_parser import CleaningParser, PdfParser
 
 class AbnAmroPdfParser(PdfParser):
     bank_folder = 'abnamro'
     account = 'assets:bank:ABN AMRO'
-    # cleaning_rules = cleaning_rules.rules
     num_cols = None
     cleaning_rules = cleaning_rules.rules
 
@@ -270,3 +270,86 @@ def parse_balance(a: str) -> Decimal:
 
 class AbnAmroPdfParserError(RuntimeError):
     pass
+
+class AbnAmroTsvParser(CleaningParser):
+    bank_folder = 'abnamro'
+    account = 'assets:bank:ABN AMRO'
+    file_extension = '.tab'
+    num_cols = None
+    # cleaning_rules = cleaning_rules.rules
+
+    def __init__(self, tsv_file: Path):
+        super().__init__(tsv_file)
+        self._parse_file(tsv_file)
+
+    def _parse_file(self, tsv_file: Path) -> None:
+        if not tsv_file.exists():
+            raise IOError(f'Unknown file: {tsv_file}')
+        transactions = []
+        key_pattern = re.compile(r'/([A-Z]+)/')
+        card_payment_pattern = re.compile(
+                r'BEA +NR:([^ ]+) +(\d\d\.\d\d\.\d\d)\/(\d\d\.\d\d) '
+                r'(.*),PAS(\d+) +(.*)')
+        with open(tsv_file, newline='') as f:
+            reader = csv.reader(f, dialect='excel-tab')
+            for row in reader:
+                account = row[0]
+                currency = row[1]
+                date1 = parse_compact_date(row[2])
+                balance_before = parse_amount(row[3])
+                balance_after = parse_amount(row[4])
+                date2 = parse_compact_date(row[5])
+                assert date1 == date2
+                amount = parse_amount(row[6])
+                rest = row[7]
+                if rest.startswith('/'):
+                    matches = list(key_pattern.finditer(rest))
+                    meta: dict[str, str] = {}
+                    for m1, m2 in zip(matches, matches[1:]):
+                        meta[m1.group(1)] = rest[m1.end():m2.start()]
+                    meta[matches[-1].group(1)] = rest[matches[-1].end():].rstrip()
+                    description = meta['NAME'] + ' | ' + meta['REMI']
+                else:
+                    m = card_payment_pattern.match(rest)
+                    if m is None:
+                        raise RuntimeError(f'{rest!r} does not match card'
+                                           'payment pattern.')
+                    description = m.group(4)
+                    meta = {}
+                    meta['nr'] = m.group(1)
+                    meta['card_number'] = m.group(5)
+                    meta['location'] = m.group(6)
+                    day, month, year = m.group(2).split('.')
+                    pay_date = date(year=int('20'+year),
+                                    month=int(month),
+                                    day=int(day))
+                    pay_time = m.group(3).replace('.', ':')
+                    assert pay_date == date2
+                transaction = Transaction(
+                        account=self.account,
+                        description=description,
+                        operation_date=date1,
+                        value_date=date2,
+                        amount=amount,
+                        currency='€' if currency == 'EUR' else currency,
+                        metadata=meta)
+                transactions.append(transaction)
+        self.transactions = transactions
+
+    def parse_metadata(self) -> BankStatementMetadata:
+        start_date = min(t.operation_date for t in self.transactions)
+        end_date   = max(t.operation_date for t in self.transactions)
+        return BankStatementMetadata(
+                start_date=start_date,
+                end_date=end_date,
+               )
+
+    def parse_raw(self) -> BankStatement:
+        #self.check_transactions_consistency(self.transactions)
+        return BankStatement(self.account, self.transactions)
+
+
+def parse_compact_date(d: str) -> date:
+    # year month and day glued together without seperator
+    year, month, day = int(d[0:4]), int(d[4:6]), int(d[6:8])
+    return date(year, month, day)
