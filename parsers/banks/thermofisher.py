@@ -98,6 +98,7 @@ class ThermoFisherPdfParser(Parser):
                 4461: 'expenses:taxes:retirement insurance',
                 4466: 'expenses:taxes:social',  # WGA Aanvullend
                 4467: 'expenses:taxes:social',  # WIA bodem
+                5150: 'income:salary',          # Netto thuiswerkvergoeding
                 5216: 'income:salary',          # Representatievergoeding
                 7380: 'expenses:taxes:social',  # PAWW unemployment insurance
                 7100: 'expenses:taxes:income',  # Loonheffing Tabel
@@ -161,7 +162,7 @@ def get_tables(pdf_pages: list[str]) -> tuple[MainTable, PaymentTable, str]:
 class MainTable:
     HEADER: Final[str] = (
         r'(Code) +(Omschrijving +)(Aantal) +(Eenheid) +(Waarde) +'
-        r'(Uitbetaling)( +Inhouding)( +Tabel)( +BT)( +WnV +)(Cumulatief)'
+        r'(Uitbetaling)( +Inhouding )( +Tabel)( +BT)( +WnV +)(Cumulatief)'
         )
 
     def __init__(self, page: str):
