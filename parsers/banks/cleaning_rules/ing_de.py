@@ -10,11 +10,12 @@ from transaction_sanitation import TransactionCleanerRule as Rule
 
 def is_card_transaction(t):
     return (t.type == 'Lastschrift' and
-            re.search(r'\b(NR\d{10}|NR XXXX \d{4} [\d-]+)\b.*\bARN\d+\b',
+            re.search(r'\b(NR\d{10}|NR XXXX \d{4}|NR XXXX \d{4} [\d-]+)\b'
+                      r'.*\bARN\d+\b',
                       t.description, flags=re.DOTALL))
 
 def parse_card_metadata(t):
-    m = re.search(r'(.*)\n\b(NR\d{10}|NR XXXX \d{4} [\d-]+)'
+    m = re.search(r'(.*)\n(NR\d{10}|NR XXXX \d{4}|NR XXXX \d{4} [\d-]+)'
                   r'\s*(.*?)\s*(\bARN\d+\b)',
                   t.description, flags=re.DOTALL)
     description = m.group(1).replace('\n', ' ')
