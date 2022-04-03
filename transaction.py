@@ -1,14 +1,14 @@
-# SPDX-FileCopyrightText: 2019–2021 Felix Gruber <felgru@posteo.net>
+# SPDX-FileCopyrightText: 2019–2022 Felix Gruber <felgru@posteo.net>
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 from __future__ import annotations
 from abc import ABCMeta, abstractmethod
 from copy import copy
-from collections import defaultdict, namedtuple
+from collections import defaultdict
 from datetime import date
 from decimal import Decimal
-from typing import Any, Callable, Iterable, Optional, TypeVar, Union
+from typing import Any, Callable, Iterable, NamedTuple, Optional, TypeVar, Union
 
 class BaseTransaction(metaclass=ABCMeta):
     description: str
@@ -244,4 +244,6 @@ class Posting:
         return (f'Posting({s.account!r}, {s.amount!r}, {s.currency!r}'
                 f'{date}{comment})')
 
-Balance = namedtuple('Balance', 'balance date')
+class Balance(NamedTuple):
+    balance: Decimal
+    date: date

@@ -178,15 +178,15 @@ class IngDePdfParser(OldPdfParser):
     def _parse_balances(self) -> None:
         m = re.search('Datum +(\d{2}.\d{2}.\d{4})', self.pdf_pages[0])
         assert m is not None, 'Date of new balance not found.'
-        date = parse_date(m.group(1))
+        new_date = parse_date(m.group(1))
         m = re.search('Alter Saldo +(-?\d[.\d]*,\d\d)', self.pdf_pages[0])
         assert m is not None, 'Old balance not found.'
         old = parse_amount(m.group(1))
         m = re.search('Neuer Saldo +(-?\d[.\d]*,\d\d)', self.pdf_pages[0])
         assert m is not None, 'New balance not found.'
         new = parse_amount(m.group(1))
-        self.old_balance = Balance(old, None)
-        self.new_balance = Balance(new, date)
+        self.old_balance = Balance(old, cast(date, None))
+        self.new_balance = Balance(new, new_date)
 
     def parse_balances(self) -> None:
         self.transactions_start = 0
@@ -222,7 +222,14 @@ class IngDePdfParser(OldPdfParser):
 
     def check_transactions_consistency(self,
                 transactions: list[BaseTransaction]) -> None:
-        assert self.old_balance.balance + sum(cast(Transaction, t).amount
+        def amount(transaction: BaseTransaction):
+            if isinstance(transaction, Transaction):
+                return transaction.amount
+            elif isinstance(transaction, MultiTransaction):
+                return sum(p.amount for p in transaction.postings
+                           if p.account == self.account)
+
+        assert self.old_balance.balance + sum(amount(t)
                                               for t in transactions) \
                == self.new_balance.balance
 
