@@ -45,6 +45,10 @@ class TransactionCleaner:
                 transaction = r.clean(transaction)
         return transaction
 
+    def __repr__(self) -> str:
+        return (f'<{self.__class__.__name__}(rules_file={self.conf_file}, '
+                f'rules={self.rules!r})>')
+
 class TransactionCleanerRule:
     def __init__(self, condition: Callable[[BaseTransaction], bool],
                  cleaner: Callable[[BaseTransaction], Any],
@@ -59,6 +63,11 @@ class TransactionCleanerRule:
     def clean(self, t: BaseTransaction) -> BaseTransaction:
         return t.change_property(self.field, self.cleaner)
 
+    def __repr__(self) -> str:
+        return (f'<{self.__class__.__name__}('
+                f'{self.condition.__name__}, {self.cleaner.__name__}, '
+                f'{self.field})>')
+
 class ToMultiTransactionRule:
     def __init__(self, condition: Callable[[Transaction], bool],
                  cleaner: Callable[[Transaction], MultiTransaction]):
@@ -72,5 +81,9 @@ class ToMultiTransactionRule:
     def clean(self, t: BaseTransaction) -> MultiTransaction:
         assert isinstance(t, Transaction)
         return self.cleaner(t)
+
+    def __repr__(self) -> str:
+        return (f'<{self.__class__.__name__}('
+                f'{self.condition.__name__}, {self.cleaner.__name__})>')
 
 AnyCleanerRule = Union[TransactionCleanerRule, ToMultiTransactionRule]
