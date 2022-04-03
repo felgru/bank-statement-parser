@@ -37,24 +37,23 @@ class IncomingStatement:
 def get_metadata_of_incoming_statements(incoming_dir: Path,
                                         ) -> list[IncomingStatement]:
     incoming_statements = []
-    for (dirpath, dirnames, filenames) in os.walk(incoming_dir):
-        if Path(dirpath) == incoming_dir:
+    for bankpath in sorted(incoming_dir.iterdir()):
+        if not bankpath.is_dir():
             continue
-        bank = os.path.basename(dirpath)
+        bank = bankpath.name
         if bank not in parsers:
             print('unknown bank:', bank, file=sys.stderr)
             continue
         bank_parsers = parsers[bank]
+        filenames = sorted(bankpath.iterdir())
         if filenames:
             print('importing bank statements from', bank)
-        filenames.sort()
-        for f in filenames:
+        for src_file in filenames:
             try:
-                extension = os.path.splitext(f)[1].lower()
+                extension = src_file.suffix.lower()
                 Parser = bank_parsers[extension]
             except KeyError:
                 continue
-            src_file = Path(dirpath, f)
             parser = Parser(src_file)
             m = parser.parse_metadata()
             print(f'{m.start_date} → {m.end_date}: {src_file}')
