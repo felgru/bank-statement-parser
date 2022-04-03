@@ -50,8 +50,6 @@ class CleaningParser(Parser, metaclass=ABCMeta):
                               transactions: Sequence[BaseTransaction],
                               rules_dir: Optional[Path],
                               ) -> list[BaseTransaction]:
-        rules_dir = rules_dir / self.bank_folder \
-                    if rules_dir is not None else None
         conf_file = rules_dir / 'cleaning_rules.py' \
                     if rules_dir is not None else None
         cleaner = TransactionCleaner(conf_file,

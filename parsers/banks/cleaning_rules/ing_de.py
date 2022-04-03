@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2019, 2021 Felix Gruber <felgru@posteo.net>
+# SPDX-FileCopyrightText: 2019, 2021–2022 Felix Gruber <felgru@posteo.net>
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
