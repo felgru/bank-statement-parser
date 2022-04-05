@@ -8,5 +8,5 @@ def add_name_to_description(t):
     return t.metadata['Naam'] + ' | ' + t.description
 
 rules = [
-        Rule(lambda _: True, add_name_to_description),
+        Rule(lambda t: 'Naam' in t.metadata, add_name_to_description),
         ]

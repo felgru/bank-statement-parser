@@ -16,6 +16,7 @@ from transaction import (
         Balance,
         BaseTransaction,
         MultiTransaction,
+        Posting,
         Transaction,
         )
 
@@ -170,7 +171,18 @@ class FirstPageMetadata:
 
 
 class MainTableIterator:
-    KEYWORDS = re.compile(r'(IBAN|BIC|Naam|Omschrijving|Kenmerk): ')
+    SEPA_IDEAL_KEYWORDS = re.compile(r'(IBAN|BIC|Naam|Omschrijving|Kenmerk): ')
+    SEPA_OVERBOEKING_KEYWORDS = re.compile(
+            r'(IBAN|BIC|Naam|Omschrijving|Betalingskenm.|Kenmerk): ')
+    SEPA_PERIODIEKE_OVERBOEKING_KEYWORDS = re.compile(
+            r'(IBAN|BIC|Naam|Omschrijving): ')
+    SEPA_INCASSO_KEYWORDS = re.compile(
+            r'(Incassant|Naam|Machtiging|Omschrijving|IBAN|Kenmerk|Voor): ')
+    BEA_PATTERN = re.compile(
+            r'(BEA) +NR:(\w+) +(\d{2}\.\d{2}\.\d{2})\/(\d{2}\.\d{2})\n'
+            r'(.*),PAS(\d{3})\n'
+            r'(.*)'
+            )
 
     def __init__(self, pdf_pages: list[str], *,
                  year: int, currency: str, account: str):
@@ -179,6 +191,11 @@ class MainTableIterator:
         self.currency = '€' if currency == 'EUR' else currency
         self.account = account
         self._set_page(0)
+        # skip informational text that might be the first entry in the table
+        # The first real transaction can be identified by it having a
+        # bookdate.
+        while not self.lines[self.current_line][self.spans['bookdate']].strip():
+            self.current_line += 1
 
     def _set_page(self, page: int) -> None:
         header = re.compile(r'^(Bookdate) +(Description +)'
@@ -208,7 +225,7 @@ class MainTableIterator:
     def __iter__(self) -> MainTableIterator:
         return self
 
-    def __next__(self) -> Transaction:
+    def __next__(self) -> BaseTransaction:
         # first line
         line = self._next_line()
         if line is None:
@@ -230,11 +247,63 @@ class MainTableIterator:
                 and not line[self.spans['bookdate']].strip():
             self.current_line += 1
             description.append(line[self.spans['description']])
+        transaction_type = description[0].rstrip()
+        if transaction_type == 'SEPA iDEAL':
+            return self._parse_from_keywords(transaction_type,
+                                             description,
+                                             self.SEPA_IDEAL_KEYWORDS,
+                                             bookdate=bookdate,
+                                             value_date=value_date,
+                                             amount=amount)
+        elif transaction_type == 'SEPA Overboeking':
+            return self._parse_from_keywords(transaction_type,
+                                             description,
+                                             self.SEPA_OVERBOEKING_KEYWORDS,
+                                             bookdate=bookdate,
+                                             value_date=value_date,
+                                             amount=amount)
+        elif transaction_type == 'SEPA Periodieke overb.':
+            return self._parse_from_keywords(transaction_type,
+                                             description,
+                                             self.SEPA_PERIODIEKE_OVERBOEKING_KEYWORDS,
+                                             bookdate=bookdate,
+                                             value_date=value_date,
+                                             amount=amount)
+        elif transaction_type.startswith('SEPA Incasso'):
+            return self._parse_from_keywords(transaction_type,
+                                             description,
+                                             self.SEPA_INCASSO_KEYWORDS,
+                                             bookdate=bookdate,
+                                             value_date=value_date,
+                                             amount=amount)
+        elif transaction_type.startswith('BEA'):
+            return self._parse_bea(description,
+                                   bookdate=bookdate,
+                                   value_date=value_date,
+                                   amount=amount)
+        elif transaction_type == 'ABN AMRO Bank N.V.':
+            return self._parse_banking_fees(description,
+                                            bookdate=bookdate,
+                                            value_date=value_date,
+                                            amount=amount)
+        else:
+            raise AbnAmroPdfParserError(
+                    f'Unknown transaction type: {transaction_type}')
+
+    def _parse_from_keywords(self,
+                             transaction_type: str,
+                             description: list[str],
+                             keywords: re.Pattern,
+                             *,
+                             bookdate: date,
+                             value_date: date,
+                             amount: Decimal,
+                             ) -> BaseTransaction:
         d = dict[str, str]()
         current_key = 'transaction_type'
-        current_value = description[0].rstrip()
+        current_value = transaction_type
         for line in description[1:]:
-            m = self.KEYWORDS.match(line)
+            m = keywords.match(line)
             if m is None:
                 current_value += line
             else:
@@ -242,13 +311,74 @@ class MainTableIterator:
                 current_key = m.group(1)
                 current_value = line[m.end():]
         d[current_key] = current_value.rstrip()
+        omschrijving = d.get('Omschrijving')
+        if omschrijving is None:
+            omschrijving = d['Kenmerk']
         return Transaction(account=self.account,
-                           description=d['Omschrijving'],
+                           description=omschrijving,
                            operation_date=bookdate,
                            value_date=value_date,
                            amount=amount,
                            currency=self.currency,
                            metadata=d)
+
+    def _parse_bea(self,
+                   description: list[str],
+                   *,
+                   bookdate: date,
+                   value_date: date,
+                   amount: Decimal,
+                   ) -> Transaction:
+        assert len(description) == 3
+        d = dict[str, str](transaction_type='BEA')
+        joined_description = '\n'.join(l.rstrip() for l in description)
+        m = self.BEA_PATTERN.match(joined_description)
+        if m is None:
+            raise AbnAmroPdfParserError(
+                    f'Could not parse BEA transaction\n{joined_description}')
+        d.update(NR=m.group(2),
+                 date=m.group(3),
+                 time=m.group(4).replace('.', ':'),
+                 store=m.group(5),
+                 pas_nr=m.group(6),
+                 location=m.group(7),
+                 )
+        assert parse_short_year_date(d['date']) == bookdate, \
+                f"{d['date']} ≠ {bookdate}"
+        assert bookdate == value_date
+        return Transaction(account=self.account,
+                           description=d['store'],
+                           operation_date=bookdate,
+                           value_date=value_date,
+                           amount=amount,
+                           currency=self.currency,
+                           metadata=d)
+
+    def _parse_banking_fees(self,
+                            description: list[str],
+                            *,
+                            bookdate: date,
+                            value_date: date,
+                            amount: Decimal,
+                            ) -> MultiTransaction:
+        t = MultiTransaction(description=description[0].rstrip() \
+                                        + ' | Banking fees',
+                             transaction_date=bookdate)
+        t.add_posting(Posting(account=self.account,
+                              amount=amount,
+                              currency=self.currency,
+                              posting_date=value_date,
+                              ))
+        for line in description[1:]:
+            m = re.match(r'(.+?) +(\d+,\d{2})', line)
+            assert m is not None
+            t.add_posting(Posting(
+                    account='expenses:banking',
+                    amount=parse_amount(m.group(2)),
+                    currency=self.currency,
+                    posting_date=value_date,
+                    comment=m.group(1)))
+        return t
 
     def _next_line(self) -> Optional[str]:
         line = self._peek_next_line()
@@ -274,6 +404,12 @@ def parse_date(d: str) -> date:
     # Dutch inverse ISO format
     day, month, year = d.split('-')
     return date(int(year), int(month), int(day))
+
+
+def parse_short_year_date(d: str) -> date:
+    # Dotted year with two digit year
+    day, month, year = d.split('.')
+    return date(int('20'+year), int(month), int(day))
 
 
 def parse_short_date(d: str, year: int) -> date:
