@@ -12,7 +12,12 @@ from typing import Iterator, Optional
 
 from .cleaning_rules import abnamro as cleaning_rules
 from bank_statement import BankStatement, BankStatementMetadata
-from transaction import Balance, Transaction
+from transaction import (
+        Balance,
+        BaseTransaction,
+        MultiTransaction,
+        Transaction,
+        )
 
 from ..pdf_parser import CleaningParser, PdfParser
 
@@ -66,6 +71,28 @@ class AbnAmroPdfParser(PdfParser):
                 year=meta.date.year,
                 currency=meta.currency,
                 account=self.account)
+
+    def check_transactions_consistency(self,
+                                       transactions: list[BaseTransaction]) \
+                                                                    -> None:
+        super().check_transactions_consistency(transactions)
+
+        def amount(t: BaseTransaction) -> Decimal:
+            if isinstance(t, Transaction):
+                return t.amount
+            elif isinstance(t, MultiTransaction):
+                return sum((p.amount for p in t.postings
+                            if p.account == self.account),
+                           start=Decimal(0))
+            else:
+                raise RuntimeError(f'Unknown transaction Type {type(t)}.')
+
+        calculated_credit = sum(a for a in map(amount, transactions) if a > 0)
+        calculated_debit = -sum(a for a in map(amount, transactions) if a < 0)
+        assert calculated_credit == self.total_credit, \
+                f'{calculated_credit} ≠ {self.total_credit}'
+        assert calculated_debit == self.total_debit, \
+                f'{calculated_debit} ≠ {self.total_debit}'
 
 
 class FirstPageMetadata:
@@ -171,7 +198,7 @@ class MainTableIterator:
             group_end = m.end(i) - m.start()
             spans[key] = slice(group_start, group_end)
         # Last column normally protrudes its header
-        spans['amount_credit'] = slice(spans['amount_credit'].start, -1)
+        spans['amount_credit'] = slice(spans['amount_credit'].start, None)
         self.spans: dict[str, slice] = spans
         body_start = m.end() + 1
         self.lines = self.pdf_pages[page][body_start:].split('\n')
