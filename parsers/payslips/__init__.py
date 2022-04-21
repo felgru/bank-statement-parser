@@ -5,6 +5,6 @@
 from ..autoloader import Parsers
 
 
-parsers = Parsers('Banks', __path__[0])  # type: ignore # mypy pull request #9454
+parsers = Parsers('Payslips', __path__[0])  # type: ignore # mypy pull request #9454
 
 __all__ = ['parsers']

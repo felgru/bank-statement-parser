@@ -22,7 +22,7 @@ from import_transaction import (
         import_transaction,
         ImportTransactionProtocol,
         )
-from parsers.banks import parsers
+from parsers import parsers
 from parsers.parser import BankStatementMetadata, Parser
 from xdg_dirs import getXDGdirectories
 
@@ -41,10 +41,10 @@ def get_metadata_of_incoming_statements(incoming_dir: Path,
         if not bankpath.is_dir():
             continue
         bank = bankpath.name
-        if bank not in parsers:
+        bank_parsers = parsers.get(bank)
+        if bank_parsers is None:
             print('unknown bank:', bank, file=sys.stderr)
             continue
-        bank_parsers = parsers[bank]
         filenames = sorted(bankpath.iterdir())
         if filenames:
             print('importing bank statements from', bank)

@@ -9,7 +9,7 @@ from pathlib import Path
 import sys
 from typing import TextIO
 
-from parsers.banks import parsers
+from parsers import parsers
 
 aparser = argparse.ArgumentParser(
         description='parse a bank statement into hledger format')
@@ -45,7 +45,9 @@ def open_outfile() -> TextIO:
 try:
     bank_parsers = parsers[args.bank]
 except KeyError:
-    print(f'Unknown bank: {args.bank}', file=sys.stderr)
+    print(f'Unknown parser: {args.bank}', file=sys.stderr)
+    print('Please use one of the following parsers:', file=sys.stderr)
+    print(parsers, file=sys.stderr)
     exit(1)
 
 try:
