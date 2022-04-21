@@ -24,7 +24,7 @@ from ..pdf_parser import CleaningParser, PdfParser
 
 class AbnAmroPdfParser(PdfParser):
     bank_folder = 'abnamro'
-    account = 'assets:bank:ABN AMRO'
+    account = 'assets:bank:checking:ABN AMRO'
     num_cols = None
     cleaning_rules = cleaning_rules.rules
 
