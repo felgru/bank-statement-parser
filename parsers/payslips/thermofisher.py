@@ -9,7 +9,7 @@ from decimal import Decimal
 from itertools import chain, groupby
 from pathlib import Path
 import re
-from typing import Final, Optional, Union
+from typing import Final, Iterable, Iterator, Optional, TypeVar, Union
 
 from ..parser import Parser
 from ..pdf_parser import read_pdf_file
@@ -278,7 +278,7 @@ class PaymentTableIterator:
                  spans: dict[str, slice],
                  ):
         self._spans = spans
-        self._lines = iter(table_text.split('\n'))
+        self._lines = PeekableIterator[str](table_text.split('\n'))
 
     def __iter__(self) -> PaymentTableIterator:
         return self
@@ -292,6 +292,13 @@ class PaymentTableIterator:
         uit_span = self._spans['Uitbetaling']
         uitbetaling = Decimal(line[uit_span].strip().replace(',', '.'))
         description = line[code_span.stop:uit_span.start].strip()
+        try:
+            next_line = self._lines.peek()
+            if next_line and not next_line[code_span].strip():
+                line = next(self._lines)
+                description += line[code_span.stop:uit_span.start].strip()
+        except StopIteration:
+            pass
         return PaymentTableItem(code=code,
                                 description=description,
                                 amount=uitbetaling)
@@ -302,6 +309,36 @@ class PaymentTableItem:
     code: int
     description: str
     amount: Decimal
+
+
+T = TypeVar('T')
+
+
+class PeekableIterator(Iterator[T]):
+    def __init__(self, iterable: Iterable[T]):
+        self._iter = iter(iterable)
+        self._end = False
+        self._advance()
+
+    def __next__(self) -> T:
+        if self._end:
+            raise StopIteration()
+        else:
+            next_ = self._next
+            self._advance()
+            return next_
+
+    def peek(self) -> T:
+        if self._end:
+            raise StopIteration()
+        else:
+            return self._next
+
+    def _advance(self) -> None:
+        try:
+            self._next = next(self._iter)
+        except StopIteration:
+            self._end = True
 
 
 class ThermoFisherPdfParserError(RuntimeError):
