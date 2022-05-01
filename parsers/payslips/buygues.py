@@ -20,7 +20,7 @@ from transaction import MultiTransaction, Posting
 class BuyguesPdfParser(Parser):
     bank_folder = 'buygues'
     file_extension = '.pdf'
-    num_cols = 6
+    num_cols = None
 
     def __init__(self, pdf_file: Path):
         super().__init__(pdf_file)
@@ -197,7 +197,7 @@ class BuyguesPdfParser(Parser):
                 total = line.montant_employee
                 assert sum(p.amount for p in postings) + total == 0
                 return postings, total
-            description = line.description
+            description = ' '.join(line.description.split())
             if description.startswith('Titres restaurants'):
                 account = 'expenses:food:meal_vouchers'
                 # remove excessive whitespaces
@@ -280,7 +280,7 @@ class MainTableIterator:
     def _parse_main_table_header(self, page: int) -> Optional[tuple[int, int]]:
         m = re.search(r' *Nombre\s*Collaborateur\s*Employeur\n'
                       r'\s*Libellé\n'
-                      r'(\s*)(ou base)\s*(Taux)\s*(Montant)\s*(Taux)\s*(Montant)\n',
+                      r'( *)(ou base)\s*(Taux)\s*(Montant)\s*(Taux)\s*(Montant)\n',
                       self.pdf_pages[page],
                       flags=re.MULTILINE)
         if m is None:
@@ -322,31 +322,7 @@ class MainTableIterator:
             return self.__next__()
         line = page[self.pos:eol]
         self.pos = eol + 1
-        # It can happen that lines with long descriptions are split to two
-        # lines.
-        if not set(line[self.field_offsets[0]:self.field_offsets[1]]).issubset(
-                ' ,-0123456789'):
-            description = line.strip()
-            eol = page.index('\n', self.pos, self.end)
-            line = page[self.pos:eol]
-            self.pos = eol + 1
-        else:
-            description = line[:self.field_offsets[0]].strip()
-        # Somehow the "Frais de transport" and "Versement mensuel PEE"
-        # lines are also broken into two lines with a large indent in
-        # the second line.
-        if len(line) < self.field_offsets[0]:
-            table_indent = sum(1 for _ in itertools.takewhile(
-                                                lambda s: s == ' ', line))
-            next_eol = page.find('\n', self.pos, self.end)
-            if next_eol != -1:
-                next_line = page[self.pos:next_eol]
-                # continuation line has larger indent
-                if next_line.startswith(2 * table_indent * ' '):
-                    eol = next_eol
-                    self.pos = eol + 1
-                    line = next_line
-                    description += ' ' + line[:self.field_offsets[0]].strip()
+        description = line[:self.field_offsets[0]].strip()
         amounts: list[Optional[Decimal]] = []
         for field_start, field_end in zip(self.field_offsets,
                                           itertools.chain(
