@@ -111,7 +111,7 @@ class BuyguesPdfParser(Parser):
             else:
                 account = 'income:salary'
             p = Posting(account, -line.montant_employee,
-                        comment=line.description)
+                        comment=' '.join(line.description.split()))
             postings.append(p)
         raise BuyguesPdfParserError('Missing TOTOAL BRUT.')
 
