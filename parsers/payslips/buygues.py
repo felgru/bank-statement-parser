@@ -21,6 +21,7 @@ class BuyguesPdfParser(Parser):
     bank_folder = 'buygues'
     file_extension = '.pdf'
     num_cols = None
+    PEE_ACCOUNT = 'assets:receivable:PEE'
 
     def __init__(self, pdf_file: Path):
         super().__init__(pdf_file)
@@ -69,7 +70,14 @@ class BuyguesPdfParser(Parser):
         transaction = MultiTransaction(description, payment_date)
 
         lines = self.iter_main_table()
-        salary_postings, total_gross_salary = self._parse_gross_income(lines)
+        header = next(lines)
+        if header.is_section_header() and header.description == 'ELEMENTS DE REVENU BRUT':
+            salary_postings, total_gross_salary \
+                    = self._parse_gross_income(lines)
+        else:
+            assert header.description == "AUTRES CONTRIBUTIONS DUES PAR L'EMPLOYEUR"
+            salary_postings = []
+            total_gross_salary = Decimal('0.00')
         social_security_postings, social_security_total = \
                 self._parse_social_security_payments(lines)
         misc_postings, misc_total = self._parse_misc(lines)
@@ -94,10 +102,6 @@ class BuyguesPdfParser(Parser):
     def _parse_gross_income(self,
                             lines: MainTableIterator,
                             ) -> tuple[list[Posting], Decimal]:
-        header = next(lines)
-        if not header.is_section_header() \
-           or not header.description == 'ELEMENTS DE REVENU BRUT':
-               raise BuyguesPdfParserError('Missing ELEMENTS DE REVENU BRUT.')
         postings: list[Posting] = []
         for line in lines:
             assert line.montant_employee is not None
@@ -125,63 +129,85 @@ class BuyguesPdfParser(Parser):
                raise BuyguesPdfParserError(
                        'Missing COTISATIONS ET CONTRIBUTIONS SOCIALES.')
         header = next(lines)
-        assert header.is_section_header() and header.description == 'SANTÉ'
-        sante = Decimal('0.00')
-        while True:
-            line = next(lines)
-            if line.is_section_header():
-                header = line
-                break
-            if line.montant_employee is not None:
-                sante -= line.montant_employee
-        postings.append(Posting('expenses:insurance:health',
-                                 sante,
-                                 comment="Santé"))
-        assert header.description == 'RETRAITE'
-        retraite = Decimal('0.00')
-        while True:
-            line = next(lines)
-            if line.is_section_header():
-                header = line
-                break
-            if line.montant_employee is not None:
-                retraite -= line.montant_employee
-        postings.append(Posting('expenses:taxes:retirement insurance',
-                                 retraite,
-                                 comment="Retraite"))
-        assert header.description == 'ASSURANCE CHOMAGE'
-        chomage = Decimal('0.00')
-        while True:
-            line = next(lines)
-            if line.description == "AUTRES CONTRIBUTIONS DUES PAR L'EMPLOYEUR":
-                header = line
-                break
-            if line.montant_employee is not None:
-                chomage -= line.montant_employee
-        postings.append(Posting('expenses:taxes:social:nonreimbursable',
-                                 chomage,
-                                 comment="Assurance chômage"))
-        total_nondeductible = Decimal(0)
-        for line in lines:
-            if line.description == "CSG déductible de l'impôt sur le revenu":
-                assert line.montant_employee is not None
-                postings.append(Posting('expenses:taxes:social:deductible',
-                                        -line.montant_employee,
-                                        comment="CSG déductible de l'impôt"
-                                                " sur le revenu"))
-                continue
-            if line.description == 'TOTAL DES COTISATIONS ET CONTRIBUTIONS':
-                assert line.montant_employee is not None
-                total = line.montant_employee
-                postings.append(Posting(
-                                'expenses:taxes:social:nondeductible',
-                                -total_nondeductible))
-                assert sum(p.amount for p in postings) == -total
-                return postings, total
-            if line.montant_employee is not None:
-                total_nondeductible += line.montant_employee
-        raise BuyguesPdfParserError(
-                'Missing TOTAL DES COTISATIONS ET CONTRIBUTIONS.')
+        if header.is_section_header():
+            assert header.description == 'SANTÉ'
+            sante = Decimal('0.00')
+            while True:
+                line = next(lines)
+                if line.is_section_header():
+                    header = line
+                    break
+                if line.montant_employee is not None:
+                    sante -= line.montant_employee
+            postings.append(Posting('expenses:insurance:health',
+                                     sante,
+                                     comment="Santé"))
+            assert header.description == 'RETRAITE'
+            retraite = Decimal('0.00')
+            while True:
+                line = next(lines)
+                if line.is_section_header():
+                    header = line
+                    break
+                if line.montant_employee is not None:
+                    retraite -= line.montant_employee
+            postings.append(Posting('expenses:taxes:retirement insurance',
+                                     retraite,
+                                     comment="Retraite"))
+            assert header.description == 'ASSURANCE CHOMAGE'
+            chomage = Decimal('0.00')
+            while True:
+                line = next(lines)
+                if line.description == "AUTRES CONTRIBUTIONS DUES PAR L'EMPLOYEUR":
+                    header = line
+                    break
+                if line.montant_employee is not None:
+                    chomage -= line.montant_employee
+            postings.append(Posting('expenses:taxes:social:nonreimbursable',
+                                     chomage,
+                                     comment="Assurance chômage"))
+            total_nondeductible = Decimal(0)
+            for line in lines:
+                if line.description == "CSG déductible de l'impôt sur le revenu":
+                    assert line.montant_employee is not None
+                    postings.append(Posting('expenses:taxes:social:deductible',
+                                            -line.montant_employee,
+                                            comment="CSG déductible de l'impôt"
+                                                    " sur le revenu"))
+                    continue
+                if line.description == 'TOTAL DES COTISATIONS ET CONTRIBUTIONS':
+                    assert line.montant_employee is not None
+                    total = line.montant_employee
+                    postings.append(Posting(
+                                    'expenses:taxes:social:nondeductible',
+                                    -total_nondeductible))
+                    assert sum(p.amount for p in postings) == -total
+                    return postings, total
+                if line.montant_employee is not None:
+                    total_nondeductible += line.montant_employee
+            raise BuyguesPdfParserError(
+                    'Missing TOTAL DES COTISATIONS ET CONTRIBUTIONS.')
+        else:
+            for line in itertools.chain([header], lines):
+                if line.description == "CSG/CRDS déductible de l'impôt sur le revenu":
+                    assert line.montant_employee is not None
+                    postings.append(Posting('expenses:taxes:social:deductible',
+                                            -line.montant_employee,
+                                            comment=line.description))
+                    continue
+                if line.description == "CSG/CRDS non déductible de l'impôt sur le revenu":
+                    assert line.montant_employee is not None
+                    postings.append(Posting('expenses:taxes:social:nondeductible',
+                                            -line.montant_employee,
+                                            comment=line.description))
+                    continue
+                if line.description == 'TOTAL DES COTISATIONS ET CONTRIBUTIONS':
+                    assert line.montant_employee is not None
+                    total = line.montant_employee
+                    assert sum(p.amount for p in postings) == -total
+                    return postings, total
+            raise BuyguesPdfParserError(
+                    'Missing TOTAL DES COTISATIONS ET CONTRIBUTIONS.')
 
     def _parse_misc(self,
                     lines: MainTableIterator,
@@ -209,9 +235,18 @@ class BuyguesPdfParser(Parser):
                 # remove excessive whitespaces
                 description = ' '.join(description.split())
             elif description == "Versement mensuel PEE":
-                account = 'assets:bank:saving:PEE'
+                account = self.PEE_ACCOUNT
             elif description == "Comité d'entraide":
                 account = 'expenses:misc'
+            # TODO: I think that the following items are related to my PEE.
+            elif description == 'Intéressement Brut':
+                account = 'income:misc:abondement PEE'
+            elif description == 'Participation Brute':
+                account = 'income:misc:abondement PEE'
+            elif description == 'Placement INT dans PACTEO':
+                account = self.PEE_ACCOUNT
+            elif description == 'Placement PART dans FCPE':
+                account = self.PEE_ACCOUNT
             else:
                 raise BuyguesPdfParserError(f'Unknown posting: {description}.')
             p = Posting(account, -line.montant_employee, comment=description)
@@ -221,22 +256,29 @@ class BuyguesPdfParser(Parser):
     def _parse_net_income(self,
                           lines: MainTableIterator,
                           ) -> tuple[Decimal, Posting]:
+        source_tax_description \
+                = 'Impôt sur le revenu prélevé à la source - Taux personnalisé'
         net_line = next(lines)
-        if not net_line.description == 'NET A PAYER AVANT IMPOT SUR LE REVENU':
+        if net_line.description == 'NET A PAYER AVANT IMPOT SUR LE REVENU':
+            # A normal payslip.
+            if net_line.montant_employee is None:
+                raise BuyguesPdfParserError('Missing net payment amount.')
+            else:
+                net_payment = net_line.montant_employee
+
+            # skip "Dont évolution de la rénumération…"
+            for line in lines:
+                if line.description == source_tax_description:
+                    break
+            else:
+                raise BuyguesPdfParserError('Missing Impôt sur le revenu.')
+        elif net_line.description == source_tax_description:
+            # payslip without any pay.
+            net_payment = Decimal('0.00')
+            line = net_line
+        else:
             raise BuyguesPdfParserError(
                     'Missing NET A PAYER AVANT IMPOT SUR LE REVENU.')
-        if net_line.montant_employee is None:
-            raise BuyguesPdfParserError('Missing net payment amount.')
-        else:
-            net_payment = net_line.montant_employee
-
-        # skip "Dont évolution de la rénumération…"
-        for line in lines:
-            if line.description \
-               == 'Impôt sur le revenu prélevé à la source - Taux personnalisé':
-                break
-        else:
-            raise BuyguesPdfParserError('Missing Impôt sur le revenu.')
         base = line.base
         taux = line.taux_employee
         montant = line.montant_employee
