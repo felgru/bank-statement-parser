@@ -294,7 +294,7 @@ class MainTableIterator:
             m.start(6) - line_start,
             ]
         start = m.end()
-        m = re.search(r'\s*Prélèvement à  Total versé\s*Allégement de\n'
+        m = re.search(r'\s*Prélèvement à\s*Total versé\s*Allégement de\n'
                       r'\s*Totaux\s*Brut\s*Net imposable\s*NET A PAYER',
                       self.pdf_pages[page],
                       flags=re.MULTILINE)
@@ -309,8 +309,7 @@ class MainTableIterator:
     def __next__(self) -> MainTableItem:
         page = self.pdf_pages[self.page]
         while self.pos < self.end:
-            eol = page.find('\n', self.pos, self.end)
-            assert eol != -1
+            eol = page.index('\n', self.pos, self.end)
             if eol - self.pos > 1:  # Non-empty line
                 break
             self.pos = eol + 1
@@ -328,8 +327,7 @@ class MainTableIterator:
         if not set(line[self.field_offsets[0]:self.field_offsets[1]]).issubset(
                 ' ,-0123456789'):
             description = line.strip()
-            eol = page.find('\n', self.pos, self.end)
-            assert eol != -1
+            eol = page.index('\n', self.pos, self.end)
             line = page[self.pos:eol]
             self.pos = eol + 1
         else:
