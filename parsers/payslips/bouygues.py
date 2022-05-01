@@ -17,8 +17,8 @@ from ..pdf_parser import read_pdf_file
 from bank_statement import BankStatement, BankStatementMetadata
 from transaction import MultiTransaction, Posting
 
-class BuyguesPdfParser(Parser):
-    bank_folder = 'buygues'
+class BouyguesPdfParser(Parser):
+    bank_folder = 'bouygues'
     file_extension = '.pdf'
     num_cols = None
     PEE_ACCOUNT = 'assets:receivable:PEE'
@@ -40,14 +40,14 @@ class BuyguesPdfParser(Parser):
                       r's*DU (\d\d/\d\d/\d{4}) AU (\d\d/\d\d/\d{4})',
                       self.pdf_pages[0])
         if m is None:
-            raise BuyguesPdfParserError('Could not find payment date.')
+            raise BouyguesPdfParserError('Could not find payment date.')
         payment_date = parse_date(m.group(1))
         payment_period = (parse_date(m.group(2)), parse_date(m.group(3)))
         m = re.search(r'^ *Matricule *(N° de sécurité sociale)\n+(.*)$',
                       self.pdf_pages[0],
                       re.MULTILINE)
         if m is None:
-            raise BuyguesPdfParserError(
+            raise BouyguesPdfParserError(
                     'Could not find social security number.')
         social_security_number = m.group(2)[m.start(1) - m.start():].strip()
         meta = BankStatementMetadata(
@@ -63,7 +63,7 @@ class BuyguesPdfParser(Parser):
                       r's*DU (\d\d/\d\d/\d{4}) AU (\d\d/\d\d/\d{4})',
                       self.pdf_pages[0])
         if m is None:
-            raise BuyguesPdfParserError('Could not find payment date.')
+            raise BouyguesPdfParserError('Could not find payment date.')
         payment_date = parse_date(m.group(1))
         payment_period = (parse_date(m.group(2)), parse_date(m.group(3)))
         description = f'Salaire du {payment_period[0]} au {payment_period[1]}'
@@ -117,7 +117,7 @@ class BuyguesPdfParser(Parser):
             p = Posting(account, -line.montant_employee,
                         comment=' '.join(line.description.split()))
             postings.append(p)
-        raise BuyguesPdfParserError('Missing TOTOAL BRUT.')
+        raise BouyguesPdfParserError('Missing TOTOAL BRUT.')
 
     def _parse_social_security_payments(self,
                                         lines: MainTableIterator,
@@ -126,7 +126,7 @@ class BuyguesPdfParser(Parser):
         header = next(lines)
         if not header.is_section_header() \
            or not header.description == 'COTISATIONS ET CONTRIBUTIONS SOCIALES':
-               raise BuyguesPdfParserError(
+               raise BouyguesPdfParserError(
                        'Missing COTISATIONS ET CONTRIBUTIONS SOCIALES.')
         header = next(lines)
         if header.is_section_header():
@@ -185,7 +185,7 @@ class BuyguesPdfParser(Parser):
                     return postings, total
                 if line.montant_employee is not None:
                     total_nondeductible += line.montant_employee
-            raise BuyguesPdfParserError(
+            raise BouyguesPdfParserError(
                     'Missing TOTAL DES COTISATIONS ET CONTRIBUTIONS.')
         else:
             for line in itertools.chain([header], lines):
@@ -206,7 +206,7 @@ class BuyguesPdfParser(Parser):
                     total = line.montant_employee
                     assert sum(p.amount for p in postings) == -total
                     return postings, total
-            raise BuyguesPdfParserError(
+            raise BouyguesPdfParserError(
                     'Missing TOTAL DES COTISATIONS ET CONTRIBUTIONS.')
 
     def _parse_misc(self,
@@ -215,7 +215,7 @@ class BuyguesPdfParser(Parser):
         header = next(lines)
         if not header.is_section_header() \
            or not header.description == 'AUTRES ELEMENTS DE PAIE':
-                raise BuyguesPdfParserError('Missing AUTRES ELEMENTS DE PAIE.')
+                raise BouyguesPdfParserError('Missing AUTRES ELEMENTS DE PAIE.')
         postings: list[Posting] = []
         for line in lines:
             assert line.montant_employee is not None
@@ -248,10 +248,10 @@ class BuyguesPdfParser(Parser):
             elif description == 'Placement PART dans FCPE':
                 account = self.PEE_ACCOUNT
             else:
-                raise BuyguesPdfParserError(f'Unknown posting: {description}.')
+                raise BouyguesPdfParserError(f'Unknown posting: {description}.')
             p = Posting(account, -line.montant_employee, comment=description)
             postings.append(p)
-        raise BuyguesPdfParserError('Missing TOTAL AUTRES ELEMENTS DE PAIE.')
+        raise BouyguesPdfParserError('Missing TOTAL AUTRES ELEMENTS DE PAIE.')
 
     def _parse_net_income(self,
                           lines: MainTableIterator,
@@ -262,7 +262,7 @@ class BuyguesPdfParser(Parser):
         if net_line.description == 'NET A PAYER AVANT IMPOT SUR LE REVENU':
             # A normal payslip.
             if net_line.montant_employee is None:
-                raise BuyguesPdfParserError('Missing net payment amount.')
+                raise BouyguesPdfParserError('Missing net payment amount.')
             else:
                 net_payment = net_line.montant_employee
 
@@ -271,13 +271,13 @@ class BuyguesPdfParser(Parser):
                 if line.description == source_tax_description:
                     break
             else:
-                raise BuyguesPdfParserError('Missing Impôt sur le revenu.')
+                raise BouyguesPdfParserError('Missing Impôt sur le revenu.')
         elif net_line.description == source_tax_description:
             # payslip without any pay.
             net_payment = Decimal('0.00')
             line = net_line
         else:
-            raise BuyguesPdfParserError(
+            raise BouyguesPdfParserError(
                     'Missing NET A PAYER AVANT IMPOT SUR LE REVENU.')
         base = line.base
         taux = line.taux_employee
@@ -300,7 +300,7 @@ class BuyguesPdfParser(Parser):
         pattern = re.compile(r'En Euros\s*(\d+,\d\d)\n')
         m = pattern.search(page, lines.current_table_end())
         if m is None:
-            raise BuyguesPdfParserError('Salary payment not found.')
+            raise BouyguesPdfParserError('Salary payment not found.')
         payment = Decimal(m.group(1).replace(',', '.'))
         return Posting('assets:receivable:salary', payment)
 
@@ -316,7 +316,7 @@ class MainTableIterator:
         self.page = 0
         range_ = self._parse_main_table_header(self.page)
         if range_ is None:
-            raise BuyguesPdfParserError('Could not find main table.')
+            raise BouyguesPdfParserError('Could not find main table.')
         self.pos, self.end = range_
 
     def _parse_main_table_header(self, page: int) -> Optional[tuple[int, int]]:
@@ -341,7 +341,7 @@ class MainTableIterator:
                       self.pdf_pages[page],
                       flags=re.MULTILINE)
         if m is None:
-            raise BuyguesPdfParserError(
+            raise BouyguesPdfParserError(
                     f'Could not find end of main table on page {page}.')
         return start, m.start() + 1  # Keep the '\n' at the end of the line
 
@@ -408,5 +408,5 @@ class MainTableItem:
         return self.montant_employee is not None
 
 
-class BuyguesPdfParserError(RuntimeError):
+class BouyguesPdfParserError(RuntimeError):
     pass

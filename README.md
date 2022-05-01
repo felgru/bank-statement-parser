@@ -20,9 +20,12 @@ Supported banks:
 Not actual banks, but bank statement-like files:
 
 * PayPal csv reports
-* PayFit payslips
-* Buygues Télécom payslips
-* Thermo Fisher Scientific payslips
+
+Payslips:
+
+* PayFit
+* Bouygues Télécom
+* Thermo Fisher Scientific
 
 ## Usage
 
