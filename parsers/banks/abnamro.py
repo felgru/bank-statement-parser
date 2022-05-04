@@ -181,10 +181,18 @@ class MainTableIterator:
             r'(IBAN|BIC|Naam|Omschrijving): ')
     SEPA_INCASSO_KEYWORDS = re.compile(
             r'(Incassant|Naam|Machtiging|Omschrijving|IBAN|Kenmerk|Voor): ')
-    BEA_PATTERN = re.compile(
-            r'(BEA) +NR:(\w+) +(\d{2}\.\d{2}\.\d{2})\/(\d{2}\.\d{2})\n'
-            r'(.*),PAS(\d{3})\n'
-            r'(.*)'
+    OLD_BEA_PATTERN = re.compile(
+            r'(BEA) +NR:(?P<NR>\w+) +'
+            r'(?P<date>\d{2}\.\d{2}\.\d{2})\/(?P<time>\d{2}\.\d{2})\n'
+            r'(?P<store>.*),PAS(?P<pas_nr>\d{3})\n'
+            r'(?P<location>.*)$'
+            )
+    NEW_BEA_PATTERN = re.compile(
+            r'(BEA), (?P<card_type>.*)\n'
+            r'(?P<store>.*),PAS(?P<pas_nr>\d{3})\n'
+            r'NR:(?P<NR>\w+) +'
+            r'(?P<date>\d{2}\.\d{2}\.\d{2})\/(?P<time>\d{2}\.\d{2})\n'
+            r'(?P<location>.*)$'
             )
 
     def __init__(self, pdf_pages: list[str], *,
@@ -213,7 +221,10 @@ class MainTableIterator:
             raise AbnAmroPdfParserError(
                     'Transaction with missing second line.') from None
         value_date = parse_short_date(line.bookdate.strip('()'), self.year)
-        description.append(line.description)
+        # second line can be empty except for value date if we're at
+        # the end of the page. We filter out those empty description lines.
+        if line.description.strip():
+            description.append(line.description)
         while True:
             try:
                 line = self.lines.peek()
@@ -305,19 +316,22 @@ class MainTableIterator:
                    value_date: date,
                    amount: Decimal,
                    ) -> Transaction:
-        assert len(description) == 3
         d = dict[str, str](transaction_type='BEA')
         joined_description = '\n'.join(l.rstrip() for l in description)
-        m = self.BEA_PATTERN.match(joined_description)
-        if m is None:
+        if (m := self.OLD_BEA_PATTERN.match(joined_description)) is not None:
+            card_type = None
+        elif (m := self.NEW_BEA_PATTERN.match(joined_description)) is not None:
+            card_type = m.group('card_type')
+        else:
             raise AbnAmroPdfParserError(
                     f'Could not parse BEA transaction\n{joined_description}')
-        d.update(NR=m.group(2),
-                 date=m.group(3),
-                 time=m.group(4).replace('.', ':'),
-                 store=m.group(5),
-                 pas_nr=m.group(6),
-                 location=m.group(7),
+        d.update(card_type=card_type,
+                 NR=m.group('NR'),
+                 date=m.group('date'),
+                 time=m.group('time').replace('.', ':'),
+                 store=m.group('store'),
+                 pas_nr=m.group('pas_nr'),
+                 location=m.group('location'),
                  )
         assert parse_short_year_date(d['date']) == bookdate, \
                 f"{d['date']} ≠ {bookdate}"
