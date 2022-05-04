@@ -9,12 +9,13 @@ from decimal import Decimal
 from itertools import chain, groupby
 from pathlib import Path
 import re
-from typing import Final, Iterable, Iterator, Optional, TypeVar, Union
+from typing import Final, Optional
 
 from ..parser import Parser
 from ..pdf_parser import read_pdf_file
 from bank_statement import BankStatement, BankStatementMetadata
 from transaction import MultiTransaction, Posting
+from utils import PeekableIterator
 
 
 class ThermoFisherPdfParser(Parser):
@@ -309,36 +310,6 @@ class PaymentTableItem:
     code: int
     description: str
     amount: Decimal
-
-
-T = TypeVar('T')
-
-
-class PeekableIterator(Iterator[T]):
-    def __init__(self, iterable: Iterable[T]):
-        self._iter = iter(iterable)
-        self._end = False
-        self._advance()
-
-    def __next__(self) -> T:
-        if self._end:
-            raise StopIteration()
-        else:
-            next_ = self._next
-            self._advance()
-            return next_
-
-    def peek(self) -> T:
-        if self._end:
-            raise StopIteration()
-        else:
-            return self._next
-
-    def _advance(self) -> None:
-        try:
-            self._next = next(self._iter)
-        except StopIteration:
-            self._end = True
 
 
 class ThermoFisherPdfParserError(RuntimeError):
