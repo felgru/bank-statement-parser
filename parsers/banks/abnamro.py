@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 import csv
+from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
 from pathlib import Path
@@ -19,8 +20,10 @@ from transaction import (
         Posting,
         Transaction,
         )
+from utils import PeekableIterator
 
 from ..pdf_parser import CleaningParser, PdfParser
+
 
 class AbnAmroPdfParser(PdfParser):
     bank_folder = 'abnamro'
@@ -186,67 +189,40 @@ class MainTableIterator:
 
     def __init__(self, pdf_pages: list[str], *,
                  year: int, currency: str, account: str):
-        self.pdf_pages = pdf_pages
+        self.lines = PeekableIterator(MainTableLines(pdf_pages))
         self.year = year
         self.currency = '€' if currency == 'EUR' else currency
         self.account = account
-        self._set_page(0)
-        # skip informational text that might be the first entry in the table
-        # The first real transaction can be identified by it having a
-        # bookdate.
-        while not self.lines[self.current_line][self.spans['bookdate']].strip():
-            self.current_line += 1
-
-    def _set_page(self, page: int) -> None:
-        header = re.compile(r'^(Bookdate) +(Description +)'
-                            r' (Amount debit +) (Amount credit)\n'
-                            r'\(Value date\)$',
-                            flags=re.MULTILINE)
-        m = header.search(self.pdf_pages[page])
-        if m is None:
-            raise AbnAmroPdfParserError(
-                    f'Main table header on page {page} not found.')
-        assert m is not None
-        assert m.lastindex is not None
-        spans = {}
-        for i in range(1, m.lastindex + 1):
-            key = m.group(i).strip().lower().replace(' ', '_')
-            group_start = m.start(i) - m.start()
-            group_end = m.end(i) - m.start()
-            spans[key] = slice(group_start, group_end)
-        # Last column normally protrudes its header
-        spans['amount_credit'] = slice(spans['amount_credit'].start, None)
-        self.spans: dict[str, slice] = spans
-        body_start = m.end() + 1
-        self.lines = self.pdf_pages[page][body_start:].split('\n')
-        self.current_page = page
-        self.current_line = 0
 
     def __iter__(self) -> MainTableIterator:
         return self
 
     def __next__(self) -> BaseTransaction:
         # first line
-        line = self._next_line()
-        if line is None:
-            raise StopIteration
-        bookdate = parse_short_date(line[self.spans['bookdate']].strip(),
-                                    self.year)
-        description = [line[self.spans['description']]]
-        debit = line[self.spans['amount_debit']].strip()
-        credit = line[self.spans['amount_credit']].strip()
+        # If next raises StopIteration let it bubble up the call chain.
+        line = next(self.lines)
+        bookdate = parse_short_date(line.bookdate, self.year)
+        description = [line.description]
+        debit = line.amount_debit
+        credit = line.amount_credit
         amount = -parse_amount(debit) if debit else parse_amount(credit)
         # second line
-        line = self._next_line()
-        if line is None:
-            raise AbnAmroPdfParserError('Transaction with missing second line.')
-        value_date = parse_short_date(line[self.spans['bookdate']].strip(' ()'),
-                                      self.year)
-        description.append(line[self.spans['description']])
-        while (line := self._peek_next_line()) is not None \
-                and not line[self.spans['bookdate']].strip():
-            self.current_line += 1
-            description.append(line[self.spans['description']])
+        try:
+            line = next(self.lines)
+        except StopIteration:
+            raise AbnAmroPdfParserError(
+                    'Transaction with missing second line.') from None
+        value_date = parse_short_date(line.bookdate.strip('()'), self.year)
+        description.append(line.description)
+        while True:
+            try:
+                line = self.lines.peek()
+            except StopIteration:
+                break
+            if line.bookdate:
+                break
+            line = next(self.lines)
+            description.append(line.description)
         transaction_type = description[0].rstrip()
         if transaction_type == 'SEPA iDEAL':
             return self._parse_from_keywords(transaction_type,
@@ -380,24 +356,65 @@ class MainTableIterator:
                     comment=m.group(1)))
         return t
 
-    def _next_line(self) -> Optional[str]:
-        line = self._peek_next_line()
-        if line is not None:
-            self.current_line += 1
-        return line
 
-    def _peek_next_line(self) -> Optional[str]:
+class MainTableLines:
+    def __init__(self, pdf_pages: list[str]):
+        self.pdf_pages = pdf_pages
+        self._set_page(0)
+
+    def _set_page(self, page: int) -> None:
+        header = re.compile(r'^(Bookdate) +(Description +)'
+                            r' (Amount debit +) (Amount credit)\n'
+                            r'\(Value date\)$',
+                            flags=re.MULTILINE)
+        m = header.search(self.pdf_pages[page])
+        if m is None:
+            raise AbnAmroPdfParserError(
+                    f'Main table header on page {page} not found.')
+        assert m is not None
+        assert m.lastindex is not None
+        spans = {}
+        for i in range(1, m.lastindex + 1):
+            key = m.group(i).strip().lower().replace(' ', '_')
+            group_start = m.start(i) - m.start()
+            group_end = m.end(i) - m.start()
+            spans[key] = slice(group_start, group_end)
+        # Last column normally protrudes its header
+        spans['amount_credit'] = slice(spans['amount_credit'].start, None)
+        self.spans: dict[str, slice] = spans
+        body_start = m.end() + 1
+        self.lines = self.pdf_pages[page][body_start:].split('\n')
+        self.current_page = page
+        self.current_line = 0
+
+    def __iter__(self) -> MainTableLines:
+        return self
+
+    def __next__(self) -> MainTableLine:
         if self.current_line >= len(self.lines):
             if self.current_page >= len(self.pdf_pages) - 1:
-                return None
+                raise StopIteration()
             else:
                 self._set_page(self.current_page + 1)
         line = self.lines[self.current_line]
+        self.current_line += 1
         if line:
-            return line
+            return MainTableLine(
+                    bookdate=line[self.spans['bookdate']].strip(),
+                    description=line[self.spans['description']],
+                    amount_debit=line[self.spans['amount_debit']].strip(),
+                    amount_credit=line[self.spans['amount_credit']].strip(),
+                    )
         else:
-            self.current_line += 1
-            return self._peek_next_line()
+            return self.__next__()
+
+
+@dataclass
+class MainTableLine:
+    bookdate: str
+    description: str
+    amount_debit: str
+    amount_credit: str
 
 
 def parse_date(d: str) -> date:
