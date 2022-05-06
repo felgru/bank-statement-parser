@@ -208,20 +208,27 @@ def write_include_files(ledger_root: Path, git: AddFileTransaction) -> None:
     git.add_files(ledger_files)
 
 
-def regenerate_includes(config: ImportConfig) -> None:
+def regenerate_includes(work_dir: Path, config: ImportConfig) -> None:
     for ledger_config in config.ledgers.values():
-        print(f'regenerate includes in {ledger_config.ledger_dir}.')
-        # change working directory for git status to work correctly
-        os.chdir(ledger_config.ledger_dir)
-        git: BaseGit
-        if ledger_config.git_dir is not None:
-            git = Git(ledger_config.ledger_dir, ledger_config.git_dir)
-            import_branch = ledger_config.import_branch
-        else:
-            git = FakeGit()
-            import_branch = git.current_branch()
+        if work_dir.is_relative_to(ledger_config.ledger_dir):
+            break
+    else:
+        print(f'Current working directory {work_dir} is not inside any known'
+              ' ledger path.')
+        exit(1)
 
-        write_include_files(ledger_config.ledger_dir, git)
+    print(f'Regenerate includes in {ledger_config.ledger_dir}.')
+    # change working directory for git status to work correctly
+    os.chdir(ledger_config.ledger_dir)
+    git: BaseGit
+    if ledger_config.git_dir is not None:
+        git = Git(ledger_config.ledger_dir, ledger_config.git_dir)
+        import_branch = ledger_config.import_branch
+    else:
+        git = FakeGit()
+        import_branch = git.current_branch()
+
+    write_include_files(ledger_config.ledger_dir, git)
 
 
 def main() -> None:
@@ -248,7 +255,7 @@ def main() -> None:
     config = ImportConfig.read_from_file(config_file)
 
     if args.regenerate_includes:
-        regenerate_includes(config)
+        regenerate_includes(Path.cwd(), config)
         exit(0)
 
     selection_script = xdg['config'] / 'select_ledger.py'
