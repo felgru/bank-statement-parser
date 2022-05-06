@@ -17,7 +17,7 @@ import sys
 from typing import Optional
 from urllib.parse import urljoin, urlparse
 
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup  # type: ignore
 import requests
 
 sys.path.append(str(Path(__file__).resolve().parent.parent))

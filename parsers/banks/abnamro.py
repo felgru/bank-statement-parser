@@ -316,7 +316,6 @@ class MainTableIterator:
                    value_date: date,
                    amount: Decimal,
                    ) -> Transaction:
-        d = dict[str, str](transaction_type='BEA')
         joined_description = '\n'.join(l.rstrip() for l in description)
         if (m := self.OLD_BEA_PATTERN.match(joined_description)) is not None:
             card_type = None
@@ -325,14 +324,16 @@ class MainTableIterator:
         else:
             raise AbnAmroPdfParserError(
                     f'Could not parse BEA transaction\n{joined_description}')
-        d.update(card_type=card_type,
-                 NR=m.group('NR'),
-                 date=m.group('date'),
-                 time=m.group('time').replace('.', ':'),
-                 store=m.group('store'),
-                 pas_nr=m.group('pas_nr'),
-                 location=m.group('location'),
-                 )
+        d = dict[str, str](
+                transaction_type='BEA',
+                card_type=card_type,  # type: ignore
+                NR=m.group('NR'),
+                date=m.group('date'),
+                time=m.group('time').replace('.', ':'),
+                store=m.group('store'),
+                pas_nr=m.group('pas_nr'),
+                location=m.group('location'),
+                )
         assert parse_short_year_date(d['date']) == bookdate, \
                 f"{d['date']} ≠ {bookdate}"
         assert bookdate == value_date
