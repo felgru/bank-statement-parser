@@ -96,6 +96,7 @@ class ThermoFisherPdfParser(Parser):
     def _parse_main_table(self, transaction: MultiTransaction) -> Decimal:
         accounts = {
                 1000: 'income:salary',
+                3011: 'income:salary:holiday allowance',  # Vacantiegeld
                 4461: 'expenses:taxes:retirement insurance',
                 4466: 'expenses:taxes:social',  # WGA Aanvullend
                 4467: 'expenses:taxes:social',  # WIA bodem
@@ -103,6 +104,7 @@ class ThermoFisherPdfParser(Parser):
                 5216: 'income:salary',          # Representatievergoeding
                 7380: 'expenses:taxes:social',  # PAWW unemployment insurance
                 7100: 'expenses:taxes:income',  # Loonheffing Tabel
+                7101: 'expenses:taxes:income',  # Loonheffing BT
                 }
         net_total: Optional[Decimal] = None
         for item in self.main_table:
@@ -121,7 +123,7 @@ class ThermoFisherPdfParser(Parser):
                 amount = -item.uitbetaling
             else:
                 raise ThermoFisherPdfParserError(
-                        'Missing amount in {item}.')
+                        f'Missing amount in {item}.')
             p = Posting(account, amount,
                         comment=item.omschrijving)
             transaction.add_posting(p)
@@ -223,7 +225,7 @@ class MainTableItem:
     uitbetaling: Optional[Decimal]
     inhouding: Optional[Decimal]
     tabel: Optional[Decimal]
-    bt: None
+    bt: Optional[Decimal]
     wnv: Optional[Decimal]
     cumulatief: Optional[Decimal]
 
@@ -234,8 +236,6 @@ class MainTableItem:
 
         def parse_optional(value, type):
             return type(value) if value else None
-
-        assert not d['bt']
 
         try:
             code = parse_optional(d['code'], int)
@@ -252,7 +252,7 @@ class MainTableItem:
                 uitbetaling=parse_optional(d['uitbetaling'], decimal),
                 inhouding=parse_optional(d['inhouding'], decimal),
                 tabel=parse_optional(d['tabel'], decimal),
-                bt=None,
+                bt=parse_optional(d['bt'], decimal),
                 wnv=parse_optional(d['wnv'], decimal),
                 cumulatief=parse_optional(d['cumulatief'], decimal),
                 )
