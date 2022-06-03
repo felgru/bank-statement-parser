@@ -194,6 +194,12 @@ class MainTableIterator:
             r'(?P<date>\d{2}\.\d{2}\.\d{2})\/(?P<time>\d{2}\.\d{2})\n'
             r'(?P<location>.*)$'
             )
+    GEA_PATTERN = re.compile(
+            r'(GEA), (?P<card_type>.*)\n'
+            r'(?P<address>.*),PAS(?P<pas_nr>\d{3})\n'
+            r'NR:(?P<NR>\w+) +'
+            r'(?P<date>\d{2}\.\d{2}\.\d{2})\/(?P<time>\d{2}\.\d{2})$'
+            )
 
     def __init__(self, pdf_pages: list[str], *,
                  year: int, currency: str, account: str):
@@ -273,6 +279,11 @@ class MainTableIterator:
                                             bookdate=bookdate,
                                             value_date=value_date,
                                             amount=amount)
+        elif transaction_type.startswith('GEA, '):
+            return self._parse_gea(description,
+                                   bookdate=bookdate,
+                                   value_date=value_date,
+                                   amount=amount)
         else:
             raise AbnAmroPdfParserError(
                     f'Unknown transaction type: {transaction_type}')
@@ -339,6 +350,39 @@ class MainTableIterator:
         assert bookdate == value_date
         return Transaction(account=self.account,
                            description=d['store'],
+                           operation_date=bookdate,
+                           value_date=value_date,
+                           amount=amount,
+                           currency=self.currency,
+                           metadata=d)
+
+    def _parse_gea(self,
+                   description: list[str],
+                   *,
+                   bookdate: date,
+                   value_date: date,
+                   amount: Decimal,
+                   ) -> Transaction:
+        joined_description = '\n'.join(l.rstrip() for l in description)
+        if (m := self.GEA_PATTERN.match(joined_description)) is not None:
+            card_type = m.group('card_type')
+        else:
+            raise AbnAmroPdfParserError(
+                    f'Could not parse GEA transaction\n{joined_description}')
+        d = dict[str, str](
+                transaction_type='GEA',
+                card_type=card_type,
+                NR=m.group('NR'),
+                date=m.group('date'),
+                time=m.group('time').replace('.', ':'),
+                address=m.group('address'),
+                pas_nr=m.group('pas_nr'),
+                )
+        assert parse_short_year_date(d['date']) == bookdate, \
+                f"{d['date']} ≠ {bookdate}"
+        assert bookdate == value_date
+        return Transaction(account=self.account,
+                           description=f"Withdrawal {d['card_type']}, {d['address']}",
                            operation_date=bookdate,
                            value_date=value_date,
                            amount=amount,
