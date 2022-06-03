@@ -55,6 +55,7 @@ class VTB2019PdfParser(OldPdfParser):
     ParserError = VTB2019PdfParserError
 
     def __init__(self, pdf_pages: list[str]):
+        self.bank_folder = VTBPdfParser.bank_folder
         self.pdf_pages = pdf_pages
         self._parse_metadata()
         self._parse_description_start()
@@ -203,6 +204,7 @@ class VTB2014PdfParser(OldPdfParser):
     ParserError = VTB2014PdfParserError
 
     def __init__(self, pdf_pages: list[str]):
+        self.bank_folder = VTBPdfParser.bank_folder
         self.pdf_pages = pdf_pages
         self._parse_metadata()
         self._parse_description_start()
@@ -387,6 +389,7 @@ class VTB2012PdfParser(OldPdfParser):
     ParserError = VTB2012PdfParserError
 
     def __init__(self, pdf_pages: list[str]):
+        self.bank_folder = VTBPdfParser.bank_folder
         self.pdf_pages = pdf_pages
         self._parse_description_start()
         self._parse_metadata()
