@@ -418,7 +418,7 @@ if __name__ == '__main__':
             help='start date of download in ISO format'
                  ' (default: beginning of last month)')
     aparser.add_argument('--end-date', default=None,
-            help='start date of download in ISO format'
+            help='end date of download in ISO format'
                  ' (default: end of last month)')
     aparser.add_argument('--balancing-account',
             default='assets:balancing:OV-Chipkaart',
