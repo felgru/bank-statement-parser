@@ -301,6 +301,14 @@ class MainTableIterator:
         current_key = 'transaction_type'
         current_value = transaction_type
         for line in description[1:]:
+            # Lines are broken after 32 characters. If a field is broken into
+            # multiple lines and one of those lines ends with a space, this
+            # space is is not there in the pdftotext extract.
+            # We therefore have to add spaces to fill each line to 32
+            # characters.
+            assert len(line) <= 32, f'{line!r} has more than 32 characters.'
+            if len(line) < 32:
+                line += ' ' * (32 - len(line))
             m = keywords.match(line)
             if m is None:
                 current_value += line
