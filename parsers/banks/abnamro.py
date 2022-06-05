@@ -174,39 +174,13 @@ class FirstPageMetadata:
 
 
 class MainTableIterator:
-    SEPA_IDEAL_KEYWORDS = re.compile(r'(IBAN|BIC|Naam|Omschrijving|Kenmerk): ')
-    SEPA_OVERBOEKING_KEYWORDS = re.compile(
-            r'(IBAN|BIC|Naam|Omschrijving|Betalingskenm.|Kenmerk): ')
-    SEPA_PERIODIEKE_OVERBOEKING_KEYWORDS = re.compile(
-            r'(IBAN|BIC|Naam|Omschrijving): ')
-    SEPA_INCASSO_KEYWORDS = re.compile(
-            r'(Incassant|Naam|Machtiging|Omschrijving|IBAN|Kenmerk|Voor): ')
-    OLD_BEA_PATTERN = re.compile(
-            r'(BEA) +NR:(?P<NR>\w+) +'
-            r'(?P<date>\d{2}\.\d{2}\.\d{2})\/(?P<time>\d{2}\.\d{2})\n'
-            r'(?P<store>.*),PAS(?P<pas_nr>\d{3})\n'
-            r'(?P<location>.*)$'
-            )
-    NEW_BEA_PATTERN = re.compile(
-            r'(BEA), (?P<card_type>.*)\n'
-            r'(?P<store>.*),PAS(?P<pas_nr>\d{3})\n'
-            r'NR:(?P<NR>\w+) +'
-            r'(?P<date>\d{2}\.\d{2}\.\d{2})\/(?P<time>\d{2}\.\d{2})\n'
-            r'(?P<location>.*)$'
-            )
-    GEA_PATTERN = re.compile(
-            r'(GEA), (?P<card_type>.*)\n'
-            r'(?P<address>.*),PAS(?P<pas_nr>\d{3})\n'
-            r'NR:(?P<NR>\w+) +'
-            r'(?P<date>\d{2}\.\d{2}\.\d{2})\/(?P<time>\d{2}\.\d{2})$'
-            )
-
     def __init__(self, pdf_pages: list[str], *,
                  year: int, currency: str, account: str):
         self.lines = PeekableIterator(MainTableLines(pdf_pages))
         self.year = year
-        self.currency = '€' if currency == 'EUR' else currency
-        self.account = account
+        self.description_parser = DescriptionParser(
+                currency=currency,
+                account=account)
 
     def __iter__(self) -> MainTableIterator:
         return self
@@ -240,6 +214,51 @@ class MainTableIterator:
                 break
             line = next(self.lines)
             description.append(line.description)
+        return self.description_parser.parse(
+                description=description,
+                bookdate=bookdate,
+                value_date=value_date,
+                amount=amount)
+
+
+class DescriptionParser:
+    SEPA_IDEAL_KEYWORDS = re.compile(r'(IBAN|BIC|Naam|Omschrijving|Kenmerk): ')
+    SEPA_OVERBOEKING_KEYWORDS = re.compile(
+            r'(IBAN|BIC|Naam|Omschrijving|Betalingskenm.|Kenmerk): ')
+    SEPA_PERIODIEKE_OVERBOEKING_KEYWORDS = re.compile(
+            r'(IBAN|BIC|Naam|Omschrijving): ')
+    SEPA_INCASSO_KEYWORDS = re.compile(
+            r'(Incassant|Naam|Machtiging|Omschrijving|IBAN|Kenmerk|Voor): ')
+    OLD_BEA_PATTERN = re.compile(
+            r'(BEA) +NR:(?P<NR>\w+) +'
+            r'(?P<date>\d{2}\.\d{2}\.\d{2})\/(?P<time>\d{2}\.\d{2})\n'
+            r'(?P<store>.*),PAS(?P<pas_nr>\d{3})\n'
+            r'(?P<location>.*)$'
+            )
+    NEW_BEA_PATTERN = re.compile(
+            r'(BEA), (?P<card_type>.*)\n'
+            r'(?P<store>.*),PAS(?P<pas_nr>\d{3})\n'
+            r'NR:(?P<NR>\w+) +'
+            r'(?P<date>\d{2}\.\d{2}\.\d{2})\/(?P<time>\d{2}\.\d{2})\n'
+            r'(?P<location>.*)$'
+            )
+    GEA_PATTERN = re.compile(
+            r'(GEA), (?P<card_type>.*)\n'
+            r'(?P<address>.*),PAS(?P<pas_nr>\d{3})\n'
+            r'NR:(?P<NR>\w+) +'
+            r'(?P<date>\d{2}\.\d{2}\.\d{2})\/(?P<time>\d{2}\.\d{2})$'
+            )
+
+    def __init__(self, *,
+                 currency: str, account: str):
+        self.currency = '€' if currency == 'EUR' else currency
+        self.account = account
+
+    def parse(self,
+              description: list[str],
+              bookdate: date,
+              value_date: date,
+              amount: Decimal) -> BaseTransaction:
         transaction_type = description[0].rstrip()
         if transaction_type == 'SEPA iDEAL':
             return self._parse_from_keywords(transaction_type,
