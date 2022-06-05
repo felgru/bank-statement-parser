@@ -9,7 +9,7 @@ from datetime import date
 from decimal import Decimal
 from pathlib import Path
 import re
-from typing import Iterator, Optional
+from typing import Any, Iterator, Optional
 
 from .cleaning_rules import abnamro as cleaning_rules
 from bank_statement import BankStatement, BankStatementMetadata
@@ -240,13 +240,21 @@ class DescriptionParser:
             r'(?P<store>.*),PAS(?P<pas_nr>\d{3})\n'
             r'NR:(?P<NR>\w+) +'
             r'(?P<date>\d{2}\.\d{2}\.\d{2})\/(?P<time>\d{2}\.\d{2})\n'
-            r'(?P<location>.*)$'
+            r'(?P<location>.*)(?P<currency_exchange>.*\n.*\n.*\n.*|)$'
             )
     GEA_PATTERN = re.compile(
             r'(GEA), (?P<card_type>.*)\n'
             r'(?P<address>.*),PAS(?P<pas_nr>\d{3})\n'
             r'NR:(?P<NR>\w+) +'
             r'(?P<date>\d{2}\.\d{2}\.\d{2})\/(?P<time>\d{2}\.\d{2})$'
+            )
+    CURRENCY_EXCHANGE_PATTERN = re.compile(
+            r'\n(?P<foreign_currency>[A-Z]{3}) (?P<foreign_amount>\d+,?\d*)'
+            r' 1(?P<currency>[A-Z]{3})=(?P<exchange_rate>\d+,\d+)'
+            r' (?P=foreign_currency)\n'
+            r'ECB Koers=(?P<ecb_exchange_rate>\d+,\d+)'
+            r' OPSLAG (?P<surcharge>\d+,\d+)%\n'
+            r'KOSTEN •(?P<costs>\d+,\d\d) ACHTERAF BEREKEND'
             )
 
     def __init__(self, *,
@@ -357,14 +365,16 @@ class DescriptionParser:
         joined_description = '\n'.join(l.rstrip() for l in description)
         if (m := self.OLD_BEA_PATTERN.match(joined_description)) is not None:
             card_type = None
+            currency_exchange = ''
         elif (m := self.NEW_BEA_PATTERN.match(joined_description)) is not None:
             card_type = m.group('card_type')
+            currency_exchange = m.group('currency_exchange')
         else:
             raise AbnAmroPdfParserError(
                     f'Could not parse BEA transaction\n{joined_description}')
-        d = dict[str, str](
+        d = dict[str, Any](
                 transaction_type='BEA',
-                card_type=card_type,  # type: ignore
+                card_type=card_type,
                 NR=m.group('NR'),
                 date=m.group('date'),
                 time=m.group('time').replace('.', ':'),
@@ -372,6 +382,20 @@ class DescriptionParser:
                 pas_nr=m.group('pas_nr'),
                 location=m.group('location'),
                 )
+        if currency_exchange:
+            m = self.CURRENCY_EXCHANGE_PATTERN.match(currency_exchange)
+            if m is None:
+                raise AbnAmroPdfParserError(
+                        'Could not parse currency exchange:\n'
+                        f'{currency_exchange}')
+            assert m.group('currency') == ('EUR' if self.currency is '€'
+                                           else self.currency)
+            d['foreign_amount'] = parse_amount(m.group('foreign_amount'))
+            d['foreign_currency'] = m.group('foreign_currency')
+            d['exchange_rate'] = parse_amount(m.group('exchange_rate'))
+            d['ecb_exchange_rate'] = parse_amount(m.group('ecb_exchange_rate'))
+            d['surcharge'] = parse_amount(m.group('surcharge')) / Decimal(100)
+            d['costs'] = parse_amount(m.group('costs'))
         assert parse_short_year_date(d['date']) == bookdate, \
                 f"{d['date']} ≠ {bookdate}"
         assert bookdate == value_date

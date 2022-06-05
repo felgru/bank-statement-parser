@@ -57,3 +57,9 @@ def test_parsing_bea_transaction_with_currency_exchange() -> None:
     assert m['date'] == '01.01.22'
     assert m['time'] == '12:23'
     assert m['location'] == 'DRNIS,Land: HR'
+    assert m['foreign_amount'] == Decimal('44.00')
+    assert m['foreign_currency'] == 'HRK'
+    assert m['exchange_rate'] == Decimal('7.4074074')
+    assert m['ecb_exchange_rate'] == Decimal('7.5620027')
+    assert m['surcharge'] == Decimal('0.0209')
+    assert m['costs'] == Decimal('0.15')
