@@ -376,19 +376,22 @@ class DescriptionParser:
                 transaction_type='BEA',
                 card_type=card_type,
                 NR=m.group('NR'),
-                date=m.group('date'),
+                date=parse_short_year_date(m.group('date')),
                 time=m.group('time').replace('.', ':'),
                 store=m.group('store'),
                 pas_nr=m.group('pas_nr'),
                 location=m.group('location'),
                 )
+        assert d['date'] == bookdate, \
+                f"Date {d['date']} does not match bookdate {bookdate}."
+        assert bookdate == value_date
         if currency_exchange:
             m = self.CURRENCY_EXCHANGE_PATTERN.match(currency_exchange)
             if m is None:
                 raise AbnAmroPdfParserError(
                         'Could not parse currency exchange:\n'
                         f'{currency_exchange}')
-            assert m.group('currency') == ('EUR' if self.currency is '€'
+            assert m.group('currency') == ('EUR' if self.currency == '€'
                                            else self.currency)
             d['foreign_amount'] = parse_amount(m.group('foreign_amount'))
             d['foreign_currency'] = m.group('foreign_currency')
@@ -396,9 +399,6 @@ class DescriptionParser:
             d['ecb_exchange_rate'] = parse_amount(m.group('ecb_exchange_rate'))
             d['surcharge'] = parse_amount(m.group('surcharge')) / Decimal(100)
             d['costs'] = parse_amount(m.group('costs'))
-        assert parse_short_year_date(d['date']) == bookdate, \
-                f"{d['date']} ≠ {bookdate}"
-        assert bookdate == value_date
         return Transaction(account=self.account,
                            description=d['store'],
                            operation_date=bookdate,
@@ -420,17 +420,17 @@ class DescriptionParser:
         else:
             raise AbnAmroPdfParserError(
                     f'Could not parse GEA transaction\n{joined_description}')
-        d = dict[str, str](
+        d = dict[str, Any](
                 transaction_type='GEA',
                 card_type=card_type,
                 NR=m.group('NR'),
-                date=m.group('date'),
+                date=parse_short_year_date(m.group('date')),
                 time=m.group('time').replace('.', ':'),
                 address=m.group('address'),
                 pas_nr=m.group('pas_nr'),
                 )
-        assert parse_short_year_date(d['date']) == bookdate, \
-                f"{d['date']} ≠ {bookdate}"
+        assert d['date'] == bookdate, \
+                f"Date {d['date']} does not match bookdate {bookdate}."
         assert bookdate == value_date
         return Transaction(account=self.account,
                            description=f"Withdrawal {d['card_type']}, {d['address']}",
