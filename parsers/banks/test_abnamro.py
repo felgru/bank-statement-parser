@@ -8,6 +8,35 @@ from decimal import Decimal
 from .abnamro import DescriptionParser
 
 
+def test_parsing_sepa_overboeking() -> None:
+    description = ["SEPA Overboeking",
+                   "IBAN: NL11ABNA1234567890",
+                   "BIC: ABNANL2A",
+                   "Naam: J Doe",
+                   # Lines are broken after 32 characters, but the pdftotext
+                   # extraction does not produce spaces at the end of a line.
+                   # Make sure that those spaces are re-added by the parser.
+                   "Omschrijving: Keep space at end",
+                   "of line"]
+
+    parser = DescriptionParser(currency='EUR',
+                               account='assets:bank:checking:ABN AMRO')
+    transaction = parser.parse(
+            description=description,
+            bookdate=date(2022, 1, 1),
+            value_date=date(2022, 1, 1),
+            amount=Decimal("1.23"),
+            )
+    omschrijving = "Keep space at end of line"
+    assert transaction.description == omschrijving
+    m = transaction.metadata
+    assert m['transaction_type'] == "SEPA Overboeking"
+    assert m['IBAN'] == "NL11ABNA1234567890"
+    assert m['BIC'] == "ABNANL2A"
+    assert m['Naam'] == "J Doe"
+    assert m['Omschrijving'] == omschrijving
+
+
 def test_parsing_bea_transaction() -> None:
     description = ["BEA, Betaalpas",
                    "My example store,PAS123",
