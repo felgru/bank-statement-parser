@@ -203,7 +203,7 @@ class MainTableIterator:
         value_date = parse_short_date(line.bookdate.strip('()'), self.year)
         # second line can be empty except for value date if we're at
         # the end of the page. We filter out those empty description lines.
-        if line.description.strip():
+        if line.description:
             description.append(line.description)
         while True:
             try:
@@ -267,7 +267,7 @@ class DescriptionParser:
               bookdate: date,
               value_date: date,
               amount: Decimal) -> BaseTransaction:
-        transaction_type = description[0].rstrip()
+        transaction_type = description[0]
         if transaction_type == 'SEPA iDEAL':
             return self._parse_from_keywords(transaction_type,
                                              description,
@@ -362,7 +362,7 @@ class DescriptionParser:
                    value_date: date,
                    amount: Decimal,
                    ) -> Transaction:
-        joined_description = '\n'.join(l.rstrip() for l in description)
+        joined_description = '\n'.join(description)
         if (m := self.OLD_BEA_PATTERN.match(joined_description)) is not None:
             card_type = None
             currency_exchange = ''
@@ -414,7 +414,7 @@ class DescriptionParser:
                    value_date: date,
                    amount: Decimal,
                    ) -> Transaction:
-        joined_description = '\n'.join(l.rstrip() for l in description)
+        joined_description = '\n'.join(description)
         if (m := self.GEA_PATTERN.match(joined_description)) is not None:
             card_type = m.group('card_type')
         else:
@@ -447,8 +447,7 @@ class DescriptionParser:
                             value_date: date,
                             amount: Decimal,
                             ) -> MultiTransaction:
-        t = MultiTransaction(description=description[0].rstrip() \
-                                        + ' | Banking fees',
+        t = MultiTransaction(description=description[0] + ' | Banking fees',
                              transaction_date=bookdate)
         t.add_posting(Posting(account=self.account,
                               amount=amount,
@@ -511,7 +510,7 @@ class MainTableLines:
         if line:
             return MainTableLine(
                     bookdate=line[self.spans['bookdate']].strip(),
-                    description=line[self.spans['description']],
+                    description=line[self.spans['description']].rstrip(),
                     amount_debit=line[self.spans['amount_debit']].strip(),
                     amount_credit=line[self.spans['amount_credit']].strip(),
                     )
