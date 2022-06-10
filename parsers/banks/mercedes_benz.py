@@ -42,14 +42,18 @@ class MercedesBenzPdfParser(OldPdfParser):
 
     def _parse_metadata(self) -> None:
         m = re.search(r'Kundennummer +(\d+)\n', self.pdf_pages[0])
-        assert m is not None, 'Could not find owner number.'
-        kundennummer = m.group(1)
+        if m is not None:  # current format
+            kundennummer = m.group(1)
+        else:  # old format
+            m = re.search(r'Kontonummer +(\d+)\n', self.pdf_pages[0])
+            assert m is not None, 'Could not find Kontonummer.'
+            kundennummer = m.group(1)[:-3]
         m = re.search(r'IBAN +(DE[\d ]+?)\n', self.pdf_pages[0])
         assert m is not None, 'Could not find IBAN.'
         iban = m.group(1)
         # Currency code is not in same line as the word "Währung"
         # due to some inaccuracy of the PDF parsing.
-        # Since this is in thery always EUR, I'll simply disable
+        # Since this is in theory always EUR, I'll simply disable
         # this check.
         # m = re.search(r'Währung +([A-Z]{3})\n', self.pdf_pages[0])
         # assert m is not None, 'Could not find currency.'
