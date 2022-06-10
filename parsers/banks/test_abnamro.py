@@ -37,6 +37,30 @@ def test_parsing_sepa_overboeking() -> None:
     assert m['Omschrijving'] == omschrijving
 
 
+def test_parsing_old_bea_transaction() -> None:
+    description = ["BEA   NR:12345ABC   01.01.22/12.23",
+                   "My example store,PAS123",
+                   "LOCATION"]
+
+    parser = DescriptionParser(currency='EUR',
+                               account='assets:bank:checking:ABN AMRO')
+    transaction = parser.parse(
+            description=description,
+            bookdate=date(2022, 1, 1),
+            value_date=date(2022, 1, 1),
+            amount=Decimal("1.23"),
+            )
+    assert transaction.description == 'My example store'
+    m = transaction.metadata
+    assert m['transaction_type'] == 'BEA'
+    assert m['store'] == 'My example store'
+    assert m['pas_nr'] == '123'
+    assert m['NR'] == '12345ABC'
+    assert m['date'] == date(2022, 1, 1)
+    assert m['time'] == '12:23'
+    assert m['location'] == 'LOCATION'
+
+
 def test_parsing_bea_transaction() -> None:
     description = ["BEA, Betaalpas",
                    "My example store,PAS123",
