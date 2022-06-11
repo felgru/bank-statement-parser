@@ -18,7 +18,6 @@ from ..pdf_parser import OldPdfParser
 class MercedesBenzPdfParser(OldPdfParser):
     bank_folder = 'mercedes-benz'
     account = 'assets:bank:saving:Mercedes-Benz Bank'
-    cleaning_rules = cleaning_rules.rules
     num_cols = 4
 
     def __init__(self, pdf_file: Path):
@@ -28,6 +27,10 @@ class MercedesBenzPdfParser(OldPdfParser):
         self.transaction_description_pattern = re.compile(
                 '^' + ' ' * self.description_start + ' *(\S.*)\n*',
                 flags=re.MULTILINE)
+        if self.is_old_format:
+            self.cleaning_rules = cleaning_rules.old_rules
+        else:
+            self.cleaning_rules = cleaning_rules.rules
 
     table_heading = re.compile(r'^ *Datum *Wert *(Text) *Soll\/Haben\n*',
                                flags=re.MULTILINE)
@@ -42,14 +45,20 @@ class MercedesBenzPdfParser(OldPdfParser):
 
     def _parse_metadata(self) -> None:
         m = re.search(r'Kundennummer +(\d+)\n', self.pdf_pages[0])
-        assert m is not None, 'Could not find owner number.'
-        kundennummer = m.group(1)
+        if m is not None:  # current format
+            kundennummer = m.group(1)
+            self.is_old_format = False
+        else:  # old format
+            self.is_old_format = True
+            m = re.search(r'Kontonummer +(\d+)\n', self.pdf_pages[0])
+            assert m is not None, 'Could not find Kontonummer.'
+            kundennummer = m.group(1)[:-3]
         m = re.search(r'IBAN +(DE[\d ]+?)\n', self.pdf_pages[0])
         assert m is not None, 'Could not find IBAN.'
         iban = m.group(1)
         # Currency code is not in same line as the word "Währung"
         # due to some inaccuracy of the PDF parsing.
-        # Since this is in thery always EUR, I'll simply disable
+        # Since this is in theory always EUR, I'll simply disable
         # this check.
         # m = re.search(r'Währung +([A-Z]{3})\n', self.pdf_pages[0])
         # assert m is not None, 'Could not find currency.'
@@ -106,14 +115,44 @@ class MercedesBenzPdfParser(OldPdfParser):
                                    parse_date_with_year(m.group(1)))
 
     transaction_pattern = re.compile(
-            r'^ *(\d{2}.\d{2}.) +(\d{2}.\d{2}.) +(\S+) +(\d[.\d]*,\d\d-?)\n'
+            r'^ *(\d{2}.\d{2}.|) +(\d{2}.\d{2}.) +(.*\S) +(\d[.\d]*,\d\d-?)\n'
             r' *([^\n]*)\n*',
             flags=re.MULTILINE)
 
     def generate_transactions(self, start: int, end: int) -> Iterator[Transaction]:
+        interests = []
+        if self.is_old_format:
+            abschluss_pattern = re.compile(r'Kontoabschluss zum (\d\d.\d\d.)\n')
+            m = abschluss_pattern.search(self.transactions_text, start, end)
+            assert m is not None
+            abschluss_date = self.parse_short_date(m.group(1))
+            abschluss_start = m.end()
+            abschluss_end = end
+            end = m.start()
+            interest_pattern = re.compile(r'^ +(\S.*%) +(\d[.\d]*,\d\d-?)\n',
+                                          flags=re.MULTILINE)
+            for m in interest_pattern.finditer(self.transactions_text,
+                                               abschluss_start,
+                                               abschluss_end):
+                interests.append(
+                        Transaction(self.account,
+                            description=' '.join(m.group(1).split()),
+                            operation_date=abschluss_date,
+                            value_date=abschluss_date,
+                            amount=parse_amount(m.group(2)),
+                            metadata={
+                                'type': 'Zinsabrechnung',
+                                }))
+        last_transaction_date: Optional[date] = None
         m = self.transaction_pattern.search(self.transactions_text, start, end)
         while m is not None:
-            transaction_date = self.parse_short_date(m.group(1))
+            if m.group(1):
+                transaction_date = self.parse_short_date(m.group(1))
+                last_transaction_date = transaction_date
+            else:
+                assert last_transaction_date is not None, \
+                    'First transaction has no transaction date!'
+                transaction_date = last_transaction_date
             value_date = self.parse_short_date(m.group(2))
             transaction_type = m.group(3)
             metadata = dict(type=transaction_type)
@@ -134,6 +173,7 @@ class MercedesBenzPdfParser(OldPdfParser):
                               metadata=metadata)
             m = self.transaction_pattern.search(self.transactions_text,
                                                 start, end)
+        yield from interests
 
     def check_transactions_consistency(self,
                                        transactions: list[BaseTransaction]) \

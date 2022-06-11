@@ -19,6 +19,19 @@ def clean_interest_calculation(t):
     description = f'{t.type} {description[0]}'
     return description, metadata
 
+def is_time_deposit(t):
+    return t.type.startswith('Zinsen Festz.') \
+           or t.type.startswith('Ausz.Festzins')
+
+def clean_time_deposit(t):
+    description = t.type
+    account_number = t.metadata['raw_description']
+    assert '\n' not in account_number
+    metadata = dict(t.metadata)
+    metadata['account_number'] = account_number
+    metadata['raw_description'] = description + '\n' + account_number
+    return description, metadata
+
 def is_giro_transfer(t):
     return t.type == 'Überweisung'
 
@@ -33,5 +46,11 @@ def clean_giro_transfer(t):
 
 rules = [
         Rule(is_interest_calculation, clean_interest_calculation, field=('description', 'metadata')),
+        Rule(is_time_deposit, clean_time_deposit, field=('description', 'metadata')),
+        Rule(is_giro_transfer, clean_giro_transfer, field=('description', 'metadata')),
+        ]
+
+old_rules = [
+        Rule(is_time_deposit, clean_time_deposit, field=('description', 'metadata')),
         Rule(is_giro_transfer, clean_giro_transfer, field=('description', 'metadata')),
         ]
