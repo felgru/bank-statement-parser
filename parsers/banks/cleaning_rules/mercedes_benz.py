@@ -49,3 +49,8 @@ rules = [
         Rule(is_time_deposit, clean_time_deposit, field=('description', 'metadata')),
         Rule(is_giro_transfer, clean_giro_transfer, field=('description', 'metadata')),
         ]
+
+old_rules = [
+        Rule(is_time_deposit, clean_time_deposit, field=('description', 'metadata')),
+        Rule(is_giro_transfer, clean_giro_transfer, field=('description', 'metadata')),
+        ]
