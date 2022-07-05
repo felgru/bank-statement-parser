@@ -244,9 +244,10 @@ class DescriptionParser:
             )
     GEA_PATTERN = re.compile(
             r'(GEA), (?P<card_type>.*)\n'
-            r'(?P<address>.*),PAS(?P<pas_nr>\d{3})\n'
+            r'(?P<atm_name>.*),PAS(?P<pas_nr>\d{3})\n'
             r'NR:(?P<NR>\w+) +'
-            r'(?P<date>\d{2}\.\d{2}\.\d{2})\/(?P<time>\d{2}\.\d{2})$'
+            r'(?P<date>\d{2}\.\d{2}\.\d{2})\/(?P<time>\d{2}\.\d{2})'
+            r'(?P<location>\n.*|)$'
             )
     CURRENCY_EXCHANGE_PATTERN = re.compile(
             r'\n(?P<foreign_currency>[A-Z]{3}) (?P<foreign_amount>\d+,?\d*)'
@@ -426,14 +427,15 @@ class DescriptionParser:
                 NR=m.group('NR'),
                 date=parse_short_year_date(m.group('date')),
                 time=m.group('time').replace('.', ':'),
-                address=m.group('address'),
+                atm_name=m.group('atm_name'),
                 pas_nr=m.group('pas_nr'),
+                location=m.group('location').lstrip(),
                 )
         assert d['date'] == bookdate, \
                 f"Date {d['date']} does not match bookdate {bookdate}."
         assert bookdate == value_date
         return Transaction(account=self.account,
-                           description=f"Withdrawal {d['card_type']}, {d['address']}",
+                           description=f"Withdrawal {d['card_type']}, {d['atm_name']}",
                            operation_date=bookdate,
                            value_date=value_date,
                            amount=amount,

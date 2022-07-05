@@ -137,7 +137,33 @@ def test_parsing_gea_transaction() -> None:
             == 'Withdrawal Betaalpas, Geldmaat Visstraat 54'
     m = transaction.metadata
     assert m['transaction_type'] == 'GEA'
-    assert m['address'] == 'Geldmaat Visstraat 54'
+    assert m['atm_name'] == 'Geldmaat Visstraat 54'
+    assert m['pas_nr'] == '123'
+    assert m['NR'] == '123456'
+    assert m['date'] == date(2022, 1, 1)
+    assert m['time'] == '12:23'
+
+
+def test_parsing_gea_with_location() -> None:
+    description = ["GEA, Betaalpas",
+                   "some foreign bank,PAS123",
+                   "NR:123456   01.01.22/12.23",
+                   "BERLIN,Land: DE"]
+
+    parser = DescriptionParser(currency='EUR',
+                               account='assets:bank:checking:ABN AMRO')
+    transaction = parser.parse(
+            description=description,
+            bookdate=date(2022, 1, 1),
+            value_date=date(2022, 1, 1),
+            amount=Decimal("10.00"),
+            )
+    assert transaction.description \
+            == 'Withdrawal Betaalpas, some foreign bank'
+    m = transaction.metadata
+    assert m['transaction_type'] == 'GEA'
+    assert m['atm_name'] == 'some foreign bank'
+    assert m['location'] == 'BERLIN,Land: DE'
     assert m['pas_nr'] == '123'
     assert m['NR'] == '123456'
     assert m['date'] == date(2022, 1, 1)
