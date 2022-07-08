@@ -202,24 +202,46 @@ class MijnOvChipkaartWebsite:
 
     @staticmethod
     def _parse_raw_transactions(raw_transactions: list[RawTransaction]) -> list[OvTransaction]:
-        transactions = []
-        next_transaction: list[RawTransaction] = []
+        state = TransactionParserState()
         for transaction in raw_transactions:
-            if transaction.type == 'Saldo automatisch opgeladen':
-                assert not next_transaction
-                transactions.append(OvTransaction.recharge(transaction))
-            elif transaction.type == 'Check-in':
-                next_transaction.append(transaction)
-            elif transaction.type == 'Check-uit':
-                assert len(next_transaction) == 1
-                assert next_transaction[0].type == 'Check-in'
-                transactions.append(OvTransaction.ride(next_transaction[0],
-                                                       transaction))
-                next_transaction.clear()
-            else:
-                raise RuntimeError(f'Unknown transaction type {transaction.type!r}.')
-        assert not next_transaction
-        return transactions
+            state.push(transaction)
+        return state.get_parsed_transactions()
+
+
+class TransactionParserState:
+    def __init__(self) -> None:
+        self.transactions: list[OvTransaction] = []
+        self.next_transaction: list[RawTransaction] = []
+
+    def push(self, transaction: RawTransaction) -> None:
+        if transaction.type == 'Saldo automatisch opgeladen':
+            self._handle_queued_transactions()
+            self.transactions.append(OvTransaction.recharge(transaction))
+        elif transaction.type == 'Check-in':
+            self._handle_queued_transactions()
+            self.next_transaction.append(transaction)
+        elif transaction.type == 'Check-uit':
+            assert len(self.next_transaction) == 1
+            assert self.next_transaction[0].type == 'Check-in'
+            self.transactions.append(
+                    OvTransaction.ride(self.next_transaction[0], transaction))
+            self.next_transaction.clear()
+        else:
+            raise RuntimeError(f'Unknown transaction type {transaction.type!r}.')
+
+    def _handle_queued_transactions(self) -> None:
+        if not self.next_transaction:
+            return
+        # Unbalanced Check-in
+        assert len(self.next_transaction) == 1
+        assert self.next_transaction[0].type == 'Check-in'
+        self.transactions.append(
+                OvTransaction.unbalanced_check_in(self.next_transaction[0]))
+        self.next_transaction.clear()
+
+    def get_parsed_transactions(self) -> list[OvTransaction]:
+        assert not self.next_transaction
+        return self.transactions
 
 
 @dataclass
@@ -277,6 +299,18 @@ class OvTransaction:
                 mode_of_transportation=check_in.mode_of_transportation,
                 place=place,
                 amount=-check_out.fare,
+                )
+
+    @classmethod
+    def unbalanced_check_in(cls,
+                            check_in: RawTransaction) -> OvTransaction:
+        return OvTransaction(
+                type='ride',
+                date=check_in.date,
+                mode_of_transportation=check_in.mode_of_transportation,
+                place=f'{check_in.place} ({check_in.time:%H:%M}),'
+                      ' missing check-out',
+                amount=check_in.amount,
                 )
 
     @classmethod
@@ -422,7 +456,7 @@ if __name__ == '__main__':
                  ' (default: end of last month)')
     aparser.add_argument('--balancing-account',
             default='assets:balancing:OV-Chipkaart',
-            help='balancing account for rechargin OV-Chipkaart')
+            help='balancing account for recharging OV-Chipkaart')
     aparser.add_argument('--dry-run', '-n',
             dest='dry_run',
             action='store_true',
