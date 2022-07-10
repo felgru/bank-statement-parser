@@ -1,16 +1,12 @@
-#!/usr/bin/python3
-
 # SPDX-FileCopyrightText: 2022 Felix Gruber <felgru@posteo.net>
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 from __future__ import annotations
 
-import argparse
 from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta
 from decimal import Decimal
-from getpass import getpass
 from pathlib import Path
 import re
 import sys
@@ -20,10 +16,59 @@ from urllib.parse import urljoin, urlparse
 from bs4 import BeautifulSoup  # type: ignore
 import requests
 
-sys.path.append(str(Path(__file__).resolve().parent.parent))
-
 from bank_statement import BankStatement
 from transaction import Transaction
+from .downloader import Downloader, PasswordAuthenticator
+
+
+class OvChipkaartDownloader(Downloader):
+    name = 'ov-chipkaart'
+    account = 'assets:OV-Chipkaart'
+    balancing_account = 'assets:OV-Chipkaart'
+
+    def __init__(self, website: MijnOvChipkaartWebsite):
+        self.api = website
+
+    def download(self,
+                 rules_dir: Optional[Path],
+                 **kwargs) -> BankStatement:
+        # TODO: start_date and end_date can at most be a month apart.
+        try:
+            start_date: date = kwargs.pop('start_date')
+        except KeyError:
+            raise RuntimeError(f'{self.__class__.__name__}.download is'
+                               ' missing the start_date argument.')
+        try:
+            end_date: date = kwargs.pop('end_date')
+        except KeyError:
+            raise RuntimeError(f'{self.__class__.__name__}.download is'
+                               ' missing the end_date argument.')
+        try:
+            _balancing_account = kwargs.pop('balancing_account')
+            if _balancing_account is not None:
+                self.balancing_account = _balancing_account
+        except KeyError:
+            pass
+        if kwargs:
+            raise RuntimeError(
+                    f'Unknown keyword arguments: {", ".join(kwargs.keys())}')
+        card_id = self.api.get_card_number()
+        transactions = self.api.transactions_for_card(
+                card_id, start_date, end_date)
+
+        balance, dt = self.api.current_balance(card_id)
+        print(f'Your current balance on {dt:%Y-%m-%d %H:%M} is {balance} €',
+              file=sys.stderr)
+
+        return travel_history_to_bank_statement(
+                transactions,
+                self.balancing_account)
+
+
+class OvChipkaartAuthenticator(PasswordAuthenticator[OvChipkaartDownloader]):
+    def login(self) -> OvChipkaartDownloader:
+        website = MijnOvChipkaartWebsite.login(self.username, self.password)
+        return OvChipkaartDownloader(website)
 
 
 class MijnOvChipkaartWebsite:
@@ -443,67 +488,3 @@ def last_day_of_month(d: date) -> date:
     while d.month == (d + one_day).month:
         d += one_day
     return d
-
-
-if __name__ == '__main__':
-    aparser = argparse.ArgumentParser(
-            description='Download OV-Chipkaart history.')
-    aparser.add_argument('--start-date', default=None,
-            help='start date of download in ISO format'
-                 ' (default: beginning of last month)')
-    aparser.add_argument('--end-date', default=None,
-            help='end date of download in ISO format'
-                 ' (default: end of last month)')
-    aparser.add_argument('--balancing-account',
-            default='assets:balancing:OV-Chipkaart',
-            help='balancing account for recharging OV-Chipkaart')
-    aparser.add_argument('--dry-run', '-n',
-            dest='dry_run',
-            action='store_true',
-            help='print downloaded history to stdout instead of writing it'
-                 ' to hledger files.')
-
-    args = aparser.parse_args()
-    if args.start_date is None:
-        start_date = date.today().replace(day=1)
-        if start_date.month == 1:
-            start_date = start_date.replace(year=start_date.year-1, month=12)
-        else:
-            start_date = start_date.replace(month=start_date.month-1)
-    else:
-        start_date = date.fromisoformat(args.start_date)
-    if args.end_date is None:
-        end_date = date.today()
-        if end_date.month == 1:
-            end_date = end_date.replace(year=end_date.year-1, month=12)
-        else:
-            end_date = end_date.replace(month=end_date.month-1)
-        end_date = last_day_of_month(end_date)
-    else:
-        end_date = date.fromisoformat(args.end_date)
-
-    username = input('Username: ')
-    password = getpass('Password: ')
-    api = MijnOvChipkaartWebsite.login(username, password)
-    card_id = api.get_card_number()
-
-    d = start_date
-    while d < end_date:
-        transactions = api.transactions_for_card(card_id, d,
-                                                 min(last_day_of_month(d),
-                                                     end_date))
-        bank_statement = travel_history_to_bank_statement(
-                transactions,
-                args.balancing_account)
-        if args.dry_run:
-            bank_statement.write_ledger(sys.stdout)
-        else:
-            with open(f'{d:%Y}/{d:%m}/ov-chipkaart.hledger', 'w') as f:
-                bank_statement.write_ledger(f)
-        if d.month < 12:
-            d = d.replace(month=d.month+1, day=1)
-        else:
-            d = d.replace(year=d.year+1, month=1, day=1)
-
-    balance, dt = api.current_balance(card_id)
-    print(f'Your current balance on {dt:%Y-%m-%d %H:%M} is {balance} €')
