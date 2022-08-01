@@ -97,7 +97,9 @@ if __name__ == '__main__':
         if args.dry_run:
             bank_statement.write_ledger(sys.stdout)
         else:
-            with open(f'{d:%Y}/{d:%m}/{downloader.name}.hledger', 'w') as f:
+            ledger_file = Path(f'{d:%Y}/{d:%m}/{downloader.name}.hledger')
+            ledger_file.parent.mkdir(parents=True, exist_ok=True)
+            with open(ledger_file, 'w') as f:
                 bank_statement.write_ledger(f)
         if d.month < 12:
             d = d.replace(month=d.month+1, day=1)

@@ -133,6 +133,9 @@ class MijnOvChipkaartWebsite:
         # … and another SAML SSO redirect…
         soup = BeautifulSoup(res.text, 'html.parser')
         form = soup.find('form')
+        if form is None:
+            raise RuntimeError('Unexpected error: Could not find SAML SSO form.'
+                               ' Please try again.')
         res = s.post(
                 form['action'],
                 data={i['name']: i['value']
