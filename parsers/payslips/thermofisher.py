@@ -97,6 +97,7 @@ class ThermoFisherPdfParser(Parser):
         accounts = {
                 1000: 'income:salary',
                 3011: 'income:salary:holiday allowance',  # Vacantiegeld
+                3019: 'income:salary:bonus',
                 4461: 'expenses:taxes:retirement insurance',
                 4466: 'expenses:taxes:social',  # WGA Aanvullend
                 4467: 'expenses:taxes:social',  # WIA bodem
