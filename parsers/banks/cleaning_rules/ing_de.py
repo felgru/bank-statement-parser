@@ -126,7 +126,10 @@ def is_standing_order(t):
 
 def clean_standing_order_description(t):
     lines = t.description.split('\n')
-    return lines[0] + ' | ' + ' '.join(lines[1:])
+    metadata = dict(t.metadata)
+    metadata['name'] = lines[0]
+    description = lines[0] + ' | ' + ' '.join(lines[1:])
+    return description, metadata
 
 def is_fee(t):
     return t.type == 'Entgelt'
@@ -162,17 +165,19 @@ def clean_giro_transfer_description(t):
             description.append(l)
         else:
             metadata[m.group(1)] = m.group(2)
+    name = description[0]
+    metadata['name'] = name
     if len(description) > 1:
-        description = description[0] + ' | ' + ' '.join(description[1:])
+        description = name + ' | ' + ' '.join(description[1:])
     else:
-        description = description[0]
+        description = name
     return description, metadata
 
 rules = [
         Rule(is_card_transaction, parse_card_metadata, field=('description', 'external_value_date', 'metadata')),
         Rule(is_direct_debit, parse_direct_debit_metadata, field=('description', 'metadata')),
         Rule(is_giro_card_transaction, parse_giro_card_metadata, field=('description', 'metadata')),
-        Rule(is_standing_order, clean_standing_order_description),
+        Rule(is_standing_order, clean_standing_order_description, field=('description', 'metadata')),
         Rule(is_card_exchange_fee, parse_card_exchange_fee_metadata, field=('description', 'metadata')),
         Rule(is_giro_transfer, clean_giro_transfer_description, field=('description', 'metadata')),
         ]
