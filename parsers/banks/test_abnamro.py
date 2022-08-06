@@ -37,6 +37,56 @@ def test_parsing_sepa_overboeking() -> None:
     assert m['Omschrijving'] == omschrijving
 
 
+def test_sepa_overboeking_omschrijving_falls_back_to_kenmerk() -> None:
+    description = ["SEPA Overboeking",
+                   "IBAN: NL11ABNA1234567890",
+                   "BIC: ABNANL2A",
+                   "Naam: J Doe",
+                   "Kenmerk: test"]
+
+    parser = DescriptionParser(currency='EUR',
+                               account='assets:bank:checking:ABN AMRO')
+    transaction = parser.parse(
+            description=description,
+            bookdate=date(2022, 1, 1),
+            value_date=date(2022, 1, 1),
+            amount=Decimal("1.23"),
+            )
+    kenmerk = "test"
+    assert transaction.description == kenmerk
+    m = transaction.metadata
+    assert m['transaction_type'] == "SEPA Overboeking"
+    assert m['IBAN'] == "NL11ABNA1234567890"
+    assert m['BIC'] == "ABNANL2A"
+    assert m['Naam'] == "J Doe"
+    assert m['Kenmerk'] == kenmerk
+    assert 'Omschrijving' not in m
+
+
+def test_parsing_sepa_overboeking_without_omschrijving_or_kenmerk() -> None:
+    description = ["SEPA Overboeking",
+                   "IBAN: NL11ABNA1234567890",
+                   "BIC: ABNANL2A",
+                   "Naam: J Doe",
+                   ]
+
+    parser = DescriptionParser(currency='EUR',
+                               account='assets:bank:checking:ABN AMRO')
+    transaction = parser.parse(
+            description=description,
+            bookdate=date(2022, 1, 1),
+            value_date=date(2022, 1, 1),
+            amount=Decimal("1.23"),
+            )
+    assert transaction.description == ''
+    m = transaction.metadata
+    assert m['transaction_type'] == "SEPA Overboeking"
+    assert m['IBAN'] == "NL11ABNA1234567890"
+    assert m['BIC'] == "ABNANL2A"
+    assert m['Naam'] == "J Doe"
+    assert 'Omschrijving' not in m
+
+
 def test_parsing_old_bea_transaction() -> None:
     description = ["BEA   NR:12345ABC   01.01.22/12.23",
                    "My example store,PAS123",

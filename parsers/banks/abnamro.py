@@ -347,7 +347,7 @@ class DescriptionParser:
         d[current_key] = current_value.rstrip()
         omschrijving = d.get('Omschrijving')
         if omschrijving is None:
-            omschrijving = d['Kenmerk']
+            omschrijving = d.get('Kenmerk', '')
         return Transaction(account=self.account,
                            description=omschrijving,
                            operation_date=bookdate,
