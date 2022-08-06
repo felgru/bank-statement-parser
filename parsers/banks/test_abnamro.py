@@ -218,3 +218,37 @@ def test_parsing_gea_with_location() -> None:
     assert m['NR'] == '123456'
     assert m['date'] == date(2022, 1, 1)
     assert m['time'] == '12:23'
+
+
+def test_parsing_interest() -> None:
+    description = ["INTEREST",
+                   "CREDIT INTEREST",
+                   "period 01.04.2022 - 30.06.2022",
+                   "for interest rates please",
+                   "visit www.abnamro.nl/interest",
+                   "see your interest note for more",
+                   "information",
+                   ]
+
+    parser = DescriptionParser(currency='EUR',
+                               account='assets:bank:checking:ABN AMRO')
+    transaction = parser.parse(
+            description=description,
+            bookdate=date(2022, 6, 30),
+            value_date=date(2022, 6, 30),
+            amount=Decimal("1.23"),
+            )
+    interest_type = "CREDIT INTEREST"
+    assert transaction.description == \
+            f"CREDIT INTEREST 2022-04-01 to 2022-06-30"
+    m = transaction.metadata
+    assert m['transaction_type'] == "INTEREST"
+    assert m['interest_type'] == interest_type
+    assert m['period_start'] == date(2022, 4, 1)
+    assert m['period_end'] == date(2022, 6, 30)
+    assert m['block_comment'] == "\n".join([
+        "for interest rates please",
+        "visit www.abnamro.nl/interest",
+        "see your interest note for more",
+        "information",
+    ])

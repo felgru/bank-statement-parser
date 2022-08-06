@@ -312,6 +312,11 @@ class DescriptionParser:
                                    bookdate=bookdate,
                                    value_date=value_date,
                                    amount=amount)
+        elif transaction_type == 'INTEREST':
+            return self._parse_interest(description,
+                                        bookdate=bookdate,
+                                        value_date=value_date,
+                                        amount=amount)
         else:
             raise AbnAmroPdfParserError(
                     f'Unknown transaction type: {transaction_type}')
@@ -467,6 +472,37 @@ class DescriptionParser:
                     comment=m.group(1)))
         return t
 
+    def _parse_interest(self,
+                        description: list[str],
+                        *,
+                        bookdate: date,
+                        value_date: date,
+                        amount: Decimal,
+                        ) -> Transaction:
+        interest_type = description[1]
+        m = re.match(r'period (\d{2}\.\d{2}\.\d{4}) - (\d{2}\.\d{2}\.\d{4})',
+                     description[2])
+        comment = '\n'.join(description[3:])
+        if m is None:
+            raise AbnAmroPdfParserError('Could not parse interest transaction'
+                                        f' period {description[2]!r}.')
+        d = dict[str, Any](
+                transaction_type=description[0],
+                interest_type=interest_type,
+                period_start=parse_date(m.group(1), separator='.'),
+                period_end=parse_date(m.group(2), separator='.'),
+                block_comment=comment,
+                )
+        assert bookdate == value_date
+        descr = f"{interest_type} {d['period_start']} to {d['period_end']}"
+        return Transaction(account=self.account,
+                           description=descr,
+                           operation_date=bookdate,
+                           value_date=value_date,
+                           amount=amount,
+                           currency=self.currency,
+                           metadata=d)
+
 
 class MainTableLines:
     def __init__(self, pdf_pages: list[str]):
@@ -528,9 +564,9 @@ class MainTableLine:
     amount_credit: str
 
 
-def parse_date(d: str) -> date:
+def parse_date(d: str, *, separator: str = '-') -> date:
     # Dutch inverse ISO format
-    day, month, year = d.split('-')
+    day, month, year = d.split(separator)
     return date(int(year), int(month), int(day))
 
 
