@@ -143,7 +143,7 @@ class IngDePdfParser(OldPdfParser):
         for m in re.finditer(r'^ +(.+?)  +(.+?%) +(.+?)  +(.+,\d\d)$',
                              interest_table, flags=re.MULTILINE):
             description = ' '.join(m.group(i) for i in (1, 2, 3))
-            postings.append(Posting('income:bank:interest:ING.de',
+            postings.append(Posting('income:interest:ING.de',
                                     -parse_amount(m.group(4)),
                                     comment=description))
         return postings
