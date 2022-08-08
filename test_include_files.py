@@ -130,3 +130,46 @@ def test_write_include_files_with_existing_include_files(tmp_path):
          'some_other.hledger',
          ]
     )
+
+
+def test_leaf_dir_without_ledger_should_not_contain_include_file(tmp_path):
+    create_test_dir(
+        tmp_path,
+        [('2021', [
+            ('12', [
+                ('bank_a', ['journal.hledger', 'test.hledger']),
+                ('bank_b', ['not_a_journal']),
+                'journal.hledger',
+             ]),
+            ('bank_a', ['journal.hledger', 'q4.hledger']),
+            'journal.hledger',
+          ]),
+         ('2022', [
+            ('1', [
+                ('bank_a', []),
+             ]),
+          ]),
+         'journal.hledger',
+         ]
+    )
+    git = FakeGit()
+    write_include_files(tmp_path, git)
+    check_dir_equal_to(
+        tmp_path,
+        [('2021', [
+            ('12', [
+                ('bank_a', ['journal.hledger', 'test.hledger']),
+                ('bank_b', ['not_a_journal']),
+                'journal.hledger',
+             ]),
+            ('bank_a', ['journal.hledger', 'q4.hledger']),
+            'journal.hledger',
+          ]),
+         ('2022', [
+            ('1', [
+                ('bank_a', []),
+             ]),
+          ]),
+         'journal.hledger',
+         ]
+    )
