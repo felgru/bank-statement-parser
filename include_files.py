@@ -48,7 +48,11 @@ def recurse_include_files(cur_dir: Path,
     filenames.sort()
     ledger = cur_dir / ledger_name
     if not directories and not filenames:
-        # TODO: If include file already exists, remove it and git add it.
+        if ledger.exists():
+            ledger.unlink()
+            # Make sure that we git add the removed ledger file in order
+            # to remove it in the next Git commit.
+            ledger_files.append(ledger)
         return False
     write_include_file(ledger, directories, filenames)
     ledger_files.append(ledger)
