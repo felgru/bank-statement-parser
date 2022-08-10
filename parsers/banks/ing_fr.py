@@ -17,6 +17,13 @@ from ..pdf_parser import OldPdfParser
 from ..qif_parser import QifParser
 
 
+DEFAULT_ACCOUNTS: dict[str, str] = {
+    'Compte Courant': 'assets:bank:checking:ING.fr',
+    'Livret A': 'assets:bank:saving:ING.fr:Livret A',
+    'LDD': 'assets:bank:saving:ING.fr:LDD',
+}
+
+
 class IngFrPdfParser(OldPdfParser):
     bank_folder = 'ing.fr'
     account = 'assets:bank:TODO:ING.fr' # exact account is set in __init__
@@ -29,18 +36,16 @@ class IngFrPdfParser(OldPdfParser):
         self.account_type = m.group(1)
         if self.account_type == 'COMPTE COURANT':
             self.account_type = 'Compte Courant'
-            self.account = 'assets:bank:checking:ING.fr'
             self.cleaning_rules = cleaning_rules.checkings_rules
         elif self.account_type == 'LIVRET A':
             self.account_type = 'Livret A'
-            self.account = 'assets:bank:saving:ING.fr:Livret A'
             self.cleaning_rules = cleaning_rules.savings_rules
         elif self.account_type == 'LDD':
-            self.account = 'assets:bank:saving:ING.fr:LDD'
             self.cleaning_rules = cleaning_rules.savings_rules
         else:
             raise RuntimeError(
                     f'unknown ING.fr account type: {self.account_type}')
+        self.account = DEFAULT_ACCOUNTS[self.account_type]
         self.debit_start, self.credit_start = self.parse_column_starts()
 
     table_heading = re.compile(r"^ *Date de\s*Date de\s*Nature de l'opération\s*"
@@ -128,7 +133,7 @@ class IngFrPdfParser(OldPdfParser):
             # solde lines, it doesn't contain the header of the table.
             m = self.total_pattern.search(page)
             if m is not None:
-                return page[m.start():m.end()]
+                return m.group(0)
             else:
                 # There can be pages without a table
                 return ""

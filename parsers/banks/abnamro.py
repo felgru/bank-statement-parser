@@ -26,9 +26,15 @@ from utils import PeekableIterator
 from ..pdf_parser import CleaningParser, PdfParser
 
 
+DEFAULT_ACCOUNTS: dict[str, str] = {
+    'checking': 'assets:bank:checking:ABN AMRO',
+    'banking fees': 'expenses:banking',
+}
+
+
 class AbnAmroPdfParser(PdfParser):
     bank_folder = 'abnamro'
-    account = 'assets:bank:checking:ABN AMRO'
+    account = DEFAULT_ACCOUNTS['checking']
     num_cols = None
     cleaning_rules = cleaning_rules.rules
 
@@ -469,7 +475,7 @@ class DescriptionParser:
             m = re.match(r'(.+?) +(\d+,\d{2})', line)
             assert m is not None
             t.add_posting(Posting(
-                    account='expenses:banking',
+                    account=DEFAULT_ACCOUNTS['banking fees'],
                     amount=parse_amount(m.group(2)),
                     currency=self.currency,
                     posting_date=value_date,

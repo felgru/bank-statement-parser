@@ -16,9 +16,14 @@ from transaction import (BaseTransaction, Balance, MultiTransaction,
 
 from ..pdf_parser import OldPdfParser
 
+
+DEFAULT_ACCOUNTS: dict[str, str] = {
+    'default account': 'assets:bank:saving:Mercedes-Benz Bank',
+}
+
 class MercedesBenzPdfParser(OldPdfParser):
     bank_folder = 'mercedes-benz'
-    account = 'assets:bank:saving:Mercedes-Benz Bank'
+    account = DEFAULT_ACCOUNTS['default account']
     num_cols = 4
 
     def __init__(self, pdf_file: Path):

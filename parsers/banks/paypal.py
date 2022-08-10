@@ -16,6 +16,12 @@ from ..parser import CleaningParser
 from transaction import BaseTransaction, MultiTransaction, Posting
 
 
+DEFAULT_ACCOUNTS: dict[str, str] = {
+    'default account': 'assets:online:paypal',
+    'balancing account': 'assets:balancing:paypal',
+}
+
+
 class PostingDict(TypedDict):
     type: str
     account: Optional[str]
@@ -27,8 +33,8 @@ class PostingDict(TypedDict):
 
 class PayPalCsvParser(CleaningParser):
     bank_folder = 'paypal'
-    account = 'assets:online:paypal'
-    balancing_account = 'assets:balancing:paypal'
+    account = DEFAULT_ACCOUNTS['default account']
+    balancing_account = DEFAULT_ACCOUNTS['balancing account']
     file_extension = '.csv'
     cleaning_rules = cleaning_rules.rules
 

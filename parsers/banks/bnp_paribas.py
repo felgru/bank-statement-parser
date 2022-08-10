@@ -15,6 +15,12 @@ from transaction import Balance, Transaction
 from ..pdf_parser import OldPdfParser
 
 
+DEFAULT_ACCOUNTS: dict[str, str] = {
+    'Compte Cheques': 'assets:bank:checking:BNP',
+    'Livret A': 'assets:bank:saving:BNP:Livret A',
+}
+
+
 class BnpParibasPdfParser(OldPdfParser):
     bank_folder = 'bnp'
     account = 'assets:bank:TODO:BNP' # exact account is set in __init__
@@ -26,18 +32,20 @@ class BnpParibasPdfParser(OldPdfParser):
         assert m is not None, 'Account type not found.'
         self.account_type = m.group(1).title()
         if self.account_type == 'Compte Cheques':
-            self.account = 'assets:bank:checking:BNP'
             self.end_pattern = re.compile(
                     r"^ *\* Commissions sur services et opérations "
                     r"bancaires. Total|"
                     r'^\s*[0-9]{12}\n\s+[0-9A-Z]{18}\n',
                     flags=re.MULTILINE)
-        if self.account_type == 'Livret A':
-            self.account = 'assets:bank:saving:BNP:Livret A'
+        elif self.account_type == 'Livret A':
             self.end_pattern = re.compile(
                     r"^ *détail *rémunération *en EUR *de |"
                     r"^ *Si vous avez une réclamation à formuler,",
                     flags=re.MULTILINE)
+        else:
+            raise RuntimeError(
+                    f'unknown BNP Paribas account type: {self.account_type}')
+        self.account = DEFAULT_ACCOUNTS[self.account_type]
         self.debit_start, self.credit_start = self.parse_column_starts()
 
     def parse_column_starts(self) -> tuple[int, int]:
@@ -171,6 +179,7 @@ class BnpParibasPdfParser(OldPdfParser):
         assert start_date <= d <= end_date
         return d
 
+
 def parse_verbose_date(d: str) -> date:
     day_, month_, year_ = d.split()
     day = int(day_)
@@ -189,12 +198,14 @@ def parse_verbose_date(d: str) -> date:
     year = int(year_)
     return date(year, month, day)
 
+
 def parse_date(d: str) -> date:
     """ parse a date in "dd.mm.yyyy" format """
     day = int(d[:2])
     month = int(d[3:5])
     year = int(d[6:])
     return date(year, month, day)
+
 
 def parse_amount(a: str) -> Decimal:
     """ parse a decimal amount like -10,00 """

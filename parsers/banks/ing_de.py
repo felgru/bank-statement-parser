@@ -18,6 +18,13 @@ from transaction import (BaseTransaction, Balance, MultiTransaction,
 from ..parser import CleaningParser
 from ..pdf_parser import OldPdfParser
 
+
+DEFAULT_ACCOUNTS: dict[str, str] = {
+    'girokonto': 'assets:bank:checking:ING.de',
+    'extrakonto': 'assets:bank:saving:ING.de',
+    'interest': 'income:interest:ING.de',
+}
+
 class IngDePdfParser(OldPdfParser):
     bank_folder = 'ing.de'
     account = 'assets:bank:TODO:ING.de' # exact account is set in __init__
@@ -31,11 +38,14 @@ class IngDePdfParser(OldPdfParser):
                 '^' + ' ' * self.description_start + r' *(\S.*)\n',
                 flags=re.MULTILINE)
         if self.metadata.account_type == 'Girokonto':
-            self.account = 'assets:bank:checking:ING.de'
+            self.account = DEFAULT_ACCOUNTS['girokonto']
             self.cleaning_rules = cleaning_rules.rules
         elif self.metadata.account_type == 'Extra-Konto':
-            self.account = 'assets:bank:saving:ING.de'
+            self.account = DEFAULT_ACCOUNTS['extrakonto']
             self.cleaning_rules = cleaning_rules.extra_konto_rules
+        else:
+            raise RuntimeError(
+                    f'Unknown account type: {self.metadata.account_type!r}.')
 
     table_heading = re.compile(r'^ *Buchung *(Buchung / Verwendungszweck) *'
                                r'Betrag \(EUR\)\n *Valuta\n*',
@@ -144,7 +154,7 @@ class IngDePdfParser(OldPdfParser):
         for m in re.finditer(r'^ +(.+?)  +(.+?%) +(.+?)  +(.+,\d\d)$',
                              interest_table, flags=re.MULTILINE):
             description = ' '.join(m.group(i) for i in (1, 2, 3))
-            postings.append(Posting('income:interest:ING.de',
+            postings.append(Posting(DEFAULT_ACCOUNTS['interest'],
                                     -parse_amount(m.group(4)),
                                     comment=description))
         return postings
@@ -234,6 +244,7 @@ class IngDePdfParser(OldPdfParser):
                                               for t in transactions) \
                == self.new_balance.balance
 
+
 class IngDeCsvParser(CleaningParser):
     bank_folder = 'ing.de'
     account = 'assets:bank:TODO:ING.de' # exact account is set in __init__
@@ -244,11 +255,11 @@ class IngDeCsvParser(CleaningParser):
         self.csv_file = csv_file
         self._parse_metadata()
         if self.metadata.account_type == 'Girokonto':
-            self.account = 'assets:bank:checking:ING.de'
+            self.account = DEFAULT_ACCOUNTS['girokonto']
         elif self.metadata.account_type == 'Extra-Konto':
-            self.account = 'assets:bank:saving:ING.de'
+            self.account = DEFAULT_ACCOUNTS['extrakonto']
         else:
-            RuntimeError(
+            raise RuntimeError(
                     f'Unknown account type: {self.metadata.account_type!r}.')
 
     def _parse_metadata(self) -> None:
@@ -318,6 +329,7 @@ class IngDeCsvParser(CleaningParser):
             transactions = list(reversed(transactions))
             return BankStatement(transactions)
 
+
 class IngCsvDialect(csv.Dialect):
     delimiter: str = ';'
     quoting = csv.QUOTE_NONE
@@ -330,6 +342,7 @@ def parse_date(d: str) -> date:
     month = int(d[3:5])
     year = int(d[6:])
     return date(year, month, day)
+
 
 def parse_amount(a: str) -> Decimal:
     """ parse a decimal amount like -1.200,00 """

@@ -17,6 +17,12 @@ from transaction import (BaseTransaction, Balance,
 from ..parser import Parser
 from ..pdf_parser import OldPdfParser, read_pdf_file
 
+
+DEFAULT_ACCOUNTS: dict[str, str] = {
+    'default account': 'assets:bank:saving:VTB Direktbank',
+}
+
+
 class VTBPdfParser(Parser):
     bank_folder = 'vtb'
     file_extension = '.pdf'
@@ -52,7 +58,7 @@ class VTB2019PdfParser(OldPdfParser):
     # Do not define bank_folder, so that it is not registered as a Parser by
     # the Parsers class. Instead it should only be used through the
     # VTBPdfParser class.
-    account = 'assets:bank:saving:VTB Direktbank'
+    account = DEFAULT_ACCOUNTS['default account']
     ParserError = VTB2019PdfParserError
 
     def __init__(self, pdf_pages: list[str]):
@@ -201,7 +207,7 @@ class VTB2014PdfParser(OldPdfParser):
     # Do not define bank_folder, so that it is not registered as a Parser by
     # the Parsers class. Instead it should only be used through the
     # VTBPdfParser class.
-    account = 'assets:bank:saving:VTB Direktbank'
+    account = DEFAULT_ACCOUNTS['default account']
     ParserError = VTB2014PdfParserError
 
     def __init__(self, pdf_pages: list[str]):
@@ -386,7 +392,7 @@ class VTB2012PdfParser(OldPdfParser):
     # Do not define bank_folder, so that it is not registered as a Parser by
     # the Parsers class. Instead it should only be used through the
     # VTBPdfParser class.
-    account = 'assets:bank:saving:VTB Direktbank'
+    account = DEFAULT_ACCOUNTS['default account']
     ParserError = VTB2012PdfParserError
 
     def __init__(self, pdf_pages: list[str]):

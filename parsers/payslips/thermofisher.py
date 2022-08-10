@@ -18,12 +18,35 @@ from transaction import MultiTransaction, Posting
 from utils import PeekableIterator
 
 
+DEFAULT_ACCOUNTS: dict[str, str] = {
+    'salary balancing account': 'assets:receivable:salary',
+    '1000': 'income:salary',
+    '3011': 'income:salary:holiday allowance',  # Vacantiegeld
+    '3019': 'income:salary:bonus',
+    '4461': 'expenses:taxes:retirement insurance',
+    '4466': 'expenses:taxes:social',  # WGA Aanvullend
+    '4467': 'expenses:taxes:social',  # WIA bodem
+    '5150': 'income:salary',          # Netto thuiswerkvergoeding
+    '5216': 'income:salary',          # Representatievergoeding
+    '7380': 'expenses:taxes:social',  # PAWW unemployment insurance
+    '7100': 'expenses:taxes:income',  # Loonheffing Tabel
+    '7101': 'expenses:taxes:income',  # Loonheffing BT
+}
+
+
 class ThermoFisherPdfParser(Parser):
     bank_folder = 'thermofisher'
     file_extension = '.pdf'
 
     def __init__(self, pdf_file: Path):
         super().__init__(pdf_file)
+        self.salary_balancing_account = \
+                DEFAULT_ACCOUNTS['salary balancing account']
+        self.accounts_mapping: dict[int, str] = {
+            int(key): account
+            for key, account in DEFAULT_ACCOUNTS.items()
+            if key.isnumeric()
+        }
         self._parse_file(pdf_file)
 
     def _parse_file(self, pdf_file: Path) -> None:
@@ -50,7 +73,7 @@ class ThermoFisherPdfParser(Parser):
             right_col.append(line[right_table_offset:])
         addresses = ['\n'.join(lines)
                      for empty, lines in groupby(address_col,
-                                                    key=lambda line: not line)
+                                                 key=lambda line: not line)
                      if not empty]
         employer_address = addresses[0]
         employee_address = '\n'.join(addresses[1:-1])
@@ -111,19 +134,7 @@ class ThermoFisherPdfParser(Parser):
         return BankStatement([transaction])
 
     def _parse_main_table(self, transaction: MultiTransaction) -> Decimal:
-        accounts = {
-                1000: 'income:salary',
-                3011: 'income:salary:holiday allowance',  # Vacantiegeld
-                3019: 'income:salary:bonus',
-                4461: 'expenses:taxes:retirement insurance',
-                4466: 'expenses:taxes:social',  # WGA Aanvullend
-                4467: 'expenses:taxes:social',  # WIA bodem
-                5150: 'income:salary',          # Netto thuiswerkvergoeding
-                5216: 'income:salary',          # Representatievergoeding
-                7380: 'expenses:taxes:social',  # PAWW unemployment insurance
-                7100: 'expenses:taxes:income',  # Loonheffing Tabel
-                7101: 'expenses:taxes:income',  # Loonheffing BT
-                }
+        accounts = self.accounts_mapping
         net_total: Optional[Decimal] = None
         for item in self.main_table:
             if item.is_total():
@@ -152,7 +163,8 @@ class ThermoFisherPdfParser(Parser):
         payment_total = Decimal('0.00')
         for item in self.payment_table:
             description = ' '.join(item.description.split())
-            p = Posting('assets:receivable:salary', item.amount,
+            p = Posting(self.salary_balancing_account,
+                        item.amount,
                         comment=description)
             transaction.add_posting(p)
             payment_total += item.amount
