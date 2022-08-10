@@ -64,7 +64,8 @@ class AbnAmroPdfParser(PdfParser):
         return meta
 
     def parse_raw(self) -> BankStatement:
-        transactions = list(reversed(list(self._iter_main_table())))
+        transactions = list(self._iter_main_table())
+        transactions.reverse()
         return BankStatement(self.account, transactions,
                              self.old_balance, self.new_balance)
 
@@ -455,7 +456,10 @@ class DescriptionParser:
                             amount: Decimal,
                             ) -> MultiTransaction:
         t = MultiTransaction(description=description[0] + ' | Banking fees',
-                             transaction_date=bookdate)
+                             transaction_date=bookdate,
+                             metadata={
+                                 'transaction_type': 'banking fees',
+                             })
         t.add_posting(Posting(account=self.account,
                               amount=amount,
                               currency=self.currency,
