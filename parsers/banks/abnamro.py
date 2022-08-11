@@ -3,13 +3,14 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 from __future__ import annotations
+from collections.abc import Iterator
 import csv
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
 from pathlib import Path
 import re
-from typing import Any, Iterator, Optional
+from typing import Any, Optional
 
 from .cleaning_rules import abnamro as cleaning_rules
 from bank_statement import BankStatement, BankStatementMetadata

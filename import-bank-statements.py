@@ -6,14 +6,14 @@
 
 import argparse
 from collections import defaultdict
-from collections.abc import Mapping
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import date, timedelta
 import io
 import os
 from pathlib import Path
 import sys
-from typing import Any, Callable, Optional
+from typing import Any, Optional
 
 from config import ImportConfig
 from git import BaseGit, FakeGit, Git, GitMergeConflictError

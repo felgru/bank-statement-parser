@@ -2,9 +2,10 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
+from collections.abc import Iterable, Iterator
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Iterable, Iterator, Optional, Protocol, TypeVar, Union
+from typing import Optional, Protocol, TypeVar, Union
 
 from git import BaseGit
 

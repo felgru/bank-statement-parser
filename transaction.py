@@ -4,11 +4,12 @@
 
 from __future__ import annotations
 from abc import ABCMeta, abstractmethod
+from collections.abc import Callable, Iterable
 from copy import copy
 from collections import defaultdict
 from datetime import date
 from decimal import Decimal
-from typing import Any, Callable, Iterable, NamedTuple, Optional, TypeVar, Union
+from typing import Any, NamedTuple, Optional, TypeVar, Union
 
 class BaseTransaction(metaclass=ABCMeta):
     description: str

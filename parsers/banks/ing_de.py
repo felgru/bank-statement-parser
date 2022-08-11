@@ -2,12 +2,13 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
+from collections.abc import Iterator
 import csv
 from datetime import date, timedelta
 from decimal import Decimal
 from pathlib import Path
 import re
-from typing import cast, Iterator, Optional
+from typing import cast, Optional
 
 from .cleaning_rules import ing_de as cleaning_rules
 from bank_statement import BankStatement, BankStatementMetadata

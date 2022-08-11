@@ -5,7 +5,7 @@
 from __future__ import annotations
 from abc import ABCMeta, abstractmethod
 from pathlib import Path
-from typing import Generic, Optional, Sequence, TypeVar
+from typing import Generic, Optional, TypeVar
 
 from account_mapping import AccountMapper
 from bank_statement import BankStatement, BankStatementMetadata

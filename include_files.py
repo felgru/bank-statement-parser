@@ -2,9 +2,10 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
+from collections.abc import Iterable
 import os
 from pathlib import Path
-from typing import Iterable, Protocol, Union
+from typing import Protocol, Union
 
 
 class AddFileTransaction(Protocol):

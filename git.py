@@ -4,12 +4,13 @@
 
 from __future__ import annotations
 from abc import ABCMeta, abstractmethod
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 import os
 from pathlib import Path
 import re
 import subprocess
-from typing import Iterable, Optional, Sequence, Union
+from typing import Optional, Union
 
 
 class BaseGit(metaclass=ABCMeta):

@@ -3,12 +3,13 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 from abc import ABCMeta, abstractmethod
+from collections.abc import Iterable
 from datetime import date
 from decimal import Decimal
 import os
 from pathlib import Path
 import subprocess
-from typing import Iterable, Optional, Union
+from typing import Optional, Union
 
 from bank_statement import BankStatement, BankStatementMetadata
 from .parser import CleaningParser

@@ -2,8 +2,9 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
+from collections.abc import Callable, Iterator
 from pathlib import Path
-from typing import Any, Callable, Iterator, Optional
+from typing import Any, Optional
 
 from transaction import BaseTransaction, MultiTransaction, Transaction
 
