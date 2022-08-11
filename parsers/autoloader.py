@@ -4,11 +4,11 @@
 """Automatic loading of parsers."""
 
 from pathlib import Path
-from typing import Type, Union
+from typing import Union
 
 from .parser import Parser
 
-class Parsers(dict[str, dict[str, Type[Parser]]]):
+class Parsers(dict[str, dict[str, type[Parser]]]):
     def __init__(self, category: str, module_path: Union[str, Path]) -> None:
         from importlib import import_module
         import inspect
@@ -33,7 +33,7 @@ class Parsers(dict[str, dict[str, Type[Parser]]]):
                     and getattr(elem, 'file_extension', None) is not None):
                         self.add_format(elem)
 
-    def add_format(self, format_class: Type[Parser]) -> None:
+    def add_format(self, format_class: type[Parser]) -> None:
         bank = format_class.bank_folder
         if bank not in self:
             self[bank] = {}

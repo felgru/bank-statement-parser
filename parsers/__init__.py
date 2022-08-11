@@ -3,14 +3,13 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 from collections import ChainMap
-from typing import Type
 
 from . import banks
 from . import payslips
 from .autoloader import Parsers
 from .parser import Parser
 
-class AllParsers(ChainMap[str, dict[str, Type[Parser]]]):
+class AllParsers(ChainMap[str, dict[str, type[Parser]]]):
     def __init__(self, *maps: Parsers):
         super().__init__(*maps)
 

@@ -90,7 +90,7 @@ class AbnAmroPdfParser(PdfParser):
                             if p.account == self.account),
                            start=Decimal(0))
             else:
-                raise RuntimeError(f'Unknown transaction Type {type(t)}.')
+                raise RuntimeError(f'Unknown transaction type {type(t)}.')
 
         calculated_credit = sum(a for a in map(amount, transactions) if a > 0)
         calculated_debit = -sum(a for a in map(amount, transactions) if a < 0)
