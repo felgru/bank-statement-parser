@@ -126,7 +126,7 @@ class PayfitPdfParser(Parser):
         transaction.add_posting(meal_vouchers)
         for p in transportation_postings:
             transaction.add_posting(p)
-        return BankStatement(None, [transaction])
+        return BankStatement([transaction])
 
     def _parse_salary(self) -> tuple[list[Posting], Decimal]:
         m = re.search(r'Rémunération brute \(1\) *(\d[ \d]*,\d\d)',

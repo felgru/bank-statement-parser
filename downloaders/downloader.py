@@ -8,9 +8,8 @@ from pathlib import Path
 from typing import Generic, Optional, TypeVar
 
 from account_mapping import AccountMapper
-from bank_statement import BankStatement, BankStatementMetadata
-from transaction import BaseTransaction, Transaction, MultiTransaction
-from transaction_sanitation import TransactionCleaner, TransactionCleanerRule
+from bank_statement import BankStatement
+
 
 class Downloader(metaclass=ABCMeta):
     name: str

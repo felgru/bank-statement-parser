@@ -316,7 +316,7 @@ class IngDeCsvParser(CleaningParser):
                         )
                 transactions.append(transaction)
             transactions = list(reversed(transactions))
-            return BankStatement(self.account, transactions)
+            return BankStatement(transactions)
 
 class IngCsvDialect(csv.Dialect):
     delimiter: str = ';'

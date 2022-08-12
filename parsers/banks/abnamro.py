@@ -67,8 +67,7 @@ class AbnAmroPdfParser(PdfParser):
     def parse_raw(self) -> BankStatement:
         transactions = list(self._iter_main_table())
         transactions.reverse()
-        return BankStatement(self.account, transactions,
-                             self.old_balance, self.new_balance)
+        return BankStatement(transactions, self.old_balance, self.new_balance)
 
     def _iter_main_table(self) -> MainTableIterator:
         meta = self.first_page_metadata
@@ -678,7 +677,7 @@ class AbnAmroTsvParser(CleaningParser):
 
     def parse_raw(self) -> BankStatement:
         #self.check_transactions_consistency(self.transactions)
-        return BankStatement(self.account, self.transactions)
+        return BankStatement(self.transactions)
 
 
 def parse_compact_date(d: str) -> date:

@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2019–2021 Felix Gruber <felgru@posteo.net>
+# SPDX-FileCopyrightText: 2019–2022 Felix Gruber <felgru@posteo.net>
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
@@ -10,11 +10,10 @@ from typing import Any, Optional, TextIO
 from transaction import BaseTransaction, Balance
 
 class BankStatement:
-    def __init__(self, account: Optional[str],
+    def __init__(self,
                  transactions: Sequence[BaseTransaction],
                  old_balance: Optional[Balance] = None,
                  new_balance: Optional[Balance] = None):
-        self.account = account
         self.transactions = list(transactions)
         self.old_balance = old_balance
         self.new_balance = new_balance

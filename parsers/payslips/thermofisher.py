@@ -108,7 +108,7 @@ class ThermoFisherPdfParser(Parser):
         payment_total = self._parse_payment_table(transaction)
         assert net_total == payment_total
         assert transaction.is_balanced()
-        return BankStatement(None, [transaction])
+        return BankStatement([transaction])
 
     def _parse_main_table(self, transaction: MultiTransaction) -> Decimal:
         accounts = {

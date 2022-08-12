@@ -97,7 +97,7 @@ class BouyguesPdfParser(Parser):
         for p in misc_postings:
             transaction.add_posting(p)
         assert transaction.is_balanced()
-        return BankStatement(None, [transaction])
+        return BankStatement([transaction])
 
     def _parse_gross_income(self,
                             lines: MainTableIterator,

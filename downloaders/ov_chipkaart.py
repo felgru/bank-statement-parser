@@ -469,7 +469,6 @@ def travel_history_to_bank_statement(
                 )
 
     return BankStatement(
-            account='assets:OV-Chipkaart',
             transactions=[convert_transaction(t) for t in transactions],
             )
 

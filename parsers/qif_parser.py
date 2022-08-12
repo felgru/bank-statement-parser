@@ -35,8 +35,7 @@ class QifParser(CleaningParser, metaclass=ABCMeta):
             if not header == '!Type:Bank\n':
                 raise RuntimeError(f'Unknown QIF account type: {header}')
             transactions = self._parse_transactions(f)
-        return BankStatement(account=self.account,
-                      transactions=transactions)
+        return BankStatement(transactions=transactions)
 
     def _parse_transactions(self, file_: TextIO) -> list[Transaction]:
         transactions = []

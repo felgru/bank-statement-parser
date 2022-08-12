@@ -82,8 +82,7 @@ class OldPdfParser(PdfParser):
         transactions = [t for t in self.generate_transactions(
                                             self.transactions_start,
                                             self.transactions_end)]
-        return BankStatement(self.account, transactions,
-                             self.old_balance, self.new_balance)
+        return BankStatement(transactions, self.old_balance, self.new_balance)
 
     @abstractmethod
     def parse_balances(self) -> None:
