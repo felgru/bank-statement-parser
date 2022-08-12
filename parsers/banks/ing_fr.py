@@ -190,7 +190,7 @@ class IngFrPdfParser(OldPdfParser):
                 r'^ {30} *(\S.+)\n',
                 flags=re.MULTILINE)
         transaction_block_end_pattern = re.compile(
-                '^ *Sous total (.+?)\s+(\d[ \d]*,\d\d)\s*(\d[ \d]*,\d\d)\n',
+                r'^ *Sous total (.+?)\s+(\d[ \d]*,\d\d)\s*(\d[ \d]*,\d\d)\n',
                 flags=re.MULTILINE)
         accumulated_sub_totals = [Decimal('0.00'), Decimal('0.00')]
         while True:

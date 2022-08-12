@@ -26,7 +26,7 @@ class MercedesBenzPdfParser(OldPdfParser):
         self._parse_metadata()
         self._parse_description_start()
         self.transaction_description_pattern = re.compile(
-                '^' + ' ' * self.description_start + ' *(\S.*)\n*',
+                '^' + ' ' * self.description_start + r' *(\S.*)\n*',
                 flags=re.MULTILINE)
         if self.is_old_format:
             self.cleaning_rules = cleaning_rules.old_rules
@@ -82,7 +82,7 @@ class MercedesBenzPdfParser(OldPdfParser):
 
     def extract_transactions_table(self) -> str:
         self.footer_start_pattern = re.compile(
-                '\n*^( {{1,{}}})[^ \d]'.format(self.description_start - 1),
+                r'\n*^( {{1,{}}})[^ \d]'.format(self.description_start - 1),
                 flags=re.MULTILINE)
         return ''.join(self.extract_table_from_page(p) for p in self.pdf_pages)
 

@@ -28,7 +28,7 @@ class IngDePdfParser(OldPdfParser):
         self._parse_metadata()
         self._parse_description_start()
         self.transaction_description_pattern = re.compile(
-                '^' + ' ' * self.description_start + ' *(\S.*)\n',
+                '^' + ' ' * self.description_start + r' *(\S.*)\n',
                 flags=re.MULTILINE)
         if self.metadata.account_type == 'Girokonto':
             self.account = 'assets:bank:checking:ING.de'
@@ -117,7 +117,7 @@ class IngDePdfParser(OldPdfParser):
 
     def extract_transactions_table(self) -> str:
         self.footer_start_pattern = re.compile(
-                '\n*^ {{0,{}}}[^ \d]'.format(self.description_start - 1),
+                r'\n*^ {{0,{}}}[^ \d]'.format(self.description_start - 1),
                 flags=re.MULTILINE)
         return ''.join(self.extract_table_from_page(p) for p in self.pdf_pages)
 
@@ -154,7 +154,7 @@ class IngDePdfParser(OldPdfParser):
                 r'^ *Zeitraum *Zins p\.a\. *Ertrag',
                 flags=re.MULTILINE)
         self.footer_start_pattern = re.compile(
-                '\n*^ {{0,{}}}[^ \d]'.format(self.description_start - 1),
+                r'\n*^ {{0,{}}}[^ \d]'.format(self.description_start - 1),
                 flags=re.MULTILINE)
         return ''.join(self.extract_interest_table_from_page(p)
                        for p in self.pdf_pages)
@@ -177,13 +177,13 @@ class IngDePdfParser(OldPdfParser):
         return page
 
     def _parse_balances(self) -> None:
-        m = re.search('Datum +(\d{2}.\d{2}.\d{4})', self.pdf_pages[0])
+        m = re.search(r'Datum +(\d{2}.\d{2}.\d{4})', self.pdf_pages[0])
         assert m is not None, 'Date of new balance not found.'
         new_date = parse_date(m.group(1))
-        m = re.search('Alter Saldo +(-?\d[.\d]*,\d\d)', self.pdf_pages[0])
+        m = re.search(r'Alter Saldo +(-?\d[.\d]*,\d\d)', self.pdf_pages[0])
         assert m is not None, 'Old balance not found.'
         old = parse_amount(m.group(1))
-        m = re.search('Neuer Saldo +(-?\d[.\d]*,\d\d)', self.pdf_pages[0])
+        m = re.search(r'Neuer Saldo +(-?\d[.\d]*,\d\d)', self.pdf_pages[0])
         assert m is not None, 'New balance not found.'
         new = parse_amount(m.group(1))
         self.old_balance = Balance(old, cast(date, None))
@@ -191,7 +191,7 @@ class IngDePdfParser(OldPdfParser):
 
     def parse_balances(self) -> None:
         self.transactions_start = 0
-        m = re.search('\S*Neuer Saldo *(-?\d[.\d]*,\d\d)',
+        m = re.search(r'\S*Neuer Saldo *(-?\d[.\d]*,\d\d)',
                       self.transactions_text)
         assert m is not None, 'Could not find new balance.'
         assert parse_amount(m.group(1)) == self.new_balance.balance

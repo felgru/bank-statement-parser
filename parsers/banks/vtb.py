@@ -61,7 +61,7 @@ class VTB2019PdfParser(OldPdfParser):
         self._parse_metadata()
         self._parse_description_start()
         self.transaction_description_pattern = re.compile(
-                '^' + ' ' * self.description_start + ' *(\S.*)\n*',
+                '^' + ' ' * self.description_start + r' *(\S.*)\n*',
                 flags=re.MULTILINE)
 
     table_heading = re.compile(r'^ *Bu-Tag *Wert *(Vorgang)\n*',
@@ -109,7 +109,7 @@ class VTB2019PdfParser(OldPdfParser):
 
     def extract_transactions_table(self) -> str:
         self.footer_start_pattern = re.compile(
-                '\n*^( {{1,{}}})[^ \d]'.format(self.description_start - 1),
+                r'\n*^( {{1,{}}})[^ \d]'.format(self.description_start - 1),
                 flags=re.MULTILINE)
         return ''.join(self.extract_table_from_page(p) for p in self.pdf_pages)
 
@@ -210,7 +210,7 @@ class VTB2014PdfParser(OldPdfParser):
         self._parse_metadata()
         self._parse_description_start()
         self.transaction_description_pattern = re.compile(
-                '^' + ' ' * self.description_start + ' *(\S.*)\n*',
+                '^' + ' ' * self.description_start + r' *(\S.*)\n*',
                 flags=re.MULTILINE)
 
     table_heading = re.compile(r'^( *_+\n) *DATUM *(BUCHUNGSVORGANG) *(SOLL) *(HABEN)\n*',
@@ -335,21 +335,21 @@ class VTB2014PdfParser(OldPdfParser):
                              metadata={'type': 'Zinsen/Kontoführung'})
         t.add_posting(Posting(self.account, amount,
                               posting_date=value_date))
-        m = re.search('R E C H N U N G S A B S C H L U S S\n'
-                      ' *\(siehe Rückseite\)\n', self.pdf_pages[1])
+        m = re.search(r'R E C H N U N G S A B S C H L U S S\n'
+                      r' *\(siehe Rückseite\)\n', self.pdf_pages[1])
         assert m is not None, 'Start of interests and fees not found.'
         start = m.end()
-        m = re.search('Summe Zinsen/Kontoführung +EUR +(\d[.\d]*,\d\d[+-])',
+        m = re.search(r'Summe Zinsen/Kontoführung +EUR +(\d[.\d]*,\d\d[+-])',
                       self.pdf_pages[1][start:])
         assert m is not None, 'Sum of interests and fees not found.'
         assert(self.parse_amount(m.group(1)) == amount)
         end = start + m.start()
-        for m in re.finditer(' *(.* Habenzinsen) +(\d[.\d]*,\d\d[+-])\n',
+        for m in re.finditer(r' *(.* Habenzinsen) +(\d[.\d]*,\d\d[+-])\n',
                              self.pdf_pages[1][start:end]):
             t.add_posting(Posting(None, -self.parse_amount(m.group(2)),
                                   comment=m.group(1)))
         start = start + m.end()
-        for m in re.finditer(' *(.+?) +EUR +(\d[.\d]*,\d\d[+-])\n',
+        for m in re.finditer(r' *(.+?) +EUR +(\d[.\d]*,\d\d[+-])\n',
                              self.pdf_pages[1][start:end]):
             t.add_posting(Posting(None, -self.parse_amount(m.group(2)),
                                   comment=m.group(1)))
@@ -395,7 +395,7 @@ class VTB2012PdfParser(OldPdfParser):
         self._parse_description_start()
         self._parse_metadata()
         self.transaction_description_pattern = re.compile(
-                '^' + ' ' * self.description_start + ' *(\S.*)\n*',
+                '^' + ' ' * self.description_start + r' *(\S.*)\n*',
                 flags=re.MULTILINE)
 
     def _parse_description_start(self) -> None:
@@ -528,11 +528,11 @@ class VTB2012PdfParser(OldPdfParser):
                              metadata={'type': 'Zinsen/Kontoführung'})
         t.add_posting(Posting(self.account, amount,
                               posting_date=value_date))
-        m = re.search('R E C H N U N G S A B S C H L U S S'
-                      ' *\(siehe Rückseite\)\n', self.pdf_pages[1])
+        m = re.search(r'R E C H N U N G S A B S C H L U S S'
+                      r' *\(siehe Rückseite\)\n', self.pdf_pages[1])
         assert m is not None, 'Start of interests and fees not found.'
         start = m.end()
-        m = re.search('Summe Zinsen/Kontoführung +EUR +(\d[.\d]*,\d\d[+-])',
+        m = re.search(r'Summe Zinsen/Kontoführung +EUR +(\d[.\d]*,\d\d[+-])',
                       self.pdf_pages[1][start:])
         assert m is not None, 'Sum of interests and fees not found.'
         assert(self.parse_amount(m.group(1)) == amount)
@@ -543,7 +543,7 @@ class VTB2012PdfParser(OldPdfParser):
             t.add_posting(Posting(None, -self.parse_amount(m.group(3)),
                                   comment=m.group(1)))
         start = start + m.end()
-        for m in re.finditer(' *(.+?) +EUR +(\d[.\d]*,\d\d[+-])\n',
+        for m in re.finditer(r' *(.+?) +EUR +(\d[.\d]*,\d\d[+-])\n',
                              self.pdf_pages[1][start:end]):
             t.add_posting(Posting(None, -self.parse_amount(m.group(2)),
                                   comment=m.group(1)))
