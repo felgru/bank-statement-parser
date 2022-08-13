@@ -65,7 +65,6 @@ class ThermoFisherConfig(BaseParserConfig):
 
 
 class ThermoFisherPdfParser(Parser[ThermoFisherConfig]):
-    bank_folder = 'thermofisher'
     file_extension = '.pdf'
     config_type = ThermoFisherConfig
 

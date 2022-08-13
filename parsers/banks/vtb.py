@@ -27,7 +27,6 @@ class VTBConfig(BaseCleaningParserConfig):
 
 
 class VTBPdfParser(Parser[VTBConfig]):
-    bank_folder = 'vtb'
     file_extension = '.pdf'
     config_type = VTBConfig
 
@@ -61,7 +60,6 @@ class VTB2019PdfParserError(RuntimeError): pass
 
 
 class VTB2019PdfParser(OldPdfParser[VTBConfig]):
-    bank_folder = VTBPdfParser.bank_folder
     # Do not register as a Parser in the Parsers class.
     # Instead it should only be used through the VTBPdfParser class.
     autoload = False
@@ -215,7 +213,6 @@ class VTB2014PdfParserError(RuntimeError): pass
 
 
 class VTB2014PdfParser(OldPdfParser[VTBConfig]):
-    bank_folder = VTBPdfParser.bank_folder
     # Do not register as a Parser in the Parsers class.
     # Instead it should only be used through the VTBPdfParser class.
     autoload = False
@@ -404,7 +401,6 @@ class VTB2012PdfParserError(RuntimeError): pass
 
 
 class VTB2012PdfParser(OldPdfParser[VTBConfig]):
-    bank_folder = VTBPdfParser.bank_folder
     # Do not register as a Parser in the Parsers class.
     # Instead it should only be used through the VTBPdfParser class.
     autoload = False

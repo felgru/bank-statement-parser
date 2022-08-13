@@ -26,7 +26,6 @@ class BnpParibasConfig(BaseCleaningParserConfig):
 
 
 class BnpParibasPdfParser(OldPdfParser[BnpParibasConfig]):
-    bank_folder = 'bnp'
     config_type = BnpParibasConfig
     num_cols = 5
 

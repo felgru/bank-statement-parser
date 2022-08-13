@@ -40,7 +40,6 @@ class BouyguesConfig(GenericParserConfig):
 
 
 class BouyguesPdfParser(Parser[BouyguesConfig]):
-    bank_folder = 'bouygues'
     file_extension = '.pdf'
     config_type = BouyguesConfig
     num_cols = None

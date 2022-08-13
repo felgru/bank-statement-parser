@@ -76,7 +76,6 @@ CT = TypeVar('CT', bound=BaseParserConfig)
 
 
 class Parser(Generic[CT], metaclass=ABCMeta):
-    bank_folder: ClassVar[str]
     file_extension: ClassVar[str]
     config_type: ClassVar[type[CT]]
     autoload: ClassVar[bool] = True

@@ -30,7 +30,6 @@ class IngDeConfig(BaseCleaningParserConfig):
 
 
 class IngDePdfParser(OldPdfParser[IngDeConfig]):
-    bank_folder = 'ing.de'
     config_type = IngDeConfig
     num_cols = 5
 
@@ -255,7 +254,6 @@ class IngDePdfParser(OldPdfParser[IngDeConfig]):
 
 
 class IngDeCsvParser(CleaningParser[IngDeConfig]):
-    bank_folder = 'ing.de'
     file_extension = '.csv'
     config_type = IngDeConfig
 

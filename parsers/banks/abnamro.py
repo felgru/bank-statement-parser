@@ -37,7 +37,6 @@ class AbnAmroConfig(BaseCleaningParserConfig):
 
 
 class AbnAmroPdfParser(PdfParser[AbnAmroConfig]):
-    bank_folder = 'abnamro'
     config_type = AbnAmroConfig
     num_cols = None
     cleaning_rules = cleaning_rules.rules
@@ -619,7 +618,6 @@ class AbnAmroPdfParserError(RuntimeError):
 
 
 class AbnAmroTsvParser(CleaningParser[AbnAmroConfig]):
-    bank_folder = 'abnamro'
     file_extension = '.tab'
     config_type = AbnAmroConfig
     num_cols = None

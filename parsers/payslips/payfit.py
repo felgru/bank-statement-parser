@@ -36,7 +36,6 @@ class PayfitConfig(GenericParserConfig):
 
 
 class PayfitPdfParser(Parser[PayfitConfig]):
-    bank_folder = 'payfit'
     config_type = PayfitConfig
     file_extension = '.pdf'
 

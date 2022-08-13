@@ -26,7 +26,6 @@ class MercedesBenzConfig(BaseCleaningParserConfig):
     }
 
 class MercedesBenzPdfParser(OldPdfParser[MercedesBenzConfig]):
-    bank_folder = 'mercedes-benz'
     config_type = MercedesBenzConfig
     num_cols = 4
 

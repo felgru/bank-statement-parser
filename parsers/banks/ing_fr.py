@@ -29,7 +29,6 @@ class IngFrConfig(BaseCleaningParserConfig):
 
 
 class IngFrPdfParser(OldPdfParser[IngFrConfig]):
-    bank_folder = 'ing.fr'
     account_type: str
     config_type = IngFrConfig
     num_cols = 5
@@ -296,7 +295,6 @@ class IngFrPdfParser(OldPdfParser[IngFrConfig]):
 
 
 class IngFrQifParser(QifParser):
-    bank_folder = 'ing.fr'
     config_type = IngFrConfig
     account_type: str
     currency = '€'

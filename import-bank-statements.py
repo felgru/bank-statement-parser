@@ -89,7 +89,7 @@ def import_incoming_statements(incoming_statements: list[IncomingStatement],
         import_summary = dict()
         by_bank: dict[str, list[IncomingStatement]] = defaultdict(list)
         for incoming in incoming_statements:
-            by_bank[incoming.parser.bank_folder].append(incoming)
+            by_bank[incoming.parser.config_type.bank_folder].append(incoming)
         for bank, incoming_statements in by_bank.items():
             dateranges = []
             imported_files = []
