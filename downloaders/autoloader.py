@@ -76,7 +76,7 @@ class Downloaders(dict[str, Website]):
     def add_downloader(self,
                        downloader: type[Downloader],
                        authenticators: list[type[Authenticator]]) -> None:
-        self[downloader.name] = Website(downloader, authenticators)
+        self[downloader.config_type.name] = Website(downloader, authenticators)
 
     def __str__(self) -> str:
         return 'Downloaders:\n' \

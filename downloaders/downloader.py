@@ -5,19 +5,59 @@
 from __future__ import annotations
 from abc import ABCMeta, abstractmethod
 from pathlib import Path
-from typing import Generic, Optional, TypeVar
+from typing import ClassVar, Generic, Optional, TypeVar
 
 from account_mapping import AccountMapper
 from bank_statement import BankStatement
+from parsers.parser import load_accounts
 
 
-class Downloader(metaclass=ABCMeta):
-    name: str
-    account: str
+ConfigSelf = TypeVar('ConfigSelf', bound='BaseDownloaderConfig')
+
+
+class BaseDownloaderConfig(metaclass=ABCMeta):
+    name: ClassVar[str]
+
+    @classmethod
+    @abstractmethod
+    def load(cls: type[ConfigSelf], config_dir: Optional[Path]) -> ConfigSelf:
+        """Load Downloader configuration from given directory.
+
+        If `config_dir` is `None`, return the default configuration.
+        """
+        pass
+
+
+GenericConfigSelf = TypeVar('GenericConfigSelf', bound='GenericDownloaderConfig')
+
+
+class GenericDownloaderConfig(BaseDownloaderConfig):
+    display_name: ClassVar[str]
+    DEFAULT_ACCOUNTS: ClassVar[dict[str, str]]
+
+    def __init__(self, accounts: dict[str, str]):
+        self.accounts = accounts
+
+    @classmethod
+    def load(cls: type[GenericConfigSelf],
+             config_dir: Optional[Path]) -> GenericConfigSelf:
+        config_file = config_dir / cls.name / 'accounts.cfg' \
+                      if config_dir is not None else None
+        accounts = load_accounts(config_file,
+                                 cls.DEFAULT_ACCOUNTS,
+                                 cls.display_name)
+        return cls(accounts)
+
+
+CT = TypeVar('CT', bound=BaseDownloaderConfig)
+
+
+class Downloader(Generic[CT], metaclass=ABCMeta):
+    config_type: ClassVar[type[CT]]
 
     @abstractmethod
     def download(self,
-                 rules_dir: Optional[Path],
+                 config: CT,
                  **kwargs) -> BankStatement:
         pass
 
