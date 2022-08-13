@@ -4,6 +4,7 @@
 
 from abc import ABCMeta, abstractmethod
 from collections.abc import Sequence
+import configparser
 from pathlib import Path
 from typing import ClassVar, Generic, Optional, TypeVar
 
@@ -38,8 +39,18 @@ class BaseParserConfig(metaclass=ABCMeta):
 def load_accounts(config_file: Optional[Path],
                   default_accounts: dict[str, str],
                   name: str) -> dict[str, str]:
-    # TODO: load accounts from config_file
-    accounts: dict[str, str] = {}
+    if config_file is None or not config_file.exists():
+        accounts: dict[str, str] = {}
+    else:
+        config = configparser.ConfigParser()
+        # Don't convert keys to lower case.
+        config.optionxform = lambda option: option  # type: ignore
+        config.read(config_file)
+        try:
+            accounts_section = config['accounts']
+        except KeyError:
+            raise ParserConfigError(f'{config_file} has no [accounts] section.')
+        accounts = dict(**accounts_section)
     unknown_accounts = set(accounts.keys()).difference(default_accounts.keys())
     if unknown_accounts:
         raise ParserConfigError(
@@ -106,7 +117,6 @@ class BaseCleaningParserConfig(BaseParserConfig):
                  accounts: dict[str, str]):
         self.cleaner = cleaner
         self.mapper = mapper
-        # TODO: Merge accounts with default accounts here instead of in load.
         self.accounts = accounts
 
     @classmethod

@@ -40,7 +40,6 @@ class ThermoFisherConfig(BaseParserConfig):
 
     def __init__(self, salary_balancing_account: str,
                  accounts: dict[int, str]):
-        # TODO: Merge default accounts here.
         self.salary_balancing_account = salary_balancing_account
         self.accounts = accounts
 
