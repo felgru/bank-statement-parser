@@ -5,7 +5,9 @@
 from datetime import date
 from decimal import Decimal
 
-from .abnamro import DescriptionParser
+from .abnamro import AbnAmroConfig, DescriptionParser
+
+DEFAULT_ACCOUNTS = AbnAmroConfig.DEFAULT_ACCOUNTS
 
 
 def test_parsing_sepa_overboeking() -> None:
@@ -20,7 +22,7 @@ def test_parsing_sepa_overboeking() -> None:
                    "of line"]
 
     parser = DescriptionParser(currency='EUR',
-                               account='assets:bank:checking:ABN AMRO')
+                               accounts=DEFAULT_ACCOUNTS)
     transaction = parser.parse(
             description=description,
             bookdate=date(2022, 1, 1),
@@ -45,7 +47,7 @@ def test_sepa_overboeking_omschrijving_falls_back_to_kenmerk() -> None:
                    "Kenmerk: test"]
 
     parser = DescriptionParser(currency='EUR',
-                               account='assets:bank:checking:ABN AMRO')
+                               accounts=DEFAULT_ACCOUNTS)
     transaction = parser.parse(
             description=description,
             bookdate=date(2022, 1, 1),
@@ -71,7 +73,7 @@ def test_parsing_sepa_overboeking_without_omschrijving_or_kenmerk() -> None:
                    ]
 
     parser = DescriptionParser(currency='EUR',
-                               account='assets:bank:checking:ABN AMRO')
+                               accounts=DEFAULT_ACCOUNTS)
     transaction = parser.parse(
             description=description,
             bookdate=date(2022, 1, 1),
@@ -93,7 +95,7 @@ def test_parsing_old_bea_transaction() -> None:
                    "LOCATION"]
 
     parser = DescriptionParser(currency='EUR',
-                               account='assets:bank:checking:ABN AMRO')
+                               accounts=DEFAULT_ACCOUNTS)
     transaction = parser.parse(
             description=description,
             bookdate=date(2022, 1, 1),
@@ -118,7 +120,7 @@ def test_parsing_bea_transaction() -> None:
                    "LOCATION"]
 
     parser = DescriptionParser(currency='EUR',
-                               account='assets:bank:checking:ABN AMRO')
+                               accounts=DEFAULT_ACCOUNTS)
     transaction = parser.parse(
             description=description,
             bookdate=date(2022, 1, 1),
@@ -146,7 +148,7 @@ def test_parsing_bea_transaction_with_currency_exchange() -> None:
                    "KOSTEN •0,15 ACHTERAF BEREKEND"]
 
     parser = DescriptionParser(currency='EUR',
-                               account='assets:bank:checking:ABN AMRO')
+                               accounts=DEFAULT_ACCOUNTS)
     transaction = parser.parse(
             description=description,
             bookdate=date(2022, 1, 1),
@@ -176,7 +178,7 @@ def test_parsing_gea_transaction() -> None:
                    "NR:123456   01.01.22/12.23"]
 
     parser = DescriptionParser(currency='EUR',
-                               account='assets:bank:checking:ABN AMRO')
+                               accounts=DEFAULT_ACCOUNTS)
     transaction = parser.parse(
             description=description,
             bookdate=date(2022, 1, 1),
@@ -201,7 +203,7 @@ def test_parsing_gea_with_location() -> None:
                    "BERLIN,Land: DE"]
 
     parser = DescriptionParser(currency='EUR',
-                               account='assets:bank:checking:ABN AMRO')
+                               accounts=DEFAULT_ACCOUNTS)
     transaction = parser.parse(
             description=description,
             bookdate=date(2022, 1, 1),
@@ -231,7 +233,7 @@ def test_parsing_interest() -> None:
                    ]
 
     parser = DescriptionParser(currency='EUR',
-                               account='assets:bank:checking:ABN AMRO')
+                               accounts=DEFAULT_ACCOUNTS)
     transaction = parser.parse(
             description=description,
             bookdate=date(2022, 6, 30),

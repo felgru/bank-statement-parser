@@ -12,18 +12,22 @@ from typing import Optional
 from bank_statement import BankStatementMetadata
 from transaction import Balance, Transaction
 
+from ..parser import BaseCleaningParserConfig
 from ..pdf_parser import OldPdfParser
 
 
-DEFAULT_ACCOUNTS: dict[str, str] = {
-    'Compte Cheques': 'assets:bank:checking:BNP',
-    'Livret A': 'assets:bank:saving:BNP:Livret A',
-}
-
-
-class BnpParibasPdfParser(OldPdfParser):
+class BnpParibasConfig(BaseCleaningParserConfig):
+    bank_name = 'BNP Paribas'
     bank_folder = 'bnp'
-    account = 'assets:bank:TODO:BNP' # exact account is set in __init__
+    DEFAULT_ACCOUNTS = {
+        'Compte Cheques': 'assets:bank:checking:BNP',
+        'Livret A': 'assets:bank:saving:BNP:Livret A',
+    }
+
+
+class BnpParibasPdfParser(OldPdfParser[BnpParibasConfig]):
+    bank_folder = 'bnp'
+    config_type = BnpParibasConfig
     num_cols = 5
 
     def __init__(self, pdf_file: Path):
@@ -45,7 +49,6 @@ class BnpParibasPdfParser(OldPdfParser):
         else:
             raise RuntimeError(
                     f'unknown BNP Paribas account type: {self.account_type}')
-        self.account = DEFAULT_ACCOUNTS[self.account_type]
         self.debit_start, self.credit_start = self.parse_column_starts()
 
     def parse_column_starts(self) -> tuple[int, int]:
@@ -142,8 +145,10 @@ class BnpParibasPdfParser(OldPdfParser):
                                      r'(\d[ \d]*,\d\d)$',
                                      re.MULTILINE)
 
-    def generate_transactions(self, start: int, end: int) \
-                                                -> Iterator[Transaction]:
+    def generate_transactions(self, start: int, end: int,
+                              accounts: dict[str, str],
+                              ) -> Iterator[Transaction]:
+        account = accounts[self.account_type]
         m = self.transaction_pattern.search(self.transactions_text, start, end)
         while m is not None:
             transaction_date = self.parse_short_date(m.group(1))
@@ -160,7 +165,7 @@ class BnpParibasPdfParser(OldPdfParser):
                     for l in self.transactions_text[start:transaction_end]
                                                               .split('\n'))
             description = ' '.join(l for l in description_lines if l)
-            yield Transaction(self.account, description, transaction_date,
+            yield Transaction(account, description, transaction_date,
                               value_date, amount)
 
     def parse_short_date(self, d_str: str) -> date:

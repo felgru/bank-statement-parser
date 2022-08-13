@@ -29,8 +29,9 @@ class Parsers(dict[str, dict[str, type[Parser]]]):
             for elem_name in dir(mod):
                 elem = getattr(mod, elem_name)
                 if (inspect.isclass(elem)
-                    and getattr(elem, 'bank_folder', None) is not None
-                    and getattr(elem, 'file_extension', None) is not None):
+                    and issubclass(elem, Parser)
+                    and not inspect.isabstract(elem)
+                    and elem.autoload):
                         self.add_format(elem)
 
     def add_format(self, format_class: type[Parser]) -> None:

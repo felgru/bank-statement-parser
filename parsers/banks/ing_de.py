@@ -15,19 +15,23 @@ from bank_statement import BankStatement, BankStatementMetadata
 from transaction import (BaseTransaction, Balance, MultiTransaction,
                          Posting, Transaction)
 
-from ..parser import CleaningParser
+from ..parser import BaseCleaningParserConfig, CleaningParser
 from ..pdf_parser import OldPdfParser
 
 
-DEFAULT_ACCOUNTS: dict[str, str] = {
-    'girokonto': 'assets:bank:checking:ING.de',
-    'extrakonto': 'assets:bank:saving:ING.de',
-    'interest': 'income:interest:ING.de',
-}
-
-class IngDePdfParser(OldPdfParser):
+class IngDeConfig(BaseCleaningParserConfig):
+    bank_name = 'ING.de'
     bank_folder = 'ing.de'
-    account = 'assets:bank:TODO:ING.de' # exact account is set in __init__
+    DEFAULT_ACCOUNTS = {
+        'Girokonto': 'assets:bank:checking:ING.de',
+        'Extra-Konto': 'assets:bank:saving:ING.de',
+        'interest': 'income:interest:ING.de',
+    }
+
+
+class IngDePdfParser(OldPdfParser[IngDeConfig]):
+    bank_folder = 'ing.de'
+    config_type = IngDeConfig
     num_cols = 5
 
     def __init__(self, pdf_file: Path):
@@ -38,10 +42,8 @@ class IngDePdfParser(OldPdfParser):
                 '^' + ' ' * self.description_start + r' *(\S.*)\n',
                 flags=re.MULTILINE)
         if self.metadata.account_type == 'Girokonto':
-            self.account = DEFAULT_ACCOUNTS['girokonto']
             self.cleaning_rules = cleaning_rules.rules
         elif self.metadata.account_type == 'Extra-Konto':
-            self.account = DEFAULT_ACCOUNTS['extrakonto']
             self.cleaning_rules = cleaning_rules.extra_konto_rules
         else:
             raise RuntimeError(
@@ -59,17 +61,19 @@ class IngDePdfParser(OldPdfParser):
     def parse_metadata(self) -> BankStatementMetadata:
         return self.metadata
 
-    def parse_raw(self) -> BankStatement:
+    def parse_raw(self, accounts: dict[str, str]) -> BankStatement:
         if self.metadata.account_type not in ('Girokonto', 'Extra-Konto'):
             raise NotImplementedError('parsing of %s not supported.'
                                       % self.metadata.account_type)
-        bank_statement = super().parse_raw()
+        bank_statement = super().parse_raw(accounts)
         if self.metadata.account_type == 'Extra-Konto':
-            self._add_interest_details(bank_statement)
+            self._add_interest_details(bank_statement, accounts)
         return bank_statement
 
-    def _add_interest_details(self, bank_statement: BankStatement) -> None:
-        interests = self.parse_interest_postings()
+    def _add_interest_details(self,
+                              bank_statement: BankStatement,
+                              accounts: dict[str, str]) -> None:
+        interests = self.parse_interest_postings(accounts)
         interest_transaction = cast(Transaction,
                                     bank_statement.transactions[-1])
         assert interest_transaction.type == 'Zinsertrag'
@@ -148,13 +152,14 @@ class IngDePdfParser(OldPdfParser):
             page = page[table_start:]
         return page
 
-    def parse_interest_postings(self) -> list[Posting]:
+    def parse_interest_postings(self,
+                                accounts: dict[str, str]) -> list[Posting]:
         interest_table = self.extract_interest_table()
         postings = []
         for m in re.finditer(r'^ +(.+?)  +(.+?%) +(.+?)  +(.+,\d\d)$',
                              interest_table, flags=re.MULTILINE):
             description = ' '.join(m.group(i) for i in (1, 2, 3))
-            postings.append(Posting(DEFAULT_ACCOUNTS['interest'],
+            postings.append(Posting(accounts['interest'],
                                     -parse_amount(m.group(4)),
                                     comment=description))
         return postings
@@ -207,8 +212,10 @@ class IngDePdfParser(OldPdfParser):
         assert parse_amount(m.group(1)) == self.new_balance.balance
         self.transactions_end = m.start()
 
-    def generate_transactions(self, start: int, end: int) \
-                                            -> Iterator[BaseTransaction]:
+    def generate_transactions(self, start: int, end: int,
+                              accounts: dict[str, str],
+                              ) -> Iterator[BaseTransaction]:
+        account = accounts[self.metadata.account_type]
         m = self.transaction_pattern.search(self.transactions_text, start, end)
         while m is not None:
             transaction_date = parse_date(m.group(1))
@@ -225,42 +232,37 @@ class IngDePdfParser(OldPdfParser):
                 m = self.transaction_description_pattern.match(
                                 self.transactions_text, start, end)
             description = '\n'.join(l for l in description_lines if l)
-            yield Transaction(self.account, description, transaction_date,
+            yield Transaction(account, description, transaction_date,
                               value_date, amount,
                               metadata=dict(type=transaction_type))
             m = self.transaction_pattern.search(self.transactions_text,
                                                 start, end)
 
     def check_transactions_consistency(self,
-                transactions: list[BaseTransaction]) -> None:
+                transactions: list[BaseTransaction],
+                config: IngDeConfig) -> None:
+        account = config.accounts[self.metadata.account_type]
         def amount(transaction: BaseTransaction):
             if isinstance(transaction, Transaction):
                 return transaction.amount
             elif isinstance(transaction, MultiTransaction):
                 return sum(p.amount for p in transaction.postings
-                           if p.account == self.account)
+                           if p.account == account)
 
         assert self.old_balance.balance + sum(amount(t)
                                               for t in transactions) \
                == self.new_balance.balance
 
 
-class IngDeCsvParser(CleaningParser):
+class IngDeCsvParser(CleaningParser[IngDeConfig]):
     bank_folder = 'ing.de'
-    account = 'assets:bank:TODO:ING.de' # exact account is set in __init__
     file_extension = '.csv'
+    config_type = IngDeConfig
 
     def __init__(self, csv_file: Path):
         super().__init__(csv_file)
         self.csv_file = csv_file
         self._parse_metadata()
-        if self.metadata.account_type == 'Girokonto':
-            self.account = DEFAULT_ACCOUNTS['girokonto']
-        elif self.metadata.account_type == 'Extra-Konto':
-            self.account = DEFAULT_ACCOUNTS['extrakonto']
-        else:
-            raise RuntimeError(
-                    f'Unknown account type: {self.metadata.account_type!r}.')
 
     def _parse_metadata(self) -> None:
         metadata = dict[str, str]()
@@ -301,7 +303,12 @@ class IngDeCsvParser(CleaningParser):
     def parse_metadata(self) -> BankStatementMetadata:
         return self.metadata
 
-    def parse_raw(self) -> BankStatement:
+    def parse_raw(self, accounts: dict[str, str]) -> BankStatement:
+        try:
+            account = accounts[self.metadata.account_type]
+        except:
+            raise RuntimeError(
+                    f'Unknown account type: {self.metadata.account_type!r}.')
         with self.csv_file.open(encoding='LATIN1', newline='') as f:
             f.seek(self.csv_start)
             reader = csv.DictReader(f, fieldnames=self.csv_fieldnames,
@@ -315,7 +322,7 @@ class IngDeCsvParser(CleaningParser):
                 if currency == 'EUR':
                     currency = '€'
                 transaction = Transaction(
-                        account=self.account,
+                        account=account,
                         description=description,
                         operation_date=parse_date(row['Buchung']),
                         value_date=parse_date(row['Valuta']),

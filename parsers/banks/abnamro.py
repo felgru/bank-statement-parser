@@ -23,18 +23,22 @@ from transaction import (
         )
 from utils import PeekableIterator
 
+from ..parser import BaseCleaningParserConfig
 from ..pdf_parser import CleaningParser, PdfParser
 
 
-DEFAULT_ACCOUNTS: dict[str, str] = {
-    'checking': 'assets:bank:checking:ABN AMRO',
-    'banking fees': 'expenses:banking',
-}
-
-
-class AbnAmroPdfParser(PdfParser):
+class AbnAmroConfig(BaseCleaningParserConfig):
+    bank_name = 'ABN AMRO'
     bank_folder = 'abnamro'
-    account = DEFAULT_ACCOUNTS['checking']
+    DEFAULT_ACCOUNTS = {
+        'checking': 'assets:bank:checking:ABN AMRO',
+        'banking fees': 'expenses:banking',
+    }
+
+
+class AbnAmroPdfParser(PdfParser[AbnAmroConfig]):
+    bank_folder = 'abnamro'
+    config_type = AbnAmroConfig
     num_cols = None
     cleaning_rules = cleaning_rules.rules
 
@@ -70,30 +74,32 @@ class AbnAmroPdfParser(PdfParser):
         assert len(self.pdf_pages) == meta.no_of_pages
         return meta
 
-    def parse_raw(self) -> BankStatement:
-        transactions = list(self._iter_main_table())
+    def parse_raw(self, accounts: dict[str, str]) -> BankStatement:
+        transactions = list(self._iter_main_table(accounts))
         transactions.reverse()
         return BankStatement(transactions, self.old_balance, self.new_balance)
 
-    def _iter_main_table(self) -> MainTableIterator:
+    def _iter_main_table(self, accounts: dict[str, str]) -> MainTableIterator:
         meta = self.first_page_metadata
         return MainTableIterator(
                 self.pdf_pages,
                 year=meta.date.year,
                 currency=meta.currency,
-                account=self.account)
+                accounts=accounts)
 
     def check_transactions_consistency(self,
-                                       transactions: list[BaseTransaction]) \
-                                                                    -> None:
-        super().check_transactions_consistency(transactions)
+                                       transactions: list[BaseTransaction],
+                                       config: AbnAmroConfig,
+                                       ) -> None:
+        super().check_transactions_consistency(transactions, config)
+        this_account = config.accounts['checking']
 
         def amount(t: BaseTransaction) -> Decimal:
             if isinstance(t, Transaction):
                 return t.amount
             elif isinstance(t, MultiTransaction):
                 return sum((p.amount for p in t.postings
-                            if p.account == self.account),
+                            if p.account == this_account),
                            start=Decimal(0))
             else:
                 raise RuntimeError(f'Unknown transaction type {type(t)}.')
@@ -182,12 +188,13 @@ class FirstPageMetadata:
 
 class MainTableIterator:
     def __init__(self, pdf_pages: list[str], *,
-                 year: int, currency: str, account: str):
+                 year: int, currency: str,
+                 accounts: dict[str, str]):
         self.lines = PeekableIterator(MainTableLines(pdf_pages))
         self.year = year
         self.description_parser = DescriptionParser(
                 currency=currency,
-                account=account)
+                accounts=accounts)
 
     def __iter__(self) -> MainTableIterator:
         return self
@@ -266,9 +273,11 @@ class DescriptionParser:
             )
 
     def __init__(self, *,
-                 currency: str, account: str):
+                 currency: str,
+                 accounts: dict[str, str]):
         self.currency = '€' if currency == 'EUR' else currency
-        self.account = account
+        self.account = accounts['checking']
+        self.accounts = accounts
 
     def parse(self,
               description: list[str],
@@ -475,7 +484,7 @@ class DescriptionParser:
             m = re.match(r'(.+?) +(\d+,\d{2})', line)
             assert m is not None
             t.add_posting(Posting(
-                    account=DEFAULT_ACCOUNTS['banking fees'],
+                    account=self.accounts['banking fees'],
                     amount=parse_amount(m.group(2)),
                     currency=self.currency,
                     posting_date=value_date,
@@ -608,10 +617,11 @@ def parse_balance(a: str) -> Decimal:
 class AbnAmroPdfParserError(RuntimeError):
     pass
 
-class AbnAmroTsvParser(CleaningParser):
+
+class AbnAmroTsvParser(CleaningParser[AbnAmroConfig]):
     bank_folder = 'abnamro'
-    account = 'assets:bank:ABN AMRO'
     file_extension = '.tab'
+    config_type = AbnAmroConfig
     num_cols = None
     # cleaning_rules = cleaning_rules.rules
 
@@ -663,7 +673,7 @@ class AbnAmroTsvParser(CleaningParser):
                     pay_time = m.group(3).replace('.', ':')
                     assert pay_date == date2
                 transaction = Transaction(
-                        account=self.account,
+                        account='to be replaced later',
                         description=description,
                         operation_date=date1,
                         value_date=date2,
@@ -681,7 +691,10 @@ class AbnAmroTsvParser(CleaningParser):
                 end_date=end_date,
                )
 
-    def parse_raw(self) -> BankStatement:
+    def parse_raw(self, accounts: dict[str, str]) -> BankStatement:
+        account = accounts['checking']
+        for transaction in self.transactions:
+            transaction.account = account
         #self.check_transactions_consistency(self.transactions)
         return BankStatement(self.transactions)
 

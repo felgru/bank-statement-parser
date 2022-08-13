@@ -13,20 +13,25 @@ from .cleaning_rules import ing_fr as cleaning_rules
 from bank_statement import BankStatementMetadata
 from transaction import Balance, BaseTransaction, Transaction
 
+from ..parser import BaseCleaningParserConfig
 from ..pdf_parser import OldPdfParser
 from ..qif_parser import QifParser
 
 
-DEFAULT_ACCOUNTS: dict[str, str] = {
-    'Compte Courant': 'assets:bank:checking:ING.fr',
-    'Livret A': 'assets:bank:saving:ING.fr:Livret A',
-    'LDD': 'assets:bank:saving:ING.fr:LDD',
-}
-
-
-class IngFrPdfParser(OldPdfParser):
+class IngFrConfig(BaseCleaningParserConfig):
+    bank_name = 'ING.fr'
     bank_folder = 'ing.fr'
-    account = 'assets:bank:TODO:ING.fr' # exact account is set in __init__
+    DEFAULT_ACCOUNTS = {
+        'Compte Courant': 'assets:bank:checking:ING.fr',
+        'Livret A': 'assets:bank:saving:ING.fr:Livret A',
+        'LDD': 'assets:bank:saving:ING.fr:LDD',
+    }
+
+
+class IngFrPdfParser(OldPdfParser[IngFrConfig]):
+    bank_folder = 'ing.fr'
+    account_type: str
+    config_type = IngFrConfig
     num_cols = 5
 
     def __init__(self, pdf_file: Path):
@@ -45,7 +50,6 @@ class IngFrPdfParser(OldPdfParser):
         else:
             raise RuntimeError(
                     f'unknown ING.fr account type: {self.account_type}')
-        self.account = DEFAULT_ACCOUNTS[self.account_type]
         self.debit_start, self.credit_start = self.parse_column_starts()
 
     table_heading = re.compile(r"^ *Date de\s*Date de\s*Nature de l'opération\s*"
@@ -182,15 +186,21 @@ class IngFrPdfParser(OldPdfParser):
         self.new_balance = Balance(new_balance, new_balance_date)
         self.transactions_end = m.start()
 
-    def generate_transactions(self, start: int, end: int) \
-                                            -> Iterator[BaseTransaction]:
+    def generate_transactions(self, start: int, end: int,
+                              accounts: dict[str, str],
+                              ) -> Iterator[BaseTransaction]:
+        account = accounts[self.account_type]
         if self.account_type == 'Compte Courant':
-            yield from self.generate_transactions_compte_courant(start, end)
+            yield from self.generate_transactions_compte_courant(start, end,
+                                                                 account)
         elif self.account_type in ('Livret A', 'LDD'):
-            yield from self.generate_transactions_ldd(start, end)
+            yield from self.generate_transactions_ldd(start, end,
+                                                      account)
 
-    def generate_transactions_compte_courant(self, start: int, end: int) \
-                                                -> Iterator[Transaction]:
+    def generate_transactions_compte_courant(self,
+                                             start: int, end: int,
+                                             account: str,
+                                             ) -> Iterator[Transaction]:
         transaction_block_start_pattern = re.compile(
                 r'^ {30} *(\S.+)\n',
                 flags=re.MULTILINE)
@@ -218,7 +228,8 @@ class IngFrPdfParser(OldPdfParser):
             accumulated_credit = Decimal('0.00')
             for transaction in self.transactions_in_block(transaction_type,
                                                           block_start,
-                                                          block_end):
+                                                          block_end,
+                                                          account):
                 if transaction.amount < 0:
                     accumulated_debit -= transaction.amount
                 else:
@@ -230,13 +241,15 @@ class IngFrPdfParser(OldPdfParser):
             accumulated_sub_totals[0] += sub_total[0]
             accumulated_sub_totals[1] += sub_total[1]
 
-    def generate_transactions_ldd(self, start: int, end: int) \
-                                                -> Iterator[Transaction]:
+    def generate_transactions_ldd(self,
+                                  start: int, end: int,
+                                  account: str) -> Iterator[Transaction]:
         accumulated_debit = Decimal('0.00')
         accumulated_credit = Decimal('0.00')
         for transaction in self.transactions_in_block(None,
                                                       start,
-                                                      end):
+                                                      end,
+                                                      account):
             if transaction.amount < 0:
                 accumulated_debit -= transaction.amount
             else:
@@ -247,7 +260,8 @@ class IngFrPdfParser(OldPdfParser):
 
     def transactions_in_block(self,
                               transaction_type: Optional[str],
-                              start: int, end: int) -> Iterator[Transaction]:
+                              start: int, end: int,
+                              account: str) -> Iterator[Transaction]:
         while True:
             m = self.first_line_pattern.search(self.transactions_text, start,
                                                start+self.debit_start)
@@ -276,20 +290,22 @@ class IngFrPdfParser(OldPdfParser):
             metadata = dict(type=transaction_type,
                             raw_description='\n'.join(description_lines))
             description = ' '.join(description_lines)
-            yield Transaction(self.account, description, operation_date,
+            yield Transaction(account, description, operation_date,
                               value_date, amount,
                               metadata=metadata)
 
 
 class IngFrQifParser(QifParser):
     bank_folder = 'ing.fr'
-    account = 'assets:bank:TODO:ING.fr' # exact account is set in __init__
+    config_type = IngFrConfig
+    account_type: str
     currency = '€'
     cleaning_rules = cleaning_rules.qif_checkings_rules
 
     def __init__(self, qif_file: Path):
         super().__init__(qif_file)
         # TODO: determine exact account type
+        self.account_type = 'Compte Courant'
 
     @classmethod
     def parse_date(cls, input_: str) -> date:

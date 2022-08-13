@@ -6,14 +6,19 @@ from abc import ABCMeta, abstractmethod
 from datetime import date
 from decimal import Decimal
 from pathlib import Path
-from typing import Optional, TextIO
+from typing import Optional, TextIO, TypeVar
 
 from bank_statement import BankStatement, BankStatementMetadata
-from .parser import CleaningParser
+from .parser import BaseCleaningParserConfig, CleaningParser
 from transaction import Transaction
 
-class QifParser(CleaningParser, metaclass=ABCMeta):
+
+CT = TypeVar('CT', bound=BaseCleaningParserConfig)
+
+
+class QifParser(CleaningParser[CT], metaclass=ABCMeta):
     file_extension = '.qif'
+    account_type: str
     currency: str
 
     def __init__(self, qif_file: Path):
@@ -27,17 +32,19 @@ class QifParser(CleaningParser, metaclass=ABCMeta):
                 start_date=start_date,
                 end_date=end_date)
 
-    def parse_raw(self) -> BankStatement:
+    def parse_raw(self, accounts: dict[str, str]) -> BankStatement:
         if not self.qif_file.exists():
             raise IOError(f'Unknown file: {self.qif_file}')
         with open(self.qif_file) as f:
             header = f.readline()
             if not header == '!Type:Bank\n':
                 raise RuntimeError(f'Unknown QIF account type: {header}')
-            transactions = self._parse_transactions(f)
+            transactions = self._parse_transactions(f, accounts)
         return BankStatement(transactions=transactions)
 
-    def _parse_transactions(self, file_: TextIO) -> list[Transaction]:
+    def _parse_transactions(self, file_: TextIO,
+                            accounts: dict[str, str]) -> list[Transaction]:
+        account = accounts[self.account_type]
         transactions = []
         while line := file_.readline():
             type_, rest = line[0], line[1:]
@@ -49,7 +56,7 @@ class QifParser(CleaningParser, metaclass=ABCMeta):
                 description = rest.removesuffix('\n')
             elif type_ == '^':
                 transactions.append(Transaction(
-                    account=self.account,
+                    account=account,
                     description=description,
                     operation_date=date,
                     value_date=None,
