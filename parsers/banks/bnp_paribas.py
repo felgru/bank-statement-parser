@@ -12,12 +12,21 @@ from typing import Optional
 from bank_statement import BankStatementMetadata
 from transaction import Balance, Transaction
 
+from ..parser import BaseCleaningParserConfig
 from ..pdf_parser import OldPdfParser
 
 
-class BnpParibasPdfParser(OldPdfParser):
+class BnpParibasConfig(BaseCleaningParserConfig):
+    bank_name = 'BNP Paribas'
     bank_folder = 'bnp'
-    account = 'assets:bank:TODO:BNP' # exact account is set in __init__
+    DEFAULT_ACCOUNTS = {
+        'Compte Cheques': 'assets:bank:checking:BNP',
+        'Livret A': 'assets:bank:saving:BNP:Livret A',
+    }
+
+
+class BnpParibasPdfParser(OldPdfParser[BnpParibasConfig]):
+    config_type = BnpParibasConfig
     num_cols = 5
 
     def __init__(self, pdf_file: Path):
@@ -26,18 +35,19 @@ class BnpParibasPdfParser(OldPdfParser):
         assert m is not None, 'Account type not found.'
         self.account_type = m.group(1).title()
         if self.account_type == 'Compte Cheques':
-            self.account = 'assets:bank:checking:BNP'
             self.end_pattern = re.compile(
                     r"^ *\* Commissions sur services et opérations "
                     r"bancaires. Total|"
                     r'^\s*[0-9]{12}\n\s+[0-9A-Z]{18}\n',
                     flags=re.MULTILINE)
-        if self.account_type == 'Livret A':
-            self.account = 'assets:bank:saving:BNP:Livret A'
+        elif self.account_type == 'Livret A':
             self.end_pattern = re.compile(
                     r"^ *détail *rémunération *en EUR *de |"
                     r"^ *Si vous avez une réclamation à formuler,",
                     flags=re.MULTILINE)
+        else:
+            raise RuntimeError(
+                    f'unknown BNP Paribas account type: {self.account_type}')
         self.debit_start, self.credit_start = self.parse_column_starts()
 
     def parse_column_starts(self) -> tuple[int, int]:
@@ -134,8 +144,10 @@ class BnpParibasPdfParser(OldPdfParser):
                                      r'(\d[ \d]*,\d\d)$',
                                      re.MULTILINE)
 
-    def generate_transactions(self, start: int, end: int) \
-                                                -> Iterator[Transaction]:
+    def generate_transactions(self, start: int, end: int,
+                              accounts: dict[str, str],
+                              ) -> Iterator[Transaction]:
+        account = accounts[self.account_type]
         m = self.transaction_pattern.search(self.transactions_text, start, end)
         while m is not None:
             transaction_date = self.parse_short_date(m.group(1))
@@ -152,7 +164,7 @@ class BnpParibasPdfParser(OldPdfParser):
                     for l in self.transactions_text[start:transaction_end]
                                                               .split('\n'))
             description = ' '.join(l for l in description_lines if l)
-            yield Transaction(self.account, description, transaction_date,
+            yield Transaction(account, description, transaction_date,
                               value_date, amount)
 
     def parse_short_date(self, d_str: str) -> date:
@@ -170,6 +182,7 @@ class BnpParibasPdfParser(OldPdfParser):
             d = d.replace(year=end_date.year)
         assert start_date <= d <= end_date
         return d
+
 
 def parse_verbose_date(d: str) -> date:
     day_, month_, year_ = d.split()
@@ -189,12 +202,14 @@ def parse_verbose_date(d: str) -> date:
     year = int(year_)
     return date(year, month, day)
 
+
 def parse_date(d: str) -> date:
     """ parse a date in "dd.mm.yyyy" format """
     day = int(d[:2])
     month = int(d[3:5])
     year = int(d[6:])
     return date(year, month, day)
+
 
 def parse_amount(a: str) -> Decimal:
     """ parse a decimal amount like -10,00 """

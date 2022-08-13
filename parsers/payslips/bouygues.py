@@ -12,16 +12,37 @@ import re
 import subprocess
 from typing import Optional, Union
 
-from ..parser import Parser
+from ..parser import GenericParserConfig, Parser
 from ..pdf_parser import read_pdf_file
 from bank_statement import BankStatement, BankStatementMetadata
 from transaction import MultiTransaction, Posting
 
-class BouyguesPdfParser(Parser):
+
+class BouyguesConfig(GenericParserConfig):
     bank_folder = 'bouygues'
+    bank_name = 'Bouygues'
+    DEFAULT_ACCOUNTS = {
+        'salary balancing account': 'assets:receivable:salary',
+        'salary': 'income:salary',
+        'bonus': 'income:salary:bonus',
+        'health insurance': 'expenses:insurance:health',
+        'retirement insurance': 'expenses:taxes:retirement insurance',
+        'nondeductible social taxes': 'expenses:taxes:social:nondeductible',
+        'deductible social taxes': 'expenses:taxes:social:deductible',
+        'meal vouchers': 'expenses:food:meal_vouchers',
+        'transport reimbursement': 'expenses:reimbursable:transportation',
+        'comité d\'entraide': 'expenses:misc',
+        'PEE balancing account': 'assets:receivable:PEE',
+        'PEE intéressement': 'income:misc:intéressement PEE',
+        'PEE participation': 'income:misc:participation PEE',
+        'source tax': 'expenses:taxes:income:deducted at source',
+    }
+
+
+class BouyguesPdfParser(Parser[BouyguesConfig]):
     file_extension = '.pdf'
+    config_type = BouyguesConfig
     num_cols = None
-    PEE_ACCOUNT = 'assets:receivable:PEE'
 
     def __init__(self, pdf_file: Path):
         super().__init__(pdf_file)
@@ -29,9 +50,6 @@ class BouyguesPdfParser(Parser):
 
     def _parse_file(self, pdf_file: Path) -> None:
         self.pdf_pages = read_pdf_file(pdf_file, cols=self.num_cols)
-
-    def iter_main_table(self) -> MainTableIterator:
-        return MainTableIterator(self.pdf_pages)
 
     def parse_metadata(self) -> BankStatementMetadata:
         m = re.search(r'Date de paiement\s*Période de paie\n'
@@ -56,7 +74,20 @@ class BouyguesPdfParser(Parser):
                 )
         return meta
 
-    def parse(self, rules_dir: Optional[Path]) -> BankStatement:
+    def parse(self, config: BouyguesConfig) -> BankStatement:
+        parser = BouyguesItemParser(self.pdf_pages, config)
+        return parser.parse()
+
+
+class BouyguesItemParser:
+    def __init__(self, pdf_pages: list[str], config: BouyguesConfig):
+        self.pdf_pages = pdf_pages
+        self.accounts = config.accounts
+
+    def iter_main_table(self) -> MainTableIterator:
+        return MainTableIterator(self.pdf_pages)
+
+    def parse(self) -> BankStatement:
         m = re.search(r'Date de paiement\s*Période de paie\n'
                       r'\s*BULLETIN DE PAIE'
                       r'\s*(\d\d/\d\d/\d{4})\s*'
@@ -97,7 +128,7 @@ class BouyguesPdfParser(Parser):
         for p in misc_postings:
             transaction.add_posting(p)
         assert transaction.is_balanced()
-        return BankStatement(None, [transaction])
+        return BankStatement([transaction])
 
     def _parse_gross_income(self,
                             lines: MainTableIterator,
@@ -111,9 +142,9 @@ class BouyguesPdfParser(Parser):
                        + total_gross_salary == 0
                 return postings, total_gross_salary
             if '13ème mois' in line.description:
-                account = 'income:salary:bonus'
+                account = self.accounts['bonus']
             else:
-                account = 'income:salary'
+                account = self.accounts['salary']
             p = Posting(account, -line.montant_employee,
                         comment=' '.join(line.description.split()))
             postings.append(p)
@@ -139,7 +170,7 @@ class BouyguesPdfParser(Parser):
                     break
                 if line.montant_employee is not None:
                     sante -= line.montant_employee
-            postings.append(Posting('expenses:insurance:health',
+            postings.append(Posting(self.accounts['health insurance'],
                                      sante,
                                      comment="Santé"))
             assert header.description == 'RETRAITE'
@@ -151,7 +182,7 @@ class BouyguesPdfParser(Parser):
                     break
                 if line.montant_employee is not None:
                     retraite -= line.montant_employee
-            postings.append(Posting('expenses:taxes:retirement insurance',
+            postings.append(Posting(self.accounts['retirement insurance'],
                                      retraite,
                                      comment="Retraite"))
             assert header.description == 'ASSURANCE CHOMAGE'
@@ -163,24 +194,25 @@ class BouyguesPdfParser(Parser):
                     break
                 if line.montant_employee is not None:
                     chomage -= line.montant_employee
-            postings.append(Posting('expenses:taxes:social:nonreimbursable',
-                                     chomage,
-                                     comment="Assurance chômage"))
+            postings.append(Posting(
+                self.accounts['nondeductible social taxes'],
+                chomage,
+                comment="Assurance chômage"))
             total_nondeductible = Decimal(0)
             for line in lines:
                 if line.description == "CSG déductible de l'impôt sur le revenu":
                     assert line.montant_employee is not None
-                    postings.append(Posting('expenses:taxes:social:deductible',
-                                            -line.montant_employee,
-                                            comment="CSG déductible de l'impôt"
-                                                    " sur le revenu"))
+                    postings.append(Posting(
+                        self.accounts['deductible social taxes'],
+                        -line.montant_employee,
+                        comment="CSG déductible de l'impôt sur le revenu"))
                     continue
                 if line.description == 'TOTAL DES COTISATIONS ET CONTRIBUTIONS':
                     assert line.montant_employee is not None
                     total = line.montant_employee
                     postings.append(Posting(
-                                    'expenses:taxes:social:nondeductible',
-                                    -total_nondeductible))
+                        self.accounts['nondeductible social taxes'],
+                        -total_nondeductible))
                     assert sum(p.amount for p in postings) == -total
                     return postings, total
                 if line.montant_employee is not None:
@@ -191,15 +223,17 @@ class BouyguesPdfParser(Parser):
             for line in itertools.chain([header], lines):
                 if line.description == "CSG/CRDS déductible de l'impôt sur le revenu":
                     assert line.montant_employee is not None
-                    postings.append(Posting('expenses:taxes:social:deductible',
-                                            -line.montant_employee,
-                                            comment=line.description))
+                    postings.append(Posting(
+                        self.accounts['deductible social taxes'],
+                        -line.montant_employee,
+                        comment=line.description))
                     continue
                 if line.description == "CSG/CRDS non déductible de l'impôt sur le revenu":
                     assert line.montant_employee is not None
-                    postings.append(Posting('expenses:taxes:social:nondeductible',
-                                            -line.montant_employee,
-                                            comment=line.description))
+                    postings.append(Posting(
+                        self.accounts['nondeductible social taxes'],
+                        -line.montant_employee,
+                        comment=line.description))
                     continue
                 if line.description == 'TOTAL DES COTISATIONS ET CONTRIBUTIONS':
                     assert line.montant_employee is not None
@@ -225,28 +259,27 @@ class BouyguesPdfParser(Parser):
                 return postings, total
             description = ' '.join(line.description.split())
             if description.startswith('Titres restaurants'):
-                account = 'expenses:food:meal_vouchers'
+                account = self.accounts['meal vouchers']
                 # remove excessive whitespaces
                 description = ' '.join(description.split())
             elif description.startswith('Rbt Part Patronale TR'):
-                account = 'income:salary'
+                account = self.accounts['salary']
             elif description.startswith('Frais de transports'):
-                account = 'expenses:reimbursable:transportation'
+                account = self.accounts['transport reimbursement']
                 # remove excessive whitespaces
                 description = ' '.join(description.split())
             elif description == "Versement mensuel PEE":
-                account = self.PEE_ACCOUNT
+                account = self.accounts['PEE balancing account']
             elif description == "Comité d'entraide":
-                account = 'expenses:misc'
-            # TODO: I think that the following items are related to my PEE.
+                account = self.accounts['comité d\'entraide']
             elif description == 'Intéressement Brut':
-                account = 'income:misc:abondement PEE'
+                account = self.accounts['PEE intéressement']
             elif description == 'Participation Brute':
-                account = 'income:misc:abondement PEE'
+                account = self.accounts['PEE participation']
             elif description == 'Placement INT dans PACTEO':
-                account = self.PEE_ACCOUNT
+                account = self.accounts['PEE balancing account']
             elif description == 'Placement PART dans FCPE':
-                account = self.PEE_ACCOUNT
+                account = self.accounts['PEE balancing account']
             else:
                 raise BouyguesPdfParserError(f'Unknown posting: {description}.')
             p = Posting(account, -line.montant_employee, comment=description)
@@ -290,8 +323,7 @@ class BouyguesPdfParser(Parser):
         comment = 'Impôt sur le revenu prélevé à la source {}% * {}€' \
                   .format(taux, base)
         return (net_payment,
-                Posting('expenses:taxes:income:deducted at source', montant,
-                        comment=comment))
+                Posting(self.accounts['source tax'], montant, comment=comment))
 
     def _parse_payment(self,
                        lines: MainTableIterator,
@@ -302,7 +334,7 @@ class BouyguesPdfParser(Parser):
         if m is None:
             raise BouyguesPdfParserError('Salary payment not found.')
         payment = Decimal(m.group(1).replace(',', '.'))
-        return Posting('assets:receivable:salary', payment)
+        return Posting(self.accounts['salary balancing account'], payment)
 
 
 def parse_date(d: str) -> date:

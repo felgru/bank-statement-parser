@@ -72,8 +72,22 @@ The transactions on bank statements parsed by the scripts
 cleaned up (e.g. to prettify the subject line) and assigned to the right
 accounts.
 
-To this end, the scripts optionally read two Python files from the directory
-`<ledger_dir>/rules/<name_of_bank>`.
+To this end, the scripts optionally read two Python files and a config file
+containing account names from the directory `<ledger_dir>/rules/<name_of_bank>`.
+
+### Configuration of built-in account names
+
+All parsers contain a `dict` with account names, containing, e.g. the
+name of the account corresponding to the bank account of a bank statement
+or certain recurring external accounts, e.g. for banking fees or interests.
+
+The default accounts can be found in each parsers
+`config_type.DEFAULT_ACCOUNTS` attribute. They can be customized by
+specifying alternative account names in the config file
+`<ledger_dir>/rules/<name_of_bank>/accounts.cfg`. This file is an ini file
+that has to contain an `[accounts]` section which contains the customized
+account names. Any unspecified account names fall back to the ones defined in
+`DEFAULT_ACCOUNTS`.
 
 ### Transaction cleaning rules
 

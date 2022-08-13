@@ -41,6 +41,9 @@ if __name__ == '__main__':
     aparser.add_argument('--end-date', default=None,
             help='end date of download in ISO format'
                  ' (default: end of last month)')
+    aparser.add_argument('--rules', metavar='RULES_DIR', default=None,
+            type=Path,
+            help='read cleaning and mapping rules from this dir')
     aparser.add_argument('--balancing-account',
             default=None,
             help='balancing account for transactions to your other accounts')
@@ -86,18 +89,25 @@ if __name__ == '__main__':
     username = input('Username: ')
     password = getpass('Password: ')
     downloader = Authenticator(username, password).login()
+    config = downloader.config_type.load(args.rules)
+    # TODO: Now that we can configure the balancing account
+    #       via a config file, do we still want to have a
+    #       balancing account command line argument?
+    if args.balancing_account is not None:
+        config.accounts['recharge'] = args.balancing_account
 
     d = start_date
     while d < end_date:
         bank_statement = downloader.download(
-                rules_dir=None,
+                config=config,
                 start_date=d,
                 end_date=min(last_day_of_month(d), end_date),
-                balancing_account=args.balancing_account)
+                )
         if args.dry_run:
             bank_statement.write_ledger(sys.stdout)
         else:
-            ledger_file = Path(f'{d:%Y}/{d:%m}/{downloader.name}.hledger')
+            ledger_file = Path(
+                    f'{d:%Y}/{d:%m}/{downloader.config_type.name}.hledger')
             ledger_file.parent.mkdir(parents=True, exist_ok=True)
             with open(ledger_file, 'w') as f:
                 bank_statement.write_ledger(f)

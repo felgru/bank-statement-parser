@@ -10,22 +10,73 @@ import re
 import subprocess
 from typing import Optional
 
-from ..parser import Parser
+from ..parser import GenericParserConfig, Parser
 from bank_statement import BankStatement, BankStatementMetadata
 from transaction import MultiTransaction, Posting
 
-class PayfitPdfParser(Parser):
+
+class PayfitConfig(GenericParserConfig):
     bank_folder = 'payfit'
+    bank_name = 'Payfit'
+    DEFAULT_ACCOUNTS = {
+        'salary balancing account': 'assets:receivable:salary',
+        'salary': 'income:salary',
+        'overtime': 'income:salary:overtime',
+        'bonus': 'income:salary:bonus',
+        'indemnité CP N': 'income:salary:vacation?',
+        'health insurance': 'expenses:insurance:health',
+        'retirement insurance': 'expenses:taxes:retirement insurance',
+        'nondeductible social taxes': 'expenses:taxes:social:nondeductible',
+        'deductible social taxes': 'expenses:taxes:social:deductible',
+        'meal vouchers': 'expenses:food:meal_vouchers',
+        'transport reimbursement': 'expenses:reimbursable:transportation',
+        'nonreimbursed transport': 'expenses:transportation:public transportation',
+        'source tax': 'expenses:taxes:income:deducted at source',
+    }
+
+
+class PayfitPdfParser(Parser[PayfitConfig]):
+    config_type = PayfitConfig
     file_extension = '.pdf'
 
     def __init__(self, pdf_file: Path):
         super().__init__(pdf_file)
+        self.extractor = PayfitDataExtractor(pdf_file)
+
+    def parse_metadata(self) -> BankStatementMetadata:
+        dates_text = self.extractor.extract_dates_table()
+        m = re.search(r'D[ÉE]BUT +DE +PÉRIODE +(\d\d +\S+ +\d{4})',
+                      dates_text)
+        if m is None:
+            raise PayfitPdfParserError('Could not find start date.')
+        start_date = parse_verbose_date(m.group(1))
+        m = re.search(r'FIN +DE +PÉRIODE +(\d\d +\S+ +\d{4})',
+                      dates_text)
+        if m is None:
+            raise PayfitPdfParserError('Could not find end date.')
+        end_date = parse_verbose_date(m.group(1))
+        m = re.search(r'N° +DE +SÉCURITÉ +SOCIALE *(\d*)',
+                      dates_text)
+        if m is None:
+            raise PayfitPdfParserError('Could not find social security number.')
+        social_security_number = m.group(1) or None
+        meta = BankStatementMetadata(
+                start_date=start_date,
+                end_date=end_date,
+                )
+        return meta
+
+    def parse(self, config: PayfitConfig) -> BankStatement:
+        parser = PayfitItemParser(self.extractor, config)
+        return parser.parse()
+
+
+class PayfitDataExtractor:
+    def __init__(self, pdf_file: Path):
         if not pdf_file.exists():
             raise IOError(f'Unknown file: {pdf_file}')
         self.pdf_file = pdf_file
         self.num_pages = self._num_pdf_pages()
-        self.extract_main_transactions_table()
-        self.extract_dates_table()
 
     def _num_pdf_pages(self) -> int:
         info = subprocess.run(['pdfinfo', str(self.pdf_file)],
@@ -36,24 +87,16 @@ class PayfitPdfParser(Parser):
                 return int(line.split()[-1])
         raise PayfitPdfParserError('Could not parse number of PDF pages.')
 
-    def extract_main_transactions_table(self) -> None:
+    def extract_main_transactions_table(self) -> str:
         upper_left = (32, 347)
         if self.num_pages > 1:
             main_tables = self.extract_table(1, upper_left, (532, 800), 4)
         else:
             main_tables = self.extract_table(1, upper_left, (532, 709), 4)
-        m = self.net_before_taxes_pattern.search(main_tables)
-        if m is None:
-            raise PayfitPdfParserError('Could not find end of main table.')
-        self.transactions_text = main_tables[:m.start()]
-        self.summary_text = main_tables[m.start():]
+        return main_tables
 
-    net_before_taxes_pattern = re.compile(
-            r'^ *NET À PAYER AVANT IMPÔT SUR LE REVENU *(\d[ \d]*,\d\d)',
-            flags=re.MULTILINE)
-
-    def extract_dates_table(self) -> None:
-        self.dates_text = self.extract_table(1, (432, 62), (321, 88), 2)
+    def extract_dates_table(self) -> str:
+        return self.extract_table(1, (432, 62), (321, 88), 2)
 
     def extract_table(self, page: int, upper_left: tuple[int, int],
                       size: tuple[int, int], num_cols: int) -> str:
@@ -69,29 +112,21 @@ class PayfitPdfParser(Parser):
                                  check=True).stdout
         return pdftext
 
-    def parse_metadata(self) -> BankStatementMetadata:
-        m = re.search(r'D[ÉE]BUT +DE +PÉRIODE +(\d\d +\S+ +\d{4})',
-                      self.dates_text)
-        if m is None:
-            raise PayfitPdfParserError('Could not find start date.')
-        start_date = parse_verbose_date(m.group(1))
-        m = re.search(r'FIN +DE +PÉRIODE +(\d\d +\S+ +\d{4})',
-                      self.dates_text)
-        if m is None:
-            raise PayfitPdfParserError('Could not find end date.')
-        end_date = parse_verbose_date(m.group(1))
-        m = re.search(r'N° +DE +SÉCURITÉ +SOCIALE *(\d*)',
-                      self.dates_text)
-        if m is None:
-            raise PayfitPdfParserError('Could not find social security number.')
-        social_security_number = m.group(1) or None
-        meta = BankStatementMetadata(
-                start_date=start_date,
-                end_date=end_date,
-                )
-        return meta
 
-    def parse(self, rules_dir: Optional[Path]) -> BankStatement:
+class PayfitItemParser:
+    def __init__(self, extractor: PayfitDataExtractor, config: PayfitConfig):
+        self.net_before_taxes_pattern = re.compile(
+                r'^ *NET À PAYER AVANT IMPÔT SUR LE REVENU *(\d[ \d]*,\d\d)',
+                flags=re.MULTILINE)
+        main_tables = extractor.extract_main_transactions_table()
+        m = self.net_before_taxes_pattern.search(main_tables)
+        if m is None:
+            raise PayfitPdfParserError('Could not find end of main table.')
+        self.transactions_text = main_tables[:m.start()]
+        self.summary_text = main_tables[m.start():]
+        self.accounts = config.accounts
+
+    def parse(self) -> BankStatement:
         m = re.search(r'DATE DE PAIEMENT *(\d\d \S* \d{4})',
                       self.summary_text)
         if m is None:
@@ -126,7 +161,7 @@ class PayfitPdfParser(Parser):
         transaction.add_posting(meal_vouchers)
         for p in transportation_postings:
             transaction.add_posting(p)
-        return BankStatement(None, [transaction])
+        return BankStatement([transaction])
 
     def _parse_salary(self) -> tuple[list[Posting], Decimal]:
         m = re.search(r'Rémunération brute \(1\) *(\d[ \d]*,\d\d)',
@@ -139,15 +174,17 @@ class PayfitPdfParser(Parser):
                                      r' *(\d+,\d{4}|) *(-?\d[ \d]*,\d\d)$',
                                      flags=re.MULTILINE)
         salary_accounts = {
-                'Salaire de base': 'income:salary',
+                'Salaire de base': self.accounts['salary'],
                 'Heures supplémentaires contractuelles 25 %':
-                                        'income:salary:overtime',
-                'Prime de 13ème mois': 'income:salary:bonus',
-                'Prime sur objectifs': 'income:salary:bonus',
-                'Absence maladie ordinaire': 'income:salary',
-                'Maintien employeur maladie ordinaire': 'income:salary',
-                'Régularisation Indemnité CP N': 'income:salary:vacation?',
-                'Entrée / Sortie en cours de mois': 'income:salary',
+                                    self.accounts['overtime'],
+                'Prime de 13ème mois': self.accounts['bonus'],
+                'Prime sur objectifs': self.accounts['bonus'],
+                'Absence maladie ordinaire': self.accounts['salary'],
+                'Maintien employeur maladie ordinaire':
+                                    self.accounts['salary'],
+                'Régularisation Indemnité CP N':
+                                    self.accounts['indemnité CP N'],
+                'Entrée / Sortie en cours de mois': self.accounts['salary'],
                 }
         time_units = {
                 'Salaire de base': 'h',
@@ -178,7 +215,7 @@ class PayfitPdfParser(Parser):
             p = Posting(account, -salary, comment=comment)
             salaries.append(p)
         if vacation_salary != Decimal('0.00'):
-            salaries.append(Posting('income:salary:vacation?',
+            salaries.append(Posting(self.accounts['indemnité CP N'],
                                     -vacation_salary))
         assert sum(p.amount for p in salaries) + total_gross_salary == 0
         return salaries, total_gross_salary
@@ -220,7 +257,7 @@ class PayfitPdfParser(Parser):
         amount = parse_amount(m.group(3))
         assert round(base * percentage / 100, 2) == amount
         prevoyance = amount
-        postings.append(Posting('expenses:insurance:health',
+        postings.append(Posting(self.accounts['health insurance'],
                                 mutuelle + prevoyance,
                                 comment=f"Santé ({mutuelle}€ mutuélle "
                                         f"+ {prevoyance}€ prévoyance)"))
@@ -245,7 +282,7 @@ class PayfitPdfParser(Parser):
             # Some values are rounded slightly wrong.
             assert round(base * percentage / 100, 2) - amount <= Decimal('0.01')
             retraite += amount
-        postings.append(Posting('expenses:taxes:retirement insurance',
+        postings.append(Posting(self.accounts['retirement insurance'],
                                 retraite,
                                 comment="Retraite"))
         accounted_for += retraite
@@ -258,7 +295,7 @@ class PayfitPdfParser(Parser):
         percentage = parse_amount(m.group(2))
         amount = parse_amount(m.group(3))
         assert round(base * percentage / 100, 2) == amount
-        postings.append(Posting('expenses:taxes:social:nondeductible',
+        postings.append(Posting(self.accounts['nondeductible social taxes'],
                                 amount,
                                 comment=f"Chômage"))
         accounted_for += amount
@@ -272,7 +309,7 @@ class PayfitPdfParser(Parser):
         amount = parse_amount(m.group(3))
         assert round(base * percentage / 100, 2) == amount
         assert percentage == Decimal('6.800')
-        postings.append(Posting('expenses:taxes:social:deductible',
+        postings.append(Posting(self.accounts['deductible social taxes'],
                                 amount,
                                 comment="CSG déductible de l'impôt"
                                         " sur le revenu"))
@@ -284,7 +321,7 @@ class PayfitPdfParser(Parser):
             raise PayfitPdfParserError('Total of social security payments'
                                        ' not found.')
         total = parse_amount(m.group(1))
-        postings.append(Posting('expenses:taxes:social:nondeductible',
+        postings.append(Posting(self.accounts['nondeductible social taxes'],
                                 total - accounted_for))
         return postings, total
 
@@ -301,9 +338,9 @@ class PayfitPdfParser(Parser):
                                  - transportation_reimbursed
         assert(transportation_total * transportation_reimbursement_rate
                 == transportation_reimbursed)
-        postings = [Posting('expenses:reimbursable:transportation',
+        postings = [Posting(self.accounts['transport reimbursement'],
                             -transportation_total),
-                    Posting('expenses:transportation:public transportation',
+                    Posting(self.accounts['nonreimbursed transport'],
                             transportation_remaining,
                             comment='nonreimbursed public transportation fees')
                    ]
@@ -312,7 +349,7 @@ class PayfitPdfParser(Parser):
         if m is not None:
             travel_reimbursement = parse_amount(m.group(1))
             total_reimbursed += travel_reimbursement
-            postings.append(Posting('expenses:reimbursable:transportation',
+            postings.append(Posting(self.accounts['transport reimbursement'],
                                     -travel_reimbursement,
                                     comment='trip: TODO'))
         m = re.search(r'Indemnités non soumises \(2\) *(\d[ \d]*,\d\d)',
@@ -327,7 +364,7 @@ class PayfitPdfParser(Parser):
                       self.transactions_text)
         if m is None:
             raise PayfitPdfParserError('Meal voucher expenses not found.')
-        return Posting('expenses:food:meal_vouchers',
+        return Posting(self.accounts['meal vouchers'],
                        parse_amount(m.group(1)))
 
     def _parse_tax_deducted_at_source(self) -> Posting:
@@ -343,7 +380,7 @@ class PayfitPdfParser(Parser):
         assert(round(base * taux, 2) == montant)
         comment = 'Impôt sur le revenu prélevé à la source {}% * {}€' \
                   .format(m.group(2), m.group(1))
-        return Posting('expenses:taxes:income:deducted at source', montant,
+        return Posting(self.accounts['source tax'], montant,
                        comment=comment)
 
     def _parse_payment(self) -> Posting:
@@ -353,12 +390,14 @@ class PayfitPdfParser(Parser):
         if m is None:
             raise PayfitPdfParserError('Salary payment not found.')
         payment = parse_amount(m.group(3))
-        return Posting('assets:receivable:salary', payment)
+        return Posting(self.accounts['salary balancing account'], payment)
+
 
 def parse_amount(a: str) -> Decimal:
     """ parse a decimal amount like -10,00 """
     a = a.replace(' ', '').replace(',', '.')
     return Decimal(a)
+
 
 def parse_verbose_date(d: str) -> date:
     day_, month_, year_ = d.split()
@@ -377,6 +416,7 @@ def parse_verbose_date(d: str) -> date:
              'DÉCEMBRE': 12}[month_]
     year = int(year_)
     return date(year, month, day)
+
 
 class PayfitPdfParserError(RuntimeError):
     pass

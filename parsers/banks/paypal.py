@@ -12,8 +12,16 @@ from typing import Optional, TypedDict
 
 from .cleaning_rules import paypal as cleaning_rules
 from bank_statement import BankStatement, BankStatementMetadata
-from ..parser import CleaningParser
+from ..parser import BaseCleaningParserConfig, CleaningParser
 from transaction import BaseTransaction, MultiTransaction, Posting
+
+
+class PayPalConfig(BaseCleaningParserConfig):
+    bank_name = 'PayPal'
+    bank_folder = 'paypal'
+    DEFAULT_ACCOUNTS = {
+        'balancing account': 'assets:balancing:paypal',
+    }
 
 
 class PostingDict(TypedDict):
@@ -25,12 +33,10 @@ class PostingDict(TypedDict):
     currency: str
 
 
-class PayPalCsvParser(CleaningParser):
-    bank_folder = 'paypal'
-    account = 'assets:online:paypal'
-    balancing_account = 'assets:balancing:paypal'
+class PayPalCsvParser(CleaningParser[PayPalConfig]):
     file_extension = '.csv'
     cleaning_rules = cleaning_rules.rules
+    config_type = PayPalConfig
 
     def __init__(self, csv_file: Path):
         super().__init__(csv_file)
@@ -61,23 +67,19 @@ class PayPalCsvParser(CleaningParser):
                     else:
                         description = name
                 type_ = row['Typ']
-                account: Optional[str] = None
                 amount = -net_amount
                 if type_ == 'Allgemeine Währungsumrechnung':
                     type_ = 'currency_conversion'
                     amount = net_amount
+                elif (type_.startswith('Allgemeine Gutschrift')
+                      # can contain trailing whitespace :-(
+                      or type_.startswith('Bankgutschrift auf PayPal-Konto')):
+                    type_ = 'credit'
                 else:
-                    if (type_.startswith('Allgemeine Gutschrift')
-                        # can contain trailing whitespace :-(
-                        or type_.startswith('Bankgutschrift auf PayPal-Konto')):
-                        type_ = 'credit'
-                        account = self.balancing_account
-                    else:
-                        type_ = 'expense'
-                        account = None
+                    type_ = 'expense'
                 posting: PostingDict = dict(
                     type=type_,
-                    account=account,
+                    account=None,
                     description=description,
                     date=transaction_date,
                     amount=amount,
@@ -98,9 +100,29 @@ class PayPalCsvParser(CleaningParser):
                 to_remove.append(transaction_code)
         for code in to_remove:
             del postings[code]
+        self.raw_postings = postings
+
+    def parse_metadata(self) -> BankStatementMetadata:
+        start_date = min(p['date']
+                         for l in self.raw_postings.values()
+                         for p in l)
+        end_date   = max(p['date']
+                         for l in self.raw_postings.values()
+                         for p in l)
+        return BankStatementMetadata(
+                start_date=start_date,
+                end_date=end_date,
+               )
+
+    def parse_raw(self, accounts: dict[str, str]) -> BankStatement:
+        balancing_account = accounts['balancing account']
+        for posting_list in self.raw_postings.values():
+            for posting in posting_list:
+                if posting['type'] == 'credit':
+                    posting['account'] = balancing_account
         transactions = []
         known_keys = {'credit', 'expense', 'currency_conversion'}
-        for posting_list in postings.values():
+        for posting_list in self.raw_postings.values():
             by_type: defaultdict[str, list[PostingDict]] = defaultdict(list)
             for posting in posting_list:
                 by_type[posting['type']].append(posting)
@@ -137,19 +159,8 @@ class PayPalCsvParser(CleaningParser):
             transaction.add_posting(credit_posting)
             transaction.add_posting(expense_posting)
             transactions.append(transaction)
-        self.transactions = transactions
-
-    def parse_metadata(self) -> BankStatementMetadata:
-        start_date = min(t.date for t in self.transactions)
-        end_date   = max(t.date for t in self.transactions)
-        return BankStatementMetadata(
-                start_date=start_date,
-                end_date=end_date,
-               )
-
-    def parse_raw(self) -> BankStatement:
-        #self.check_transactions_consistency(self.transactions)
-        return BankStatement(self.account, self.transactions)
+        #self.check_transactions_consistency(transactions)
+        return BankStatement(transactions)
 
 
 def parse_date(d: str) -> date:

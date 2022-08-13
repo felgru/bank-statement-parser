@@ -9,29 +9,77 @@ from decimal import Decimal
 from itertools import chain, groupby
 from pathlib import Path
 import re
-from typing import Final, Optional
+from typing import ClassVar, Final, Optional
 
-from ..parser import Parser
+from ..parser import BaseParserConfig, load_accounts, Parser
 from ..pdf_parser import read_pdf_file
 from bank_statement import BankStatement, BankStatementMetadata
 from transaction import MultiTransaction, Posting
 from utils import PeekableIterator
 
 
-class ThermoFisherPdfParser(Parser):
+class ThermoFisherConfig(BaseParserConfig):
     bank_folder = 'thermofisher'
+    employer_name = 'Thermo Fisher Scientific'
+    DEFAULT_ACCOUNTS: Final[ClassVar[dict[str, str]]] = {
+        'salary balancing account': 'assets:receivable:salary',
+        '1000': 'income:salary',
+        '3011': 'income:salary:holiday allowance',  # Vacantiegeld
+        '3019': 'income:salary:bonus',
+        '4461': 'expenses:taxes:retirement insurance',
+        '4466': 'expenses:taxes:social',  # WGA Aanvullend
+        '4467': 'expenses:taxes:social',  # WIA bodem
+        '5150': 'income:salary',          # Netto thuiswerkvergoeding
+        '5216': 'income:salary',          # Representatievergoeding
+        '7380': 'expenses:taxes:social',  # PAWW unemployment insurance
+        '7100': 'expenses:taxes:income',  # Loonheffing Tabel
+        '7101': 'expenses:taxes:income',  # Loonheffing BT
+    }
+    salary_balancing_account: str
+    accounts: dict[int, str]
+
+    def __init__(self, salary_balancing_account: str,
+                 accounts: dict[int, str]):
+        self.salary_balancing_account = salary_balancing_account
+        self.accounts = accounts
+
+    @classmethod
+    def load(cls, config_dir: Optional[Path]) -> ThermoFisherConfig:
+        """Load Parser configuration from given directory.
+
+        If `config_dir` is `None`, return the default configuration.
+        """
+        config_file = config_dir / cls.bank_folder / 'accounts.cfg' \
+                      if config_dir is not None else None
+        accounts = load_accounts(config_file,
+                                 cls.DEFAULT_ACCOUNTS,
+                                 cls.employer_name)
+        return cls(
+            salary_balancing_account=accounts['salary balancing account'],
+            accounts={
+                int(key): account
+                for key, account in accounts.items()
+                if key.isnumeric()
+            })
+
+
+class ThermoFisherPdfParser(Parser[ThermoFisherConfig]):
     file_extension = '.pdf'
+    config_type = ThermoFisherConfig
 
     def __init__(self, pdf_file: Path):
         super().__init__(pdf_file)
-        self._parse_file(pdf_file)
+        self._read_pdf(pdf_file)
+        self._metadata: Optional[BankStatementMetadata] = None
 
-    def _parse_file(self, pdf_file: Path) -> None:
+    def _read_pdf(self, pdf_file: Path) -> None:
         self.pdf_pages = read_pdf_file(pdf_file)
         self.main_table, self.payment_table, totals_table = \
                 get_tables(self.pdf_pages)
 
     def parse_metadata(self) -> BankStatementMetadata:
+        if self._metadata is not None:
+            return self._metadata
         m = re.search(r'^ +(Persnr) +\d+ +(Bedrijfsnr\/Werknr) +\d+-\d+$',
                       self.pdf_pages[0],
                       flags=re.MULTILINE)
@@ -50,7 +98,7 @@ class ThermoFisherPdfParser(Parser):
             right_col.append(line[right_table_offset:])
         addresses = ['\n'.join(lines)
                      for empty, lines in groupby(address_col,
-                                                    key=lambda line: not line)
+                                                 key=lambda line: not line)
                      if not empty]
         employer_address = addresses[0]
         employee_address = '\n'.join(addresses[1:-1])
@@ -92,38 +140,29 @@ class ThermoFisherPdfParser(Parser):
                 12: 'December',
             }
             description=f'Salaris {maanden[start_date.month]}'
-        return BankStatementMetadata(
+        self._metadata = BankStatementMetadata(
                 start_date=start_date,
                 end_date=end_date,
                 payment_date=payment_date,
                 employee_number=meta['Persnr'],
                 description=description,
                 )
+        return self._metadata
 
-    def parse(self, rules_dir: Optional[Path]) -> BankStatement:
+    def parse(self, config: ThermoFisherConfig) -> BankStatement:
         metadata = self.parse_metadata()
         transaction = MultiTransaction(metadata.description,
                                        metadata.payment_date)
-        net_total = self._parse_main_table(transaction)
-        payment_total = self._parse_payment_table(transaction)
+        net_total = self._parse_main_table(transaction, config)
+        payment_total = self._parse_payment_table(transaction, config)
         assert net_total == payment_total
         assert transaction.is_balanced()
-        return BankStatement(None, [transaction])
+        return BankStatement([transaction])
 
-    def _parse_main_table(self, transaction: MultiTransaction) -> Decimal:
-        accounts = {
-                1000: 'income:salary',
-                3011: 'income:salary:holiday allowance',  # Vacantiegeld
-                3019: 'income:salary:bonus',
-                4461: 'expenses:taxes:retirement insurance',
-                4466: 'expenses:taxes:social',  # WGA Aanvullend
-                4467: 'expenses:taxes:social',  # WIA bodem
-                5150: 'income:salary',          # Netto thuiswerkvergoeding
-                5216: 'income:salary',          # Representatievergoeding
-                7380: 'expenses:taxes:social',  # PAWW unemployment insurance
-                7100: 'expenses:taxes:income',  # Loonheffing Tabel
-                7101: 'expenses:taxes:income',  # Loonheffing BT
-                }
+    def _parse_main_table(self,
+                          transaction: MultiTransaction,
+                          config: ThermoFisherConfig) -> Decimal:
+        accounts = config.accounts
         net_total: Optional[Decimal] = None
         for item in self.main_table:
             if item.is_total():
@@ -148,11 +187,14 @@ class ThermoFisherPdfParser(Parser):
         assert net_total is not None
         return net_total
 
-    def _parse_payment_table(self, transaction: MultiTransaction) -> Decimal:
+    def _parse_payment_table(self,
+                             transaction: MultiTransaction,
+                             config: ThermoFisherConfig) -> Decimal:
         payment_total = Decimal('0.00')
         for item in self.payment_table:
             description = ' '.join(item.description.split())
-            p = Posting('assets:receivable:salary', item.amount,
+            p = Posting(config.salary_balancing_account,
+                        item.amount,
                         comment=description)
             transaction.add_posting(p)
             payment_total += item.amount

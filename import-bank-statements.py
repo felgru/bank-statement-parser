@@ -24,7 +24,7 @@ from import_transaction import (
         )
 from include_files import write_include_files
 from parsers import parsers
-from parsers.parser import BankStatementMetadata, Parser
+from parsers.parser import BankStatementMetadata, BaseParserConfig, Parser
 from xdg_dirs import getXDGdirectories
 
 
@@ -84,11 +84,12 @@ def import_incoming_statements(incoming_statements: list[IncomingStatement],
                                force: bool,
                                dry_run: bool) -> None:
     rules_dir = ledger_dir / 'rules'
+    configs: dict[type[Parser], BaseParserConfig] = {}
     with import_transaction(git, import_branch, dry_run) as transaction:
         import_summary = dict()
         by_bank: dict[str, list[IncomingStatement]] = defaultdict(list)
         for incoming in incoming_statements:
-            by_bank[incoming.parser.bank_folder].append(incoming)
+            by_bank[incoming.parser.config_type.bank_folder].append(incoming)
         for bank, incoming_statements in by_bank.items():
             dateranges = []
             imported_files = []
@@ -106,9 +107,12 @@ def import_incoming_statements(incoming_statements: list[IncomingStatement],
                 if not dry_run:
                     dest_dir.mkdir(parents=True, exist_ok=True)
                 dest_file = (dest_dir / f).with_suffix('.hledger')
+                config = configs.get(type(incoming.parser))
+                if config is None:
+                    config = incoming.parser.config_type.load(rules_dir)
                 if parse_and_write_bank_statement(incoming.parser,
                                                   src_file, dest_file,
-                                                  rules_dir,
+                                                  config,
                                                   transaction, force, dry_run):
                     imported_files.append((f, m.start_date, m.end_date))
                     dateranges.append((m.start_date, m.end_date))
@@ -133,7 +137,7 @@ def parse_and_write_bank_statement(
         parser: Parser,
         src_file: Path,
         dest_file: Path,
-        rules_dir: Optional[Path],
+        parser_config: BaseParserConfig,
         import_transaction: ImportTransactionProtocol,
         force: bool,
         dry_run: bool) -> bool:
@@ -146,7 +150,7 @@ def parse_and_write_bank_statement(
                   file=sys.stderr)
             return False
     try:
-        bank_statement = parser.parse(rules_dir=rules_dir)
+        bank_statement = parser.parse(parser_config)
     except NotImplementedError as e:
         print(f'Warning: couldn\'t parse {src_file}:', e.args,
               file=sys.stderr)

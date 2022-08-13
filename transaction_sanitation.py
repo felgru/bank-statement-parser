@@ -11,33 +11,35 @@ from transaction import BaseTransaction, MultiTransaction, Transaction
 
 class TransactionCleaner:
     def __init__(self,
-                 rules_file: Optional[Path],
-                 builtin_rules: Optional[Sequence[AnyCleanerRule]] = None):
-        conf_file: Optional[Path] = None
-        if rules_file is not None and rules_file.exists():
-            conf_file = rules_file
-        self.conf_file = conf_file
-        self._read_rules()
-        if builtin_rules is not None:
-            self.rules[0:0] = builtin_rules
+                 rules: list[AnyCleanerRule]):
+        self.rules = rules
 
-    def _read_rules(self) -> None:
-        if self.conf_file is None:
-            self.rules: list[AnyCleanerRule] = []
-        else:
-            with open(self.conf_file, 'r') as f:
-                content = f.read()
-                parse_globals: dict[str, Any] = {
-                    'Rule': TransactionCleanerRule,
-                    'ToMultiRule': ToMultiTransactionRule,
-                    'Transaction': Transaction,
-                    **globals(),
-                    }
-                exec(compile(content, self.conf_file, 'exec'), parse_globals)
-                if 'rules' not in parse_globals:
-                    raise RuntimeError(
-                            f'{self.conf_file} didn\'t contain any rules.')
-                self.rules = parse_globals['rules']
+    @classmethod
+    def from_rules_file(cls, rules_file: Optional[Path]):
+        if rules_file is None or not rules_file.exists():
+            return cls([])
+        with open(rules_file, 'r') as f:
+            content = f.read()
+            parse_globals: dict[str, Any] = {
+                'Rule': TransactionCleanerRule,
+                'ToMultiRule': ToMultiTransactionRule,
+                'Transaction': Transaction,
+                **globals(),
+                }
+            exec(compile(content, rules_file, 'exec'), parse_globals)
+            if 'rules' not in parse_globals:
+                raise RuntimeError(
+                        f'{rules_file} didn\'t contain any rules.')
+            rules = parse_globals['rules']
+            return cls(rules)
+
+    def with_builtin_rules(self,
+                           builtin_rules: Optional[Sequence[AnyCleanerRule]],
+                           ) -> TransactionCleaner:
+        rules = list(self.rules)
+        if builtin_rules is not None:
+            rules[0:0] = builtin_rules
+        return TransactionCleaner(rules)
 
     def clean(self, transaction: BaseTransaction) -> BaseTransaction:
         for r in self.rules:
@@ -46,8 +48,7 @@ class TransactionCleaner:
         return transaction
 
     def __repr__(self) -> str:
-        return (f'<{self.__class__.__name__}(rules_file={self.conf_file}, '
-                f'rules={self.rules!r})>')
+        return (f'<{self.__class__.__name__}(rules={self.rules!r})>')
 
 class TransactionCleanerRule:
     def __init__(self, condition: Callable[[BaseTransaction], bool],

@@ -14,11 +14,19 @@ from bank_statement import BankStatementMetadata
 from transaction import (BaseTransaction, Balance, MultiTransaction,
                          Posting, Transaction)
 
+from ..parser import BaseCleaningParserConfig
 from ..pdf_parser import OldPdfParser
 
-class MercedesBenzPdfParser(OldPdfParser):
+
+class MercedesBenzConfig(BaseCleaningParserConfig):
+    bank_name = 'Mercedes Benz Bank'
     bank_folder = 'mercedes-benz'
-    account = 'assets:bank:saving:Mercedes-Benz Bank'
+    DEFAULT_ACCOUNTS = {
+        'default account': 'assets:bank:saving:Mercedes-Benz Bank',
+    }
+
+class MercedesBenzPdfParser(OldPdfParser[MercedesBenzConfig]):
+    config_type = MercedesBenzConfig
     num_cols = 4
 
     def __init__(self, pdf_file: Path):
@@ -120,7 +128,10 @@ class MercedesBenzPdfParser(OldPdfParser):
             r' *([^\n]*)\n*',
             flags=re.MULTILINE)
 
-    def generate_transactions(self, start: int, end: int) -> Iterator[Transaction]:
+    def generate_transactions(self, start: int, end: int,
+                              accounts: dict[str, str],
+                              ) -> Iterator[Transaction]:
+        account = accounts['default account']
         interests = []
         if self.is_old_format:
             abschluss_pattern = re.compile(r'Kontoabschluss zum (\d\d.\d\d.)\n')
@@ -136,7 +147,7 @@ class MercedesBenzPdfParser(OldPdfParser):
                                                abschluss_start,
                                                abschluss_end):
                 interests.append(
-                        Transaction(self.account,
+                        Transaction(account,
                             description=' '.join(m.group(1).split()),
                             operation_date=abschluss_date,
                             value_date=abschluss_date,
@@ -169,7 +180,7 @@ class MercedesBenzPdfParser(OldPdfParser):
                                 self.transactions_text, start, end)
             description = '\n'.join(description_lines)
             metadata['raw_description'] = description
-            yield Transaction(self.account, description, transaction_date,
+            yield Transaction(account, description, transaction_date,
                               value_date, amount,
                               metadata=metadata)
             m = self.transaction_pattern.search(self.transactions_text,
@@ -177,8 +188,9 @@ class MercedesBenzPdfParser(OldPdfParser):
         yield from interests
 
     def check_transactions_consistency(self,
-                                       transactions: list[BaseTransaction]) \
-                                                                    -> None:
+                                       transactions: list[BaseTransaction],
+                                       config: MercedesBenzConfig,
+                                       ) -> None:
         calculated_balance = self.old_balance.balance \
                              + sum(cast(Transaction, t).amount
                                    for t in transactions)

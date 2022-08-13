@@ -18,19 +18,32 @@ import requests
 
 from bank_statement import BankStatement
 from transaction import Transaction
-from .downloader import Downloader, PasswordAuthenticator
+from .downloader import (
+    Downloader,
+    GenericDownloaderConfig,
+    PasswordAuthenticator,
+)
 
 
-class OvChipkaartDownloader(Downloader):
+class OvChipkaartConfig(GenericDownloaderConfig):
     name = 'ov-chipkaart'
-    account = 'assets:OV-Chipkaart'
-    balancing_account = 'assets:OV-Chipkaart'
+    display_name = 'OV-Chipkaart'
+    DEFAULT_ACCOUNTS = {
+        'assets': 'assets:OV-Chipkaart',
+        'recharge': 'assets:balancing:OV-Chipkaart',
+        'train ticket': 'expenses:transportation:train',
+        'bus ticket': 'expenses:transportation:bus',
+    }
+
+
+class OvChipkaartDownloader(Downloader[OvChipkaartConfig]):
+    config_type = OvChipkaartConfig
 
     def __init__(self, website: MijnOvChipkaartWebsite):
         self.api = website
 
     def download(self,
-                 rules_dir: Optional[Path],
+                 config: OvChipkaartConfig,
                  **kwargs) -> BankStatement:
         # TODO: start_date and end_date can at most be a month apart.
         try:
@@ -43,12 +56,6 @@ class OvChipkaartDownloader(Downloader):
         except KeyError:
             raise RuntimeError(f'{self.__class__.__name__}.download is'
                                ' missing the end_date argument.')
-        try:
-            _balancing_account = kwargs.pop('balancing_account')
-            if _balancing_account is not None:
-                self.balancing_account = _balancing_account
-        except KeyError:
-            pass
         if kwargs:
             raise RuntimeError(
                     f'Unknown keyword arguments: {", ".join(kwargs.keys())}')
@@ -62,7 +69,7 @@ class OvChipkaartDownloader(Downloader):
 
         return travel_history_to_bank_statement(
                 transactions,
-                self.balancing_account)
+                config.accounts)
 
 
 class OvChipkaartAuthenticator(PasswordAuthenticator[OvChipkaartDownloader]):
@@ -434,19 +441,19 @@ class RawTransaction:
 
 def travel_history_to_bank_statement(
         transactions: list[OvTransaction],
-        recharge_account: str) -> BankStatement:
+        accounts: dict[str, str]) -> BankStatement:
     def convert_transaction(transaction: OvTransaction) -> Transaction:
         # TODO: That looks like a nice case for structural pattern matching
         #       once we depend on Python 3.10.
         if transaction.type == 'recharge':
-            account = recharge_account
+            account = accounts['recharge']
         elif transaction.mode_of_transportation is None:
             raise RuntimeError('Expected mode_of_transportation for transaction'
                                f' {transaction}.')
         elif transaction.mode_of_transportation.startswith('Trein'):
-            account = 'expenses:transportation:train'
+            account = accounts['train ticket']
         elif transaction.mode_of_transportation.startswith('Bus'):
-            account = 'expenses:transportation:bus'
+            account = accounts['bus ticket']
         else:
             raise RuntimeError('Unknown mode of transportation'
                                f' "{transaction.mode_of_transportation}" in'
@@ -459,7 +466,7 @@ def travel_history_to_bank_statement(
         if transaction.place:
             description += ' | ' + transaction.place
         return Transaction(
-                account='assets:OV-Chipkaart',
+                account=accounts['assets'],
                 description=description,
                 operation_date=transaction.date,
                 value_date=None,
@@ -469,7 +476,6 @@ def travel_history_to_bank_statement(
                 )
 
     return BankStatement(
-            account='assets:OV-Chipkaart',
             transactions=[convert_transaction(t) for t in transactions],
             )
 

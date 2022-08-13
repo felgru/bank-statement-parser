@@ -14,12 +14,21 @@ from bank_statement import BankStatement, BankStatementMetadata
 from transaction import (BaseTransaction, Balance,
                          MultiTransaction, Posting, Transaction)
 
-from ..parser import Parser
+from ..parser import BaseCleaningParserConfig, Parser
 from ..pdf_parser import OldPdfParser, read_pdf_file
 
-class VTBPdfParser(Parser):
+
+class VTBConfig(BaseCleaningParserConfig):
+    bank_name = 'VTB'
     bank_folder = 'vtb'
+    DEFAULT_ACCOUNTS = {
+        'default account': 'assets:bank:saving:VTB Direktbank',
+    }
+
+
+class VTBPdfParser(Parser[VTBConfig]):
     file_extension = '.pdf'
+    config_type = VTBConfig
 
     def __init__(self, pdf_file: Path):
         super().__init__(pdf_file)
@@ -29,7 +38,7 @@ class VTBPdfParser(Parser):
     def _parse_file(self, pdf_file: Path) -> None:
         self.pdf_pages = read_pdf_file(pdf_file, cols=6)
 
-    def _choose_parser(self) -> Parser:
+    def _choose_parser(self) -> Parser[VTBConfig]:
         m = re.search(r' *_+\n +IHR KONTOSTAND AUF EINEN BLICK\n *_+\n',
                       self.pdf_pages[0])
         if m is not None:
@@ -43,20 +52,20 @@ class VTBPdfParser(Parser):
     def parse_metadata(self) -> BankStatementMetadata:
         return self.parser.parse_metadata()
 
-    def parse(self, rules_dir: Optional[Path]) -> BankStatement:
-        return self.parser.parse(rules_dir)
+    def parse(self, config: VTBConfig) -> BankStatement:
+        return self.parser.parse(config)
+
 
 class VTB2019PdfParserError(RuntimeError): pass
 
-class VTB2019PdfParser(OldPdfParser):
-    # Do not define bank_folder, so that it is not registered as a Parser by
-    # the Parsers class. Instead it should only be used through the
-    # VTBPdfParser class.
-    account = 'assets:bank:saving:VTB Direktbank'
+
+class VTB2019PdfParser(OldPdfParser[VTBConfig]):
+    # Do not register as a Parser in the Parsers class.
+    # Instead it should only be used through the VTBPdfParser class.
+    autoload = False
     ParserError = VTB2019PdfParserError
 
     def __init__(self, pdf_pages: list[str]):
-        self.bank_folder = VTBPdfParser.bank_folder
         self.pdf_pages = pdf_pages
         self._parse_metadata()
         self._parse_description_start()
@@ -149,7 +158,10 @@ class VTB2019PdfParser(OldPdfParser):
             r'(\d[.\d]*,\d\d) +([HS])\n*',
             flags=re.MULTILINE)
 
-    def generate_transactions(self, start: int, end: int) -> Iterator[Transaction]:
+    def generate_transactions(self, start: int, end: int,
+                              accounts: dict[str, str],
+                              ) -> Iterator[Transaction]:
+        account = accounts['default account']
         while True:
             m = self.transaction_pattern.search(self.transactions_text,
                                                 start, end)
@@ -165,12 +177,13 @@ class VTB2019PdfParser(OldPdfParser):
                 if m is None: break
                 description.append(m.group(1))
                 start = m.end()
-            yield Transaction(self.account, ' '.join(description),
+            yield Transaction(account, ' '.join(description),
                               transaction_date, value_date, amount)
 
     def check_transactions_consistency(self,
-                                       transactions: list[BaseTransaction]) \
-                                                                    -> None:
+                                       transactions: list[BaseTransaction],
+                                       config: VTBConfig,
+                                       ) -> None:
         assert self.old_balance.balance \
                + sum(cast(Transaction, t).amount for t in transactions) \
                == self.new_balance.balance
@@ -195,17 +208,17 @@ class VTB2019PdfParser(OldPdfParser):
             raise RuntimeError(f"Unknown argument {dir!r} instead of"
                                " H(aben) or S(oll).")
 
+
 class VTB2014PdfParserError(RuntimeError): pass
 
-class VTB2014PdfParser(OldPdfParser):
-    # Do not define bank_folder, so that it is not registered as a Parser by
-    # the Parsers class. Instead it should only be used through the
-    # VTBPdfParser class.
-    account = 'assets:bank:saving:VTB Direktbank'
+
+class VTB2014PdfParser(OldPdfParser[VTBConfig]):
+    # Do not register as a Parser in the Parsers class.
+    # Instead it should only be used through the VTBPdfParser class.
+    autoload = False
     ParserError = VTB2014PdfParserError
 
     def __init__(self, pdf_pages: list[str]):
-        self.bank_folder = VTBPdfParser.bank_folder
         self.pdf_pages = pdf_pages
         self._parse_metadata()
         self._parse_description_start()
@@ -299,8 +312,10 @@ class VTB2014PdfParser(OldPdfParser):
             r'(\d[.\d]*,\d\d[+-])\n',
             flags=re.MULTILINE)
 
-    def generate_transactions(self, start: int, end: int) \
-                                            -> Iterator[BaseTransaction]:
+    def generate_transactions(self, start: int, end: int,
+                              accounts: dict[str, str],
+                              ) -> Iterator[BaseTransaction]:
+        account = accounts['default account']
         while True:
             m = self.transaction_pattern.search(self.transactions_text,
                                                 start, end)
@@ -323,18 +338,18 @@ class VTB2014PdfParser(OldPdfParser):
             description = ' '.join(description_lines)
             if transaction_type == 'Zinsen/Kontoführung':
                 yield self._parse_balance(description, transaction_date,
-                                          value_date, amount)
+                                          value_date, amount, account)
             else:
-                yield Transaction(self.account, description, transaction_date,
+                yield Transaction(account, description, transaction_date,
                                   value_date, amount,
                                   metadata=dict(type=transaction_type))
 
     def _parse_balance(self, description: str, transaction_date: date,
-                       value_date: date, amount: Decimal) -> MultiTransaction:
+                       value_date: date, amount: Decimal,
+                       account: str) -> MultiTransaction:
         t = MultiTransaction(description, transaction_date,
                              metadata={'type': 'Zinsen/Kontoführung'})
-        t.add_posting(Posting(self.account, amount,
-                              posting_date=value_date))
+        t.add_posting(Posting(account, amount, posting_date=value_date))
         m = re.search(r'R E C H N U N G S A B S C H L U S S\n'
                       r' *\(siehe Rückseite\)\n', self.pdf_pages[1])
         assert m is not None, 'Start of interests and fees not found.'
@@ -357,8 +372,9 @@ class VTB2014PdfParser(OldPdfParser):
         return t
 
     def check_transactions_consistency(self,
-                                       transactions: list[BaseTransaction]) \
-                                                                    -> None:
+                                       transactions: list[BaseTransaction],
+                                       config: VTBConfig,
+                                       ) -> None:
         sum = Decimal(0)
         for t in transactions:
             if isinstance(t, Transaction):
@@ -380,17 +396,17 @@ class VTB2014PdfParser(OldPdfParser):
         a = a[-1] + a[:-1]
         return Decimal(a)
 
+
 class VTB2012PdfParserError(RuntimeError): pass
 
-class VTB2012PdfParser(OldPdfParser):
-    # Do not define bank_folder, so that it is not registered as a Parser by
-    # the Parsers class. Instead it should only be used through the
-    # VTBPdfParser class.
-    account = 'assets:bank:saving:VTB Direktbank'
+
+class VTB2012PdfParser(OldPdfParser[VTBConfig]):
+    # Do not register as a Parser in the Parsers class.
+    # Instead it should only be used through the VTBPdfParser class.
+    autoload = False
     ParserError = VTB2012PdfParserError
 
     def __init__(self, pdf_pages: list[str]):
-        self.bank_folder = VTBPdfParser.bank_folder
         self.pdf_pages = pdf_pages
         self._parse_description_start()
         self._parse_metadata()
@@ -488,8 +504,10 @@ class VTB2012PdfParser(OldPdfParser):
             r'(\d[.\d]*,\d\d[+-])\n',
             flags=re.MULTILINE)
 
-    def generate_transactions(self, start: int, end: int) \
-                                        -> Iterator[BaseTransaction]:
+    def generate_transactions(self, start: int, end: int,
+                              accounts: dict[str, str],
+                              ) -> Iterator[BaseTransaction]:
+        account = accounts['default account']
         while True:
             m = self.transaction_pattern.search(self.transactions_text,
                                                 start, end)
@@ -516,18 +534,18 @@ class VTB2012PdfParser(OldPdfParser):
                 description = transaction_type
             if transaction_type == 'Zinsen/Kontoführung':
                 yield self._parse_balance(description, transaction_date,
-                                          value_date, amount)
+                                          value_date, amount, account)
             else:
-                yield Transaction(self.account, description, transaction_date,
+                yield Transaction(account, description, transaction_date,
                                   value_date, amount,
                                   metadata=dict(type=transaction_type))
 
     def _parse_balance(self, description: str, transaction_date: date,
-                       value_date: date, amount: Decimal) -> MultiTransaction:
+                       value_date: date, amount: Decimal,
+                       account: str) -> MultiTransaction:
         t = MultiTransaction(description, transaction_date,
                              metadata={'type': 'Zinsen/Kontoführung'})
-        t.add_posting(Posting(self.account, amount,
-                              posting_date=value_date))
+        t.add_posting(Posting(account, amount, posting_date=value_date))
         m = re.search(r'R E C H N U N G S A B S C H L U S S'
                       r' *\(siehe Rückseite\)\n', self.pdf_pages[1])
         assert m is not None, 'Start of interests and fees not found.'
@@ -551,7 +569,9 @@ class VTB2012PdfParser(OldPdfParser):
         return t
 
     def check_transactions_consistency(self,
-            transactions: list[BaseTransaction]) -> None:
+                                       transactions: list[BaseTransaction],
+                                       config: VTBConfig,
+                                       ) -> None:
         sum = self.old_balance.balance
         for t in transactions:
             if isinstance(t, Transaction):
