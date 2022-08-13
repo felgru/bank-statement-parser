@@ -30,7 +30,7 @@ class OvChipkaartConfig(GenericDownloaderConfig):
     display_name = 'OV-Chipkaart'
     DEFAULT_ACCOUNTS = {
         'assets': 'assets:OV-Chipkaart',
-        'recharge': 'assets:OV-Chipkaart',
+        'recharge': 'assets:balancing:OV-Chipkaart',
         'train ticket': 'expenses:transportation:train',
         'bus ticket': 'expenses:transportation:bus',
     }
