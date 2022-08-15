@@ -75,8 +75,9 @@ def is_sepa_giro_transfer(t):
             and t.description.startswith('Virement Sepa'))
 
 sepa_pattern = re.compile(r'Virement Sepa (Recu|Emis Vers)(.*)')
-sepa_emis_pattern = re.compile(r'VIREMENT SEPA EMIS VERS\s*(\S+)',
-                              flags=re.MULTILINE)
+sepa_emis_pattern = re.compile(
+        r'VIREMENT SEPA EMIS VERS\s*(([A-Z]{2}|)\d+|)\s*(?P<rest>.*)',
+        flags=re.MULTILINE | re.DOTALL)
 
 def clean_sepa_giro_transfer(t):
     m = sepa_pattern.match(t.description)
@@ -88,8 +89,9 @@ def clean_sepa_giro_transfer(t):
         m = sepa_emis_pattern.match(t.metadata['raw_description'])
         if m is not None:
             account = m.group(1)
-            rest = account + rest[rest.find(' '):]
-    return f'Virement SEPA {direction} {rest}'
+            rest = account + ' ' \
+                   + ' '.join(m.group('rest').title().split('\n'))
+    return f'Virement SEPA {direction} {rest}'.rstrip()
 
 def is_card_transaction(t):
     return t.type.startswith('CARTE')
