@@ -9,12 +9,7 @@ import pytest
 from git import Git, GitError, GitMergeConflictError
 
 
-@pytest.fixture
-def git_fixture(tmp_path) -> Git:
-    return Git.create(tmp_path)
-
-
-def test_create_git_dir(tmp_path):
+def test_create_git_dir(tmp_path: Path) -> None:
     Git.create(tmp_path)
     assert (tmp_path / '.git').exists()
 
@@ -70,8 +65,8 @@ def test_checkout_new_branch(tmp_path: Path) -> None:
     assert git.current_branch() == new_branch
 
 
-def test_checkout_nonexistent_branch(git_fixture: Git) -> None:
-    git = git_fixture
+def test_checkout_nonexistent_branch(tmp_path: Path) -> None:
+    git = Git.create(tmp_path)
     with pytest.raises(GitError, match='switch to non-existent branch'):
         git.change_branch('nonexistent')
 
