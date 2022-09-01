@@ -367,7 +367,8 @@ class DescriptionParser:
         d[current_key] = current_value.rstrip()
         omschrijving = d.get('Omschrijving')
         if omschrijving is None:
-            omschrijving = d.get('Kenmerk', '')
+            # TODO: mypy 0.812 does not understand that d.get('..', '') is a str.
+            omschrijving = d.get('Kenmerk') or ''
         return Transaction(account=self.account,
                            description=omschrijving,
                            operation_date=bookdate,
