@@ -21,7 +21,7 @@ from utils import PeekableIterator
 class ThermoFisherConfig(BaseParserConfig):
     bank_folder = 'thermofisher'
     employer_name = 'Thermo Fisher Scientific'
-    DEFAULT_ACCOUNTS: Final[ClassVar[dict[str, str]]] = {
+    DEFAULT_ACCOUNTS: Final[dict[str, str]] = {
         'salary balancing account': 'assets:receivable:salary',
         '1000': 'income:salary',
         '3011': 'income:salary:holiday allowance',  # Vacantiegeld
