@@ -41,7 +41,6 @@ class BouyguesConfig(GenericParserConfig):
 
 class BouyguesPdfParser(Parser[BouyguesConfig]):
     file_extension = '.pdf'
-    config_type = BouyguesConfig
     num_cols = None
 
     def __init__(self, pdf_file: Path):

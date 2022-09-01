@@ -30,7 +30,6 @@ class IngDeConfig(BaseCleaningParserConfig):
 
 
 class IngDePdfParser(OldPdfParser[IngDeConfig]):
-    config_type = IngDeConfig
     num_cols = 5
 
     def __init__(self, pdf_file: Path):
@@ -255,7 +254,6 @@ class IngDePdfParser(OldPdfParser[IngDeConfig]):
 
 class IngDeCsvParser(CleaningParser[IngDeConfig]):
     file_extension = '.csv'
-    config_type = IngDeConfig
 
     def __init__(self, csv_file: Path):
         super().__init__(csv_file)

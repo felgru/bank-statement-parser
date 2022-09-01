@@ -6,7 +6,7 @@ from abc import ABCMeta, abstractmethod
 from collections.abc import Sequence
 import configparser
 from pathlib import Path
-from typing import ClassVar, Generic, Optional, TypeVar
+from typing import ClassVar, final, Generic, Optional, TypeVar
 
 from account_mapping import AccountMapper
 from bank_statement import BankStatement, BankStatementMetadata
@@ -88,7 +88,6 @@ CT = TypeVar('CT', bound=BaseParserConfig)
 
 class Parser(Generic[CT], metaclass=ABCMeta):
     file_extension: ClassVar[str]
-    config_type: ClassVar[type[CT]]
     autoload: ClassVar[bool] = True
 
     def __init__(self, infile: Path):
@@ -101,6 +100,30 @@ class Parser(Generic[CT], metaclass=ABCMeta):
     @abstractmethod
     def parse(self, config: CT) -> BankStatement:
         pass
+
+    @final
+    @classmethod
+    def config_type(cls) -> type[CT]:
+        import typing
+        for base in cls.__orig_bases__:  # type: ignore # mypy doesn't seem to know __orig_bases__
+            args = typing.get_args(base)
+            if not args:
+                continue
+            assert len(args) == 1
+            config_type = args[0]
+            if isinstance(config_type, TypeVar):
+                import inspect
+                cls_sourcefile = inspect.getsourcefile(cls)
+                cls_line = inspect.getsourcelines(cls)[1]
+                raise RuntimeError(
+                        f'Parser type {cls.__name__} does not define a config'
+                        ' type. Please add type argument in file'
+                        f' {cls_sourcefile}, line {cls_line}.')
+            assert issubclass(config_type, BaseParserConfig)
+            return config_type
+        else:
+            raise RuntimeError(f'Parser type {cls.__name__}'
+                               ' does not define a config type.')
 
 
 CleaningConfigSelf = TypeVar('CleaningConfigSelf',

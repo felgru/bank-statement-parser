@@ -71,7 +71,7 @@ if args.meta:
         metadata.write(open_outfile())
 else:
     try:
-        config = transactions_parser.config_type.load(args.rules)
+        config = transactions_parser.config_type().load(args.rules)
         bank_statement = transactions_parser.parse(config)
     except NotImplementedError as e:
         print(f'Warning: couldn\'t parse {args.infile}:', e.args,

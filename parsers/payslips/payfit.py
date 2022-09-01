@@ -36,7 +36,6 @@ class PayfitConfig(GenericParserConfig):
 
 
 class PayfitPdfParser(Parser[PayfitConfig]):
-    config_type = PayfitConfig
     file_extension = '.pdf'
 
     def __init__(self, pdf_file: Path):

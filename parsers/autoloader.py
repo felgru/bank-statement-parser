@@ -35,7 +35,7 @@ class Parsers(dict[str, dict[str, type[Parser]]]):
                         self.add_format(elem)
 
     def add_format(self, format_class: type[Parser]) -> None:
-        bank = format_class.config_type.bank_folder
+        bank = format_class.config_type().bank_folder
         if bank not in self:
             self[bank] = {}
         ext = format_class.file_extension
