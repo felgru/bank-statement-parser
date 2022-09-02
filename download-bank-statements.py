@@ -89,7 +89,7 @@ if __name__ == '__main__':
     username = input('Username: ')
     password = getpass('Password: ')
     downloader = Authenticator(username, password).login()
-    config = downloader.config_type.load(args.rules)
+    config = downloader.config_type().load(args.rules)
     # TODO: Now that we can configure the balancing account
     #       via a config file, do we still want to have a
     #       balancing account command line argument?
@@ -107,7 +107,7 @@ if __name__ == '__main__':
             bank_statement.write_ledger(sys.stdout)
         else:
             ledger_file = Path(
-                    f'{d:%Y}/{d:%m}/{downloader.config_type.name}.hledger')
+                    f'{d:%Y}/{d:%m}/{downloader.config_type().name}.hledger')
             ledger_file.parent.mkdir(parents=True, exist_ok=True)
             with open(ledger_file, 'w') as f:
                 bank_statement.write_ledger(f)
