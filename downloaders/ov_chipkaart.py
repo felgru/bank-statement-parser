@@ -37,8 +37,6 @@ class OvChipkaartConfig(GenericDownloaderConfig):
 
 
 class OvChipkaartDownloader(Downloader[OvChipkaartConfig]):
-    config_type = OvChipkaartConfig
-
     def __init__(self, website: MijnOvChipkaartWebsite):
         self.api = website
 

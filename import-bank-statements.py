@@ -81,7 +81,7 @@ class ParserConfigs(defaultdict[type[Parser], BaseParserConfig]):
     def __init__(self, ledger_dir: Path):
         self.rules_dir = ledger_dir / 'rules'
     def __missing__(self, key: type[Parser]) -> BaseParserConfig:
-        config = key.config_type.load(self.rules_dir)
+        config = key.config_type().load(self.rules_dir)
         self[key] = config
         return config
 
@@ -97,7 +97,7 @@ def import_incoming_statements(incoming_statements: list[IncomingStatement],
         import_summary = dict()
         by_bank: dict[str, list[IncomingStatement]] = defaultdict(list)
         for incoming in incoming_statements:
-            by_bank[incoming.parser.config_type.bank_folder].append(incoming)
+            by_bank[incoming.parser.config_type().bank_folder].append(incoming)
         for bank, incoming_statements in by_bank.items():
             dateranges = []
             imported_files = []

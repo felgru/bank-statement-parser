@@ -26,7 +26,6 @@ class MercedesBenzConfig(BaseCleaningParserConfig):
     }
 
 class MercedesBenzPdfParser(OldPdfParser[MercedesBenzConfig]):
-    config_type = MercedesBenzConfig
     num_cols = 4
 
     def __init__(self, pdf_file: Path):

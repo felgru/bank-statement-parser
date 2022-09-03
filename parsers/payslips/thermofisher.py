@@ -65,7 +65,6 @@ class ThermoFisherConfig(BaseParserConfig):
 
 class ThermoFisherPdfParser(Parser[ThermoFisherConfig]):
     file_extension = '.pdf'
-    config_type = ThermoFisherConfig
 
     def __init__(self, pdf_file: Path):
         super().__init__(pdf_file)

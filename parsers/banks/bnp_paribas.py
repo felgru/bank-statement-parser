@@ -26,7 +26,6 @@ class BnpParibasConfig(BaseCleaningParserConfig):
 
 
 class BnpParibasPdfParser(OldPdfParser[BnpParibasConfig]):
-    config_type = BnpParibasConfig
     num_cols = 5
 
     def __init__(self, pdf_file: Path):

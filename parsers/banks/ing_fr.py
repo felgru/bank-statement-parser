@@ -30,7 +30,6 @@ class IngFrConfig(BaseCleaningParserConfig):
 
 class IngFrPdfParser(OldPdfParser[IngFrConfig]):
     account_type: str
-    config_type = IngFrConfig
     num_cols = 5
 
     def __init__(self, pdf_file: Path):
@@ -294,8 +293,7 @@ class IngFrPdfParser(OldPdfParser[IngFrConfig]):
                               metadata=metadata)
 
 
-class IngFrQifParser(QifParser):
-    config_type = IngFrConfig
+class IngFrQifParser(QifParser[IngFrConfig]):
     account_type: str
     currency = '€'
     cleaning_rules = cleaning_rules.qif_checkings_rules

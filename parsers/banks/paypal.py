@@ -36,7 +36,6 @@ class PostingDict(TypedDict):
 class PayPalCsvParser(CleaningParser[PayPalConfig]):
     file_extension = '.csv'
     cleaning_rules = cleaning_rules.rules
-    config_type = PayPalConfig
 
     def __init__(self, csv_file: Path):
         super().__init__(csv_file)

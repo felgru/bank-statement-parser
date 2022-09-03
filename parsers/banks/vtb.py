@@ -28,7 +28,6 @@ class VTBConfig(BaseCleaningParserConfig):
 
 class VTBPdfParser(Parser[VTBConfig]):
     file_extension = '.pdf'
-    config_type = VTBConfig
 
     def __init__(self, pdf_file: Path):
         super().__init__(pdf_file)

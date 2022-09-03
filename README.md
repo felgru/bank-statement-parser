@@ -81,9 +81,9 @@ All parsers contain a `dict` with account names, containing, e.g. the
 name of the account corresponding to the bank account of a bank statement
 or certain recurring external accounts, e.g. for banking fees or interests.
 
-The default accounts can be found in each parsers
-`config_type.DEFAULT_ACCOUNTS` attribute. They can be customized by
-specifying alternative account names in the config file
+The default accounts can be found the `DEFAULT_ACCOUNTS` attribute of each
+parser's config type. They can be customized by specifying alternative
+account names in the config file
 `<ledger_dir>/rules/<name_of_bank>/accounts.cfg`. This file is an ini file
 that has to contain an `[accounts]` section which contains the customized
 account names. Any unspecified account names fall back to the ones defined in
