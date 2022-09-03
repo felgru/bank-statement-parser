@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from git import Git, GitError, GitMergeConflictError
+from git import Git, GitError, GitEmptyCommitError, GitMergeConflictError
 
 
 def test_create_git_dir(tmp_path: Path) -> None:
@@ -20,6 +20,27 @@ def test_create_commit(tmp_path: Path) -> None:
     my_file.touch()
     git.add_file(my_file)
     git.commit('Add a')
+
+
+def test_empty_commit_raises_error(tmp_path: Path) -> None:
+    git = Git.create(tmp_path)
+    my_file = tmp_path / 'a'
+    my_file.touch()
+    git.add_file(my_file)
+    git.commit('Add a')
+    with pytest.raises(GitEmptyCommitError):
+        git.commit('Empty commit.')
+
+
+def test_empty_commit_in_dirty_working_dir_raises_error(tmp_path: Path) -> None:
+    git = Git.create(tmp_path)
+    my_file = tmp_path / 'a'
+    my_file.touch()
+    git.add_file(my_file)
+    git.commit('Add a')
+    (tmp_path / 'b').touch()
+    with pytest.raises(GitEmptyCommitError):
+        git.commit('Empty commit.')
 
 
 def test_checkout_current_branch(tmp_path: Path) -> None:

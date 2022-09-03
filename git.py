@@ -76,16 +76,9 @@ class Git(BaseGit):
     def _run_git_command(self,
                          args: list[str],
                          input: Optional[str] = None) -> str:
-        try:
-            return subprocess.run(self.git_command + args,
-                                  capture_output=True, encoding='UTF8',
-                                  input=input, check=True).stdout
-        except subprocess.CalledProcessError as e:
-            if e.output.split('\n')[-2].startswith('nothing added to commit'):
-                raise GitEmptyCommitError(
-                    'Trying to commit without any added files.'
-                ) from None
-            raise
+        return subprocess.run(self.git_command + args,
+                              capture_output=True, encoding='UTF8',
+                              input=input, check=True).stdout
 
     def working_directory_is_clean(self) -> bool:
         return not self._has_files_with_any_of_these_status_flags('MADRCU')
@@ -143,7 +136,17 @@ class Git(BaseGit):
                                *(str(file) for file in files)])
 
     def commit(self, message: str) -> None:
-        self._run_git_command(['commit', '--file=-'], input=message)
+        try:
+            self._run_git_command(['commit', '--file=-'], input=message)
+        except subprocess.CalledProcessError as e:
+            if len(status_lines := e.output.split('\n')) >= 2:
+                error_line = status_lines[-2]
+                if (error_line.startswith('nothing added to commit')
+                     or error_line == 'nothing to commit, working tree clean'):
+                    raise GitEmptyCommitError(
+                        'Trying to commit without any added files.'
+                    ) from None
+            raise
 
     def merge(self, other_branch: str, message: Optional[str] = None) -> None:
         try:
