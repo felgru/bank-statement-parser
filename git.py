@@ -76,9 +76,16 @@ class Git(BaseGit):
     def _run_git_command(self,
                          args: list[str],
                          input: Optional[str] = None) -> str:
-        return subprocess.run(self.git_command + args,
-                              capture_output=True, encoding='UTF8',
-                              input=input, check=True).stdout
+        try:
+            return subprocess.run(self.git_command + args,
+                                  capture_output=True, encoding='UTF8',
+                                  input=input, check=True).stdout
+        except subprocess.CalledProcessError as e:
+            if e.output.split('\n')[-2].startswith('nothing added to commit'):
+                raise GitEmptyCommitError(
+                    'Trying to commit without any added files.'
+                ) from None
+            raise
 
     def working_directory_is_clean(self) -> bool:
         return not self._has_files_with_any_of_these_status_flags('MADRCU')
@@ -179,6 +186,10 @@ class GitMergeConflictError(GitError):
     def __str__(self) -> str:
         return ('Merge conflict in the following files:\n'
                 + '\n'.join(f'({c.type}) {c.name}' for c in self.conflicts))
+
+
+class GitEmptyCommitError(GitError):
+    pass
 
 
 class FakeGit(BaseGit):

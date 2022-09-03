@@ -16,7 +16,13 @@ import sys
 from typing import Any, Optional
 
 from config import ImportConfig, LedgerConfig
-from git import BaseGit, FakeGit, Git, GitMergeConflictError
+from git import (
+        BaseGit,
+        FakeGit,
+        Git,
+        GitEmptyCommitError,
+        GitMergeConflictError,
+        )
 from import_transaction import (
         DirtyWorkingDirectoryException,
         import_transaction,
@@ -376,27 +382,34 @@ class Main:
 
         parser_configs = ParserConfigs(ledger_config.ledger_dir)
 
-        with import_transaction(git, import_branch,
-                                self.args.dry_run) as transaction:
-            for year in sorted(dir for dir in ledger_config.ledger_dir.iterdir()
-                               if dir.is_dir() and dir.name.isnumeric()):
-                for subdir in sorted(dir for dir in year.iterdir()
-                                     if dir.is_dir()):
-                    if subdir.name.isnumeric(): # month
-                        updated_ledgers: list[Path] = []
-                        for bankdir in sorted(dir for dir in subdir.iterdir()
-                                              if dir.is_dir()):
-                            updated_ledgers.extend(
-                                self.reimport_bank_dir(bankdir,
+        try:
+            with import_transaction(git, import_branch,
+                                    self.args.dry_run) as transaction:
+                for year in sorted(dir for dir in ledger_config.ledger_dir \
+                                                               .iterdir()
+                                   if dir.is_dir() and dir.name.isnumeric()):
+                    for subdir in sorted(dir for dir in year.iterdir()
+                                         if dir.is_dir()):
+                        if subdir.name.isnumeric(): # month
+                            updated_ledgers: list[Path] = []
+                            for bankdir in sorted(dir
+                                                  for dir in subdir.iterdir()
+                                                  if dir.is_dir()):
+                                updated_ledgers.extend(
+                                    self.reimport_bank_dir(bankdir,
+                                                           selected_parsers,
+                                                           parser_configs))
+                        else:
+                            updated_ledgers = \
+                                self.reimport_bank_dir(subdir,
                                                        selected_parsers,
-                                                       parser_configs))
-                    else:
-                        updated_ledgers = \
-                            self.reimport_bank_dir(subdir, selected_parsers,
-                                                   parser_configs)
-                    git.add_files(updated_ledgers)
-            commit_message = f'reimport {bank_name} bank statements'
-            transaction.set_commit_message(commit_message)
+                                                       parser_configs)
+                        git.add_files(updated_ledgers)
+                commit_message = f'reimport {bank_name} bank statements'
+                transaction.set_commit_message(commit_message)
+        except GitEmptyCommitError:
+            print('Nothing changed with the reimport.')
+            return
 
         # The import_transaction automatically resets the branch to the
         # previously checked-out one after importing to the import_branch.
