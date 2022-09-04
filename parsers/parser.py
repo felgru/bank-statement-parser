@@ -12,11 +12,10 @@ from account_mapping import AccountMapper
 from bank_statement import BankStatement, BankStatementMetadata
 from transaction import BaseTransaction, Transaction, MultiTransaction
 from transaction_sanitation import TransactionCleaner, TransactionCleanerRule
+from utils import UserError
 
 
-# TODO: Derive this from a new UserError that I can catch in
-#       import-bank-statements.py.
-class ParserConfigError(RuntimeError):
+class ParserConfigError(UserError):
     pass
 
 
@@ -49,7 +48,8 @@ def load_accounts(config_file: Optional[Path],
         try:
             accounts_section = config['accounts']
         except KeyError:
-            raise ParserConfigError(f'{config_file} has no [accounts] section.')
+            raise ParserConfigError(
+                    f'{config_file} has no [accounts] section.') from None
         accounts = dict(**accounts_section)
     unknown_accounts = set(accounts.keys()).difference(default_accounts.keys())
     if unknown_accounts:

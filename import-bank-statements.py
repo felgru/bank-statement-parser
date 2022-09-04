@@ -31,6 +31,7 @@ from import_transaction import (
 from include_files import write_include_files
 from parsers import parsers
 from parsers.parser import BankStatementMetadata, BaseParserConfig, Parser
+from utils import UserError
 from xdg_dirs import getXDGdirectories
 
 
@@ -268,7 +269,11 @@ class Main:
         self.selected_mode = mode
 
     def run(self) -> None:
-        self.selected_mode()
+        try:
+            self.selected_mode()
+        except UserError as e:
+            print(e.msg, file=sys.stderr)
+            exit(1)
 
     def regenerate_includes(self) -> None:
         regenerate_includes(Path.cwd(), self.config)

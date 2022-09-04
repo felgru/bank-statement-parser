@@ -34,3 +34,10 @@ class PeekableIterator(Iterator[T]):
             self._next = next(self._iter)
         except StopIteration:
             self._end = True
+
+
+class UserError(RuntimeError):
+    """An error message that should be displayed to the user."""
+
+    def __init__(self, msg: str):
+        self.msg = msg
