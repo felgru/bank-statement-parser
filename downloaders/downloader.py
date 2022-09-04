@@ -73,15 +73,15 @@ class Downloader(Generic[CT], metaclass=ABCMeta):
                 import inspect
                 cls_sourcefile = inspect.getsourcefile(cls)
                 cls_line = inspect.getsourcelines(cls)[1]
-                raise RuntimeError(
+                raise TypeError(
                         f'Downloader type {cls.__name__} does not define a'
                         ' config type. Please add type argument in file'
                         f' {cls_sourcefile}, line {cls_line}.')
             assert issubclass(config_type, BaseDownloaderConfig)
             return config_type
         else:
-            raise RuntimeError(f'Downloader type {cls.__name__}'
-                               ' does not define a config type.')
+            raise TypeError(f'Downloader type {cls.__name__}'
+                            ' does not define a config type.')
 
 
 T = TypeVar('T', bound=Downloader)

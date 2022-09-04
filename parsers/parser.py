@@ -115,15 +115,15 @@ class Parser(Generic[CT], metaclass=ABCMeta):
                 import inspect
                 cls_sourcefile = inspect.getsourcefile(cls)
                 cls_line = inspect.getsourcelines(cls)[1]
-                raise RuntimeError(
+                raise TypeError(
                         f'Parser type {cls.__name__} does not define a config'
                         ' type. Please add type argument in file'
                         f' {cls_sourcefile}, line {cls_line}.')
             assert issubclass(config_type, BaseParserConfig)
             return config_type
         else:
-            raise RuntimeError(f'Parser type {cls.__name__}'
-                               ' does not define a config type.')
+            raise TypeError(f'Parser type {cls.__name__}'
+                            ' does not define a config type.')
 
 
 CleaningConfigSelf = TypeVar('CleaningConfigSelf',
