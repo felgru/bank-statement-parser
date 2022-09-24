@@ -6,7 +6,13 @@ from pathlib import Path
 
 import pytest
 
-from git import Git, GitError, GitEmptyCommitError, GitMergeConflictError
+from git import (
+    Conflict,
+    Git,
+    GitError,
+    GitEmptyCommitError,
+    GitMergeConflictError,
+)
 
 
 def test_create_git_dir(tmp_path: Path) -> None:
@@ -152,7 +158,7 @@ def test_merge_conflict(tmp_path: Path) -> None:
     with pytest.raises(GitMergeConflictError) as exc_info:
         git.merge('bad')
     conflicts = exc_info.value.conflicts
-    assert conflicts[0].name == 'b'
-    assert conflicts[0].type == 'add/add'
-    assert conflicts[1].name == 'a'
-    assert conflicts[1].type == 'content'
+    assert set(conflicts) == {
+        Conflict(name='a', type='content'),
+        Conflict(name='b', type='add/add'),
+    }

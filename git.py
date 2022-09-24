@@ -167,7 +167,7 @@ class GitError(Exception):
     pass
 
 
-@dataclass
+@dataclass(frozen=True)
 class Conflict:
     name: str
     type: str
