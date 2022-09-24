@@ -10,10 +10,10 @@ from decimal import Decimal
 from pathlib import Path
 import re
 import sys
-from typing import Optional
+from typing import cast, Optional
 from urllib.parse import urljoin, urlparse
 
-from bs4 import BeautifulSoup  # type: ignore
+from bs4 import BeautifulSoup, NavigableString, Tag
 import requests
 
 from bank_statement import BankStatement
@@ -100,13 +100,16 @@ class MijnOvChipkaartWebsite:
         res.raise_for_status()
         # Now we have to jump through some hoops for the SAML SSO.
         soup = BeautifulSoup(res.text, 'html.parser')
-        url = cls.BASE_URL + soup.find('meta')['content'].partition('=')[2]
+        meta = soup.find('meta')
+        assert isinstance(meta, Tag)
+        url: str = cls.BASE_URL + cast(str, meta['content']).partition('=')[2]
         res = requests.get(url)
         res.raise_for_status()
         soup = BeautifulSoup(res.text, 'html.parser')
         form = soup.find('form')
+        assert isinstance(form, Tag)
         res = s.post(
-                form['action'],
+                cast(str, form['action']),
                 data={i['name']: i['value']
                       for i in form.find_all('input')
                       if i.has_attr('name')},
@@ -115,11 +118,12 @@ class MijnOvChipkaartWebsite:
         # Now we're at the actual login page with username and password fields.
         soup = BeautifulSoup(res.text, 'html.parser')
         form = soup.find('form')
-        session_data_key = form.find(lambda tag:
+        assert isinstance(form, Tag)
+        session_data_key = cast(Tag, form.find(lambda tag:
                 tag.name == 'input' and tag['name'] =='sessionDataKey'
-        )['value']
+        ))['value']
         url = urljoin(urlparse(res.url)._replace(query='').geturl(),
-                      form['action'])
+                      cast(str, form['action']))
         # This post takes a while, probably because SSO infrastructure needs
         # to verify my credentials.
         res = s.post(
@@ -141,8 +145,9 @@ class MijnOvChipkaartWebsite:
         if form is None:
             raise RuntimeError('Unexpected error: Could not find SAML SSO form.'
                                ' Please try again.')
+        assert isinstance(form, Tag)
         res = s.post(
-                form['action'],
+                cast(str, form['action']),
                 data={i['name']: i['value']
                       for i in form.find_all('input')
                       if i.has_attr('name')},
@@ -159,6 +164,7 @@ class MijnOvChipkaartWebsite:
         res.raise_for_status()
         soup = BeautifulSoup(res.text, 'html.parser')
         form = soup.find('form', id="cardselector_form")
+        assert isinstance(form, Tag)
         cards = form.find_all('ol')
         assert len(cards) == 1
         return cards[0].find('span', class_='cs-card-number')['data-hashed']
@@ -308,17 +314,21 @@ class HistoryPage:
 
     def num_pages(self) -> int:
         pagination = self.soup.find('div', class_='transaction-pagination')
+        assert isinstance(pagination, Tag)
         buttons = pagination.find_all('button', attrs={'name': 'pagenumber'})
         return int(buttons[-1]['value'])
 
     @property
     def current_balance(self) -> tuple[Decimal, datetime]:
         info = self.soup.find('table', id='card-info-table')
+        assert isinstance(info, Tag)
         label = info.find('td', class_='table-label')
-        assert label.text == 'Saldo'
+        assert isinstance(label, Tag) and label.text == 'Saldo'
         td = label.find_next_sibling('td')
+        assert isinstance(td, Tag)
         grey = td.find('span', class_='grey')
-        amount = parse_amount(grey.previous.strip())
+        assert isinstance(grey, Tag)
+        amount = parse_amount(cast(NavigableString, grey.previous).strip())
         d, t = grey.text[1:-1].split()
         dt = datetime.combine(parse_nl_date(d), time.fromisoformat(t))
         return amount, dt
