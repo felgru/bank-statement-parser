@@ -13,7 +13,7 @@ from getpass import getpass
 import json
 import sys
 import statistics
-from typing import Literal, Optional, TypedDict, Union
+from typing import Literal, Optional, TextIO, TypedDict, Union
 
 from dateutil import parser as dateparser
 from dateutil import tz
@@ -265,6 +265,7 @@ def download_main(args: argparse.Namespace) -> None:
         transactions = apetiz.get_transactions(one_year_ago, last)
         all_transactions.extend(transactions['items'])
 
+    outfile: contextlib.AbstractContextManager[TextIO]
     if args.output == '-':
         outfile = contextlib.nullcontext(sys.stdout)
     else:
@@ -274,6 +275,7 @@ def download_main(args: argparse.Namespace) -> None:
 
 
 def load_json_transactions(json_file: str) -> list[TransactionItemJSON]:
+    infile: contextlib.AbstractContextManager[TextIO]
     if json_file == '-':
         infile = contextlib.nullcontext(sys.stdin)
     else:
