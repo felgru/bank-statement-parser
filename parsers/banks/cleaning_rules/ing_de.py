@@ -44,11 +44,17 @@ def parse_card_metadata(t):
         else:
             m = re.search(r'^(.*?)( \d{6}|)$', rest)
             metadata.update(parse_location(m.group(1)))
+    elif card_transaction_type == 'WECHSELKURSGEBUEHR':
+        assert rest.endswith('%')
+        percentage = Decimal(rest[:-1].replace(',', '.'))
+        metadata.update(dict(
+                exchange_fee_rate = percentage / 100,
+                ))
     else:
         raise RuntimeError('Unknown card transaction type:', card_transaction_type)
     return description, purchase_date, metadata
 
-def parse_location(s: str) -> dict:
+def parse_location(s: str) -> dict[str, str]:
     m = re.match(r'(.*?) ([A-Z]{2})', s)
     if m is not None:
         return dict(
@@ -58,19 +64,19 @@ def parse_location(s: str) -> dict:
     else:
         return dict(location=s)
 
-def parse_date_relative_to(d, ref_d):
+def parse_date_relative_to(d: str, ref_d: date) -> date:
     day = int(d[:2])
     month = int(d[3:5])
     year = ref_d.year
-    d = date(year, month, day)
+    dd = date(year, month, day)
     half_a_year = timedelta(days=356/2)
-    diff = d - ref_d
+    diff = dd - ref_d
     if abs(diff) > half_a_year:
         if diff < timedelta(days=0):
-            d = date(year + 1, month, day)
+            dd = date(year + 1, month, day)
         else:
-            d = date(year - 1, month, day)
-    return d
+            dd = date(year - 1, month, day)
+    return dd
 
 def parse_amount(a: str) -> Decimal:
     """ parse a decimal amount like -10,00 """
