@@ -8,9 +8,8 @@ from datetime import date, timedelta
 from decimal import Decimal
 from pathlib import Path
 import re
-from typing import cast, Optional
+from typing import Any, cast, Optional
 
-from .cleaning_rules import ing_de as cleaning_rules
 from bank_statement import BankStatement, BankStatementMetadata
 from transaction import (BaseTransaction, Balance, MultiTransaction,
                          Posting, Transaction)
@@ -39,13 +38,6 @@ class IngDePdfParser(OldPdfParser[IngDeConfig]):
         self.transaction_description_pattern = re.compile(
                 '^' + ' ' * self.description_start + r' *(\S.*)\n',
                 flags=re.MULTILINE)
-        if self.metadata.account_type == 'Girokonto':
-            self.cleaning_rules = cleaning_rules.rules
-        elif self.metadata.account_type == 'Extra-Konto':
-            self.cleaning_rules = cleaning_rules.extra_konto_rules
-        else:
-            raise RuntimeError(
-                    f'Unknown account type: {self.metadata.account_type!r}.')
 
     table_heading = re.compile(r'^ *Buchung *(Buchung / Verwendungszweck) *'
                                r'Betrag \(EUR\)\n *Valuta\n*',
@@ -230,9 +222,15 @@ class IngDePdfParser(OldPdfParser[IngDeConfig]):
                 m = self.transaction_description_pattern.match(
                                 self.transactions_text, start, end)
             description = '\n'.join(l for l in description_lines if l)
+            description, external_value_date, metadata \
+                    = parse_transaction(transaction_type,
+                                        description,
+                                        transaction_date,
+                                        )
             yield Transaction(account, description, transaction_date,
                               value_date, amount,
-                              metadata=dict(type=transaction_type))
+                              external_value_date=external_value_date,
+                              metadata=metadata)
             m = self.transaction_pattern.search(self.transactions_text,
                                                 start, end)
 
@@ -250,6 +248,200 @@ class IngDePdfParser(OldPdfParser[IngDeConfig]):
         assert self.old_balance.balance + sum(amount(t)
                                               for t in transactions) \
                == self.new_balance.balance
+
+
+def parse_transaction(transaction_type: str,
+                      description: str,
+                      transaction_date: date,
+                      ) -> tuple[str, Optional[date], dict[str, Any]]:
+    metadata: dict[str, Any] = dict(type=transaction_type)
+    external_value_date: Optional[date] = None
+    if transaction_type == 'Lastschrift':
+        m = re.search(r'(.*)\n(NR\d{10}|NR XXXX \d{4}|NR XXXX \d{4} [\d-]+)'
+                      r'\s*(.*?)\s*(\bARN\d+\b)',
+                      description, flags=re.DOTALL)
+        if m is not None:
+            # card transaction
+            description, external_value_date, additional_metadata \
+                    = parse_card_metadata(m, transaction_date)
+            metadata.update(additional_metadata)
+        elif (m := re.search(r'^Mandat: .*\nReferenz: .*$', description,
+                             flags=re.MULTILINE)) is not None:
+            # direct debit
+            description, additional_metadata \
+                    = parse_direct_debit_metadata(description)
+            metadata.update(additional_metadata)
+    elif (transaction_type == 'Abbuchung' and
+            re.search(r'^Referenz: .*$', description,
+                      flags=re.MULTILINE)):
+        # Giro card transaction
+        description, additional_metadata \
+                = parse_giro_card_metadata(description)
+        metadata.update(additional_metadata)
+    elif transaction_type == 'Dauerauftrag/Terminueberw.':
+        # standing order
+        lines = description.split('\n')
+        metadata['name'] = lines[0]
+        description = lines[0] + ' | ' + ' '.join(lines[1:])
+    elif transaction_type == 'Entgelt':
+        # fee
+        if (description.startswith('VISA ')
+                and 'AUSLANDSEINSATZENTGELT' in description):
+            # card exchange fee
+            lines = description.split('\n')
+            metadata['fee_type'] = 'AUSLANDSEINSATZENTGELT'
+            m = re.match(r'VISA (\d{4} X{4} X{4} \d{3,4}) '
+                         r'(\d,\d\d)%AUSLANDSEINSATZENTGELT',
+                         lines[-2])
+            if m is None:
+                raise RuntimeError(
+                    f'card exchange fee pattern didn\'t match {lines[-2]!r}')
+            metadata['card_number'] = m.group(1)
+            metadata['exchange_fee_rate'] = parse_amount(m.group(2))
+            m = re.match(r'\w+ \(.+?\) (ARN\d+)', lines[-1])
+            if m is None:
+                raise RuntimeError('ARN pattern didn\'t match.')
+            metadata['ARN_number'] = m.group(1)
+            description = ' '.join(lines[:-2])
+        else:
+            # other fee
+            raise RuntimeError('Unknown fee type')
+            metadata['fee_type'] = 'UNKNOWN'
+    elif transaction_type == 'Gutschrift' or transaction_type == 'Ueberweisung':
+        # Giro transfer
+        description, additional_metadata \
+                = clean_giro_transfer_description(description)
+        metadata.update(additional_metadata)
+    elif transaction_type == 'Zinsertrag':
+        # Details will be added later from interests table.
+        description = transaction_type
+    elif transaction_type == 'Gehalt/Rente':
+        m = re.match(r'([^\n]*)\n(.*)\nReferenz: (.*)$', description,
+                     flags=re.MULTILINE | re.DOTALL)
+        if m is None:
+            raise RuntimeError(f'Salary pattern didn\'t match {description!r}.')
+        description = m.group(1) + ' | ' + ' '.join(m.group(2).split('\n'))
+        metadata['Referenz'] = m.group(3)
+    else:
+        raise RuntimeError(f'Unknown transaction type {transaction_type!r}.')
+    return description, external_value_date, metadata
+
+def parse_card_metadata(metadata_pattern: re.Match,
+                        operation_date: date,
+                        ) -> tuple[str, date, dict[str, Any]]:
+    orig_match = metadata_pattern.group(0)
+    description = metadata_pattern.group(1).replace('\n', ' ')
+    metadata = dict(
+        NR_number=metadata_pattern.group(2),
+        ARN_number=metadata_pattern.group(4),
+    )
+    rest = metadata_pattern.group(3).replace('\n', ' ')
+    m = re.search(r'(.*?) (\w+) (\d\d\.\d\d)(.*)$', rest)
+    if m is None:
+        raise RuntimeError(f'pattern for rest of card metadata didn\'t match {rest!r}')
+    card_transaction_type = m.group(2)
+    metadata['card_transaction_type'] = card_transaction_type
+    purchase_date = parse_date_relative_to(m.group(3), operation_date)
+    rest = m.group(1) + m.group(4)
+    if card_transaction_type == 'BARGELDAUSZAHLUNG':
+        m = re.search(r'(.*?) \d{6}$', rest)
+        if m is None:
+            raise RuntimeError(f'location pattern didn\'t match {rest!r}')
+        metadata.update(parse_location(m.group(1)))
+    elif card_transaction_type == 'KAUFUMSATZ':
+        m = re.search(r'^(.*) KURS (\d+,\d+) (\d+,\d\d) \d{6}$', rest)
+        if m is not None: # Transaction in foreign currency
+            metadata.update(parse_location(m.group(1)))
+            metadata.update(dict(
+                    exchange_rate = parse_amount(m.group(2)),
+                    foreign_amount = parse_amount(m.group(3)),
+                    ))
+        else:
+            m = re.search(r'^(.*?)( \d{6}|)$', rest)
+            if m is None:
+                raise RuntimeError(f'location pattern didn\'t match {rest!r}')
+            metadata.update(parse_location(m.group(1)))
+    elif card_transaction_type == 'WECHSELKURSGEBUEHR':
+        assert rest.endswith('%')
+        percentage = Decimal(rest[:-1].replace(',', '.'))
+        metadata.update(dict(
+                exchange_fee_rate = percentage / 100,
+                ))
+    else:
+        raise RuntimeError('Unknown card transaction type:',
+                           card_transaction_type)
+    return description, purchase_date, metadata
+
+
+def parse_location(s: str) -> dict[str, str]:
+    m = re.match(r'(.*) ([A-Z]{2})$', s)
+    if m is not None:
+        return dict(
+                location=m.group(1),
+                country=m.group(2),
+               )
+    else:
+        return dict(location=s)
+
+
+def parse_direct_debit_metadata(description: str) -> tuple[str, dict[str, Any]]:
+    lines = description.split('\n')
+    description_list: list[str] = []
+    metadata = {}
+    key_value_pattern = re.compile(r'(\w+): (.*)')
+    for l in lines:
+        m = key_value_pattern.fullmatch(l)
+        if m is None:
+            description_list.append(l)
+        else:
+            metadata[m.group(1)] = m.group(2)
+    if len(description_list) > 1:
+        description = description_list[0] + ' | ' \
+                    + ' '.join(description_list[1:])
+    else:
+        description = description_list[0]
+    return description, metadata
+
+
+def parse_giro_card_metadata(description: str) -> tuple[str, dict[str, Any]]:
+    lines = description.split('\n')
+    description_lines = []
+    metadata = {}
+    key_value_pattern = re.compile(r'(\w+): (.*)')
+    for l in lines:
+        m = key_value_pattern.fullmatch(l)
+        if m is None:
+            description_lines.append(l)
+        else:
+            metadata[m.group(1)] = m.group(2)
+    if len(description_lines) > 1:
+        description = description_lines[0] + ' | ' \
+                    + ' '.join(description_lines[1:])
+    else:
+        description = description_lines[0]
+    return description, metadata
+
+
+def clean_giro_transfer_description(
+    description: str,
+) -> tuple[str, dict[str, Any]]:
+    lines = description.split('\n')
+    description_lines = []
+    metadata = {}
+    key_value_pattern = re.compile(r'(\w+): (.*)')
+    for l in lines:
+        m = key_value_pattern.fullmatch(l)
+        if m is None:
+            description_lines.append(l)
+        else:
+            metadata[m.group(1)] = m.group(2)
+    name = description_lines[0]
+    metadata['name'] = name
+    if len(description_lines) > 1:
+        description = name + ' | ' + ' '.join(description_lines[1:])
+    else:
+        description = name
+    return description, metadata
 
 
 class IngDeCsvParser(CleaningParser[IngDeConfig]):
@@ -345,6 +537,21 @@ def parse_date(d: str) -> date:
     month = int(d[3:5])
     year = int(d[6:])
     return date(year, month, day)
+
+
+def parse_date_relative_to(d: str, ref_d: date) -> date:
+    day = int(d[:2])
+    month = int(d[3:5])
+    year = ref_d.year
+    dd = date(year, month, day)
+    half_a_year = timedelta(days=356/2)
+    diff = dd - ref_d
+    if abs(diff) > half_a_year:
+        if diff < timedelta(days=0):
+            dd = date(year + 1, month, day)
+        else:
+            dd = date(year - 1, month, day)
+    return dd
 
 
 def parse_amount(a: str) -> Decimal:
