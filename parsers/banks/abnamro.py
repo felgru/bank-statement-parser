@@ -147,12 +147,13 @@ class FirstPageMetadata:
 
     @staticmethod
     def _parse_addresses(text: str) -> tuple[str, str]:
-        m = re.search('Statement of account', text)
+        m = re.search('Statement of account\n+', text,
+                      flags=re.MULTILINE)
         assert m is not None
-        m = re.compile(r'^( +)', flags=re.MULTILINE).search(text, m.end())
+        addresses_start = m.end()
+        m = re.compile(r'(  +)').search(text, addresses_start)
         assert m is not None
-        addresses_start = m.start()
-        customer_address_offset = m.end(1) - m.start(1)
+        customer_address_offset = m.end(1) - addresses_start
         bank_address = []
         customer_address = []
         for line in text[addresses_start:].split('\n'):
