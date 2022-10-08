@@ -128,7 +128,7 @@ def test_parsing_exchange_fee_transaction() -> None:
     assert metadata == {
         'ARN_number': 'ARN12345678901234567890123',
         'card_number': '4546 XXXX XXXX 1234',
-        'exchange_fee_rate': Decimal('1.75'),
+        'exchange_fee_rate': Decimal('0.0175'),
         'fee_type': 'AUSLANDSEINSATZENTGELT',
         'type': 'Entgelt',
     }

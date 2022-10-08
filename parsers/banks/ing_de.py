@@ -297,7 +297,7 @@ def parse_transaction(transaction_type: str,
                 raise RuntimeError(
                     f'card exchange fee pattern didn\'t match {lines[-2]!r}')
             metadata['card_number'] = m.group(1)
-            metadata['exchange_fee_rate'] = parse_amount(m.group(2))
+            metadata['exchange_fee_rate'] = parse_amount(m.group(2)) / 100
             m = re.match(r'\w+ \(.+?\) (ARN\d+)', lines[-1])
             if m is None:
                 raise RuntimeError('ARN pattern didn\'t match.')
