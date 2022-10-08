@@ -94,6 +94,30 @@ def test_parsing_cash_withdrawal_transaction() -> None:
     }
 
 
+def test_parsing_foreign_cash_withdrawal_transaction() -> None:
+    description = ("Bargeldauszahlung VISA Card ATM IN FOREIGN\n"
+                   "COUNTRY\n"
+                   "NR1234567890 CITY NO KURS 1,2345678 BARGELDAUSZAHLUNG\n"
+                   "30.01 12,34 123456 ARN12345678901234567890123")
+    description, external_value_date, metadata \
+            = parse_transaction('Lastschrift',
+                                description,
+                                date(2022, 1, 31),
+                                )
+    assert description == 'Bargeldauszahlung VISA Card ATM IN FOREIGN COUNTRY'
+    assert external_value_date == date(2022, 1, 30)
+    assert metadata == {
+        'ARN_number': 'ARN12345678901234567890123',
+        'NR_number': 'NR1234567890',
+        'card_transaction_type': 'BARGELDAUSZAHLUNG',
+        'country': 'NO',
+        'exchange_rate': Decimal('1.2345678'),
+        'foreign_amount': Decimal('12.34'),
+        'location': 'CITY',
+        'type': 'Lastschrift',
+    }
+
+
 def test_parsing_direct_debit_transaction() -> None:
     description = ("NAME OF SHOP\n"
                    "description line 1\n"

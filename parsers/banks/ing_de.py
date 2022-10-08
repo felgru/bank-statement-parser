@@ -343,12 +343,7 @@ def parse_card_metadata(metadata_pattern: re.Match,
     metadata['card_transaction_type'] = card_transaction_type
     purchase_date = parse_date_relative_to(m.group(3), operation_date)
     rest = m.group(1) + m.group(4)
-    if card_transaction_type == 'BARGELDAUSZAHLUNG':
-        m = re.search(r'(.*?) \d{6}$', rest)
-        if m is None:
-            raise RuntimeError(f'location pattern didn\'t match {rest!r}')
-        metadata.update(parse_location(m.group(1)))
-    elif card_transaction_type == 'KAUFUMSATZ':
+    if card_transaction_type in ('BARGELDAUSZAHLUNG', 'KAUFUMSATZ'):
         m = re.search(r'^(.*) KURS (\d+,\d+) (\d+,\d\d) \d{6}$', rest)
         if m is not None: # Transaction in foreign currency
             metadata.update(parse_location(m.group(1)))
