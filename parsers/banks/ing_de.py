@@ -360,8 +360,14 @@ def parse_card_metadata(metadata_pattern: re.Match,
         assert rest.endswith('%')
         percentage = Decimal(rest[:-1].replace(',', '.'))
         metadata.update(dict(
-                exchange_fee_rate = percentage / 100,
+                # While it originally has type == 'Lastschrift', it is
+                # actually an 'Entgelt' which is also how it is marked on
+                # more recent bank statements.
+                type='Entgelt',
+                exchange_fee_rate=percentage / 100,
+                fee_type='WECHSELKURSGEBUEHR',
                 ))
+        del metadata['card_transaction_type']
     else:
         raise RuntimeError('Unknown card transaction type:',
                            card_transaction_type)

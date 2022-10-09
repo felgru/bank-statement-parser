@@ -66,9 +66,9 @@ def test_parsing_foreign_visa_card_exchange_fee_transaction() -> None:
     assert metadata == {
         'ARN_number': 'ARN12345678901234567890123',
         'NR_number': 'NR1234567890',
-        'card_transaction_type': 'WECHSELKURSGEBUEHR',
         'exchange_fee_rate': Decimal('0.0175'),
-        'type': 'Lastschrift',
+        'fee_type': 'WECHSELKURSGEBUEHR',
+        'type': 'Entgelt',
     }
 
 
