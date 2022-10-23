@@ -26,11 +26,14 @@ class ThermoFisherConfig(BaseParserConfig):
         '1000': 'income:salary',
         '3011': 'income:salary:holiday allowance',  # Vacantiegeld
         '3019': 'income:salary:bonus',
+        '4304': 'income:salary:30%',      # Bruto aftrek 30% reg.TB
+        '4305': 'income:salary:30%',      # Bruto aftrek 30% reg.BT
         '4461': 'expenses:taxes:retirement insurance',
         '4466': 'expenses:taxes:social',  # WGA Aanvullend
         '4467': 'expenses:taxes:social',  # WIA bodem
         '5150': 'income:salary',          # Netto thuiswerkvergoeding
         '5216': 'income:salary',          # Representatievergoeding
+        '5990': 'income:salary:30%',      # Netto 30% regeling
         '7380': 'expenses:taxes:social',  # PAWW unemployment insurance
         '7100': 'expenses:taxes:income',  # Loonheffing Tabel
         '7101': 'expenses:taxes:income',  # Loonheffing BT
