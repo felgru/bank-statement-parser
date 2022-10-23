@@ -9,7 +9,7 @@ from decimal import Decimal
 from itertools import chain, groupby
 from pathlib import Path
 import re
-from typing import ClassVar, Final, Optional
+from typing import cast, ClassVar, Final, Optional
 
 from ..parser import BaseParserConfig, load_accounts, Parser
 from ..pdf_parser import read_pdf_file
@@ -37,6 +37,7 @@ class ThermoFisherConfig(BaseParserConfig):
         '7380': 'expenses:taxes:social',  # PAWW unemployment insurance
         '7100': 'expenses:taxes:income',  # Loonheffing Tabel
         '7101': 'expenses:taxes:income',  # Loonheffing BT
+        '9721': 'assets:receivable:salary:correction',  # Correctie TWK Bank 1
     }
     salary_balancing_account: str
     accounts: dict[int, str]
@@ -71,19 +72,58 @@ class ThermoFisherPdfParser(Parser[ThermoFisherConfig]):
 
     def __init__(self, pdf_file: Path):
         super().__init__(pdf_file)
-        self._read_pdf(pdf_file)
-        self._metadata: Optional[BankStatementMetadata] = None
-
-    def _read_pdf(self, pdf_file: Path) -> None:
         self.pdf_pages = read_pdf_file(pdf_file)
-        self.main_table, self.payment_table, totals_table = \
-                get_tables(self.pdf_pages)
+        self.tables = [get_tables(self.pdf_pages, i)
+                       for i in range(len(self.pdf_pages))]
+        self._metadata: Optional[BankStatementMetadata] = None
+        self._metadata_per_page = [
+            self.parse_metadata_of_page(page)
+            for page in range(len(self.pdf_pages))
+        ]
 
     def parse_metadata(self) -> BankStatementMetadata:
         if self._metadata is not None:
             return self._metadata
+        if len(self.pdf_pages) > 1:
+            metadata = self._metadata_per_page
+            if not all('Herberekening' in bs.meta for bs in metadata):
+                unexpected = ', '.join(str(i) for i, recalculation
+                                       in enumerate('Herberekening' in bs.meta
+                                                    for bs in metadata)
+                                       if not recalculation)
+                raise ThermoFisherPdfParserError(
+                        'PDF file has multiple pages, but page(s) '
+                        f'{unexpected} is/are no '
+                        'recalculation(s) of previous payslips.')
+            if len(metadata) % 2 == 1:
+                raise ThermoFisherPdfParserError(
+                        'Expected even number of bank statements, '
+                        'got uneven number.')
+            assert len({bs.employee_number for bs in metadata}) == 1
+            for i in range(0, len(metadata), 2):
+                assert metadata[i].start_date == metadata[i+1].start_date
+                assert metadata[i].end_date == metadata[i+1].end_date
+            start_date = min(bs.start_date for bs in metadata)
+            end_date = max(bs.end_date for bs in metadata)
+            return BankStatementMetadata(
+                start_date=start_date,
+                end_date=end_date,
+                employee_number=metadata[0].employee_number,
+                description='Recalculation of payslips'
+                            f' {start_date} → {end_date}',
+                is_recalculation=True,
+            )
+        else:
+            return self.parse_metadata_of_page(0)
+
+    def get_metadata_of_page(self, page_nr: int) -> BankStatementMetadata:
+        return self._metadata_per_page[page_nr]
+
+    def parse_metadata_of_page(self, page_nr: int) -> BankStatementMetadata:
+        page = self.pdf_pages[page_nr]
+        tables = self.tables[page_nr]
         m = re.search(r'^ +(Persnr) +\d+ +(Bedrijfsnr\/Werknr) +\d+-\d+$',
-                      self.pdf_pages[0],
+                      page,
                       flags=re.MULTILINE)
         if m is None:
             raise ThermoFisherPdfParserError(
@@ -93,8 +133,8 @@ class ThermoFisherPdfParser(Parser[ThermoFisherConfig]):
         address_col = []
         left_col = []
         right_col = []
-        meta_table_end = self.main_table.main_table_start - 1
-        for line in self.pdf_pages[0][:meta_table_end].split('\n'):
+        meta_table_end = tables.main_table.main_table_start - 1
+        for line in page[:meta_table_end].split('\n'):
             address_col.append(line[0:left_table_offset].strip())
             left_col.append(line[left_table_offset:right_table_offset].rstrip())
             right_col.append(line[right_table_offset:])
@@ -123,6 +163,14 @@ class ThermoFisherPdfParser(Parser[ThermoFisherConfig]):
                 empty_fields.append(line)
                 continue
             meta[m.group(1)] = m.group(2)
+        if meta.get('') == 'Afgeboekt':
+            del meta['']
+            meta['Herberekening'] = 'Afgeboekt'
+        if re.match(r'\s*Herberekening\n', page,
+                    flags=re.MULTILINE) is not None:
+            meta['Herberekening'] = 'Herberekening'
+            assert meta[''] == 'Herberekening'
+            del meta['']
         start_date = parse_date(meta['Begin datum'])
         end_date = parse_date(meta['Eind datum'])
         payment_date = parse_date(meta['Verw.datum'])
@@ -142,31 +190,83 @@ class ThermoFisherPdfParser(Parser[ThermoFisherConfig]):
                 12: 'December',
             }
             description=f'Salaris {maanden[start_date.month]}'
-        self._metadata = BankStatementMetadata(
+        return BankStatementMetadata(
                 start_date=start_date,
                 end_date=end_date,
                 payment_date=payment_date,
                 employee_number=meta['Persnr'],
                 description=description,
+                meta=meta,
                 )
-        return self._metadata
 
     def parse(self, config: ThermoFisherConfig) -> BankStatement:
-        metadata = self.parse_metadata()
+        if len(self.pdf_pages) > 1:
+            return self._parse_corrections(config)
+        else:
+            return self.parse_page(0, config)
+
+    def _parse_corrections(self, config: ThermoFisherConfig) -> BankStatement:
+        correction_account = config.accounts[9721]
+        statements = []
+        for page in range(len(self.pdf_pages)):
+            statements.append(self.parse_page(page, config))
+        assert all(len(s.transactions) == 1 for s in statements)
+        assert len(statements) == len(self._metadata_per_page)
+        transactions = []
+        for i in range(0, len(statements), 2):
+            old = cast(MultiTransaction, statements[i].transactions[0])
+            new = cast(MultiTransaction, statements[i+1].transactions[0])
+            assert old.date == new.date
+            assert old.description == new.description
+            description = 'Correction ' + old.description
+            transaction = MultiTransaction(description, old.date)
+            # TODO: This assumes that types of postings in new are
+            #       a superset of old's postings.
+            new_postings = iter(new.postings)
+            for old_posting in old.postings:
+                new_posting = next(new_postings)
+                while (old_posting.account != new_posting.account
+                       or old_posting.comment != new_posting.comment):
+                    # Take new lines in new posting as-is.
+                    transaction.add_posting(new_posting)
+                    new_posting = next(new_postings)
+                if new_posting.amount == old_posting.amount:
+                    # skip identical postings
+                    continue
+                if new_posting.account != config.salary_balancing_account:
+                    # Register difference
+                    old_posting.amount = - old_posting.amount
+                    transaction.add_posting(old_posting)
+                    transaction.add_posting(new_posting)
+                else:
+                    transaction.add_posting(Posting(
+                        account=correction_account,
+                        amount=new_posting.amount - old_posting.amount,
+                        currency=new_posting.currency,
+                        posting_date=new_posting.date,
+                        comment=new_posting.comment,
+                    ))
+            transactions.append(transaction)
+        return BankStatement(transactions)
+
+    def parse_page(self, page: int,
+                   config: ThermoFisherConfig) -> BankStatement:
+        metadata = self.get_metadata_of_page(page)
         transaction = MultiTransaction(metadata.description,
                                        metadata.payment_date)
-        net_total = self._parse_main_table(transaction, config)
-        payment_total = self._parse_payment_table(transaction, config)
+        net_total = self._parse_main_table(page, transaction, config)
+        payment_total = self._parse_payment_table(page, transaction, config)
         assert net_total == payment_total
         assert transaction.is_balanced()
         return BankStatement([transaction])
 
     def _parse_main_table(self,
+                          page: int,
                           transaction: MultiTransaction,
                           config: ThermoFisherConfig) -> Decimal:
         accounts = config.accounts
         net_total: Optional[Decimal] = None
-        for item in self.main_table:
+        for item in self.tables[page].main_table:
             if item.is_total():
                 continue
             if item.code == 9900:
@@ -190,10 +290,11 @@ class ThermoFisherPdfParser(Parser[ThermoFisherConfig]):
         return net_total
 
     def _parse_payment_table(self,
+                             page: int,
                              transaction: MultiTransaction,
                              config: ThermoFisherConfig) -> Decimal:
         payment_total = Decimal('0.00')
-        for item in self.payment_table:
+        for item in self.tables[page].payment_table:
             description = ' '.join(item.description.split())
             p = Posting(config.salary_balancing_account,
                         item.amount,
@@ -209,19 +310,37 @@ def parse_date(d: str) -> date:
     return date(int(year), int(month), int(day))
 
 
-def get_tables(pdf_pages: list[str]) -> tuple[MainTable, PaymentTable, str]:
-    assert len(pdf_pages) == 1
-    page = pdf_pages[0]
+@dataclass
+class PayslipTables:
+    main_table: MainTable
+    payment_table: PaymentTable
+    totals_table: str
+
+
+def get_tables(pdf_pages: list[str], page_nr: int) -> PayslipTables:
+    page = pdf_pages[page_nr]
     main_table = MainTable(page)
+    m = re.match(r'\s*Herberekening\n', page, flags=re.MULTILINE)
+    is_recalculation = m is not None
     m = re.search(r'^ *TOTALEN T\/M DEZE PERIODE', page,
                   flags=re.MULTILINE)
     if m is None:
         raise ThermoFisherPdfParserError('Could not find totals table.')
     totals_table = page[m.start():]
+    if is_recalculation:
+        m = re.search(r'^Resultaat +\d+,\d\d +Afboeking strook:', page,
+                      flags=re.MULTILINE)
+        if m is None:
+            raise ThermoFisherPdfParserError('Could not find Resultaat.')
+    main_table_end = m.start() - 1
     payment_table = PaymentTable(
-            page[main_table.betaling_start+len('Betaling\n'):m.start()-1],
+            page[main_table.betaling_start+len('Betaling\n'):main_table_end],
             main_table.main_table_spans)
-    return main_table, payment_table, totals_table
+    return PayslipTables(
+        main_table=main_table,
+        payment_table=payment_table,
+        totals_table=totals_table,
+    )
 
 
 class MainTable:
