@@ -314,6 +314,19 @@ class HistoryPage:
 
     def num_pages(self) -> int:
         pagination = self.soup.find('div', class_='transaction-pagination')
+        if pagination is None:
+            # No search results.
+            transactions = self.soup.find('div', id='transactions')
+            assert isinstance(transactions, Tag)
+            page_info = transactions.find('span', class_='page-info')
+            assert isinstance(page_info, Tag)
+            m = re.search('\(\s*(\d+)\s*transacties', page_info.text)
+            assert m is not None
+            num_transactions = int(m.group(1))
+            if num_transactions > 0:
+                raise RuntimeError(f'{num_transactions} transactions,'
+                                   ' but no pagination found.')
+            return 0
         assert isinstance(pagination, Tag)
         buttons = pagination.find_all('button', attrs={'name': 'pagenumber'})
         return int(buttons[-1]['value'])
