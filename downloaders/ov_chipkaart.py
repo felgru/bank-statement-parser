@@ -285,6 +285,16 @@ class TransactionParserState:
             self.transactions.append(
                     OvTransaction.ride(self.next_transaction[0], transaction))
             self.next_transaction.clear()
+        elif transaction.type == 'Saldo teruggave':
+            self._handle_queued_transactions()
+            self.transactions.append(
+                    OvTransaction.balance_return(transaction))
+        elif transaction.type == 'Automatisch opladen':
+            # ignore
+            pass
+        elif transaction.type == 'Product op kaart geladen':
+            # ignore
+            pass
         else:
             raise RuntimeError(f'Unknown transaction type {transaction.type!r}.')
 
@@ -358,15 +368,19 @@ class OvTransaction:
     date: date
     mode_of_transportation: Optional[str]
     place: str
-    amount: Decimal
+    amount: Optional[Decimal]
 
     @classmethod
     def ride(cls,
             check_in: RawTransaction,
             check_out: RawTransaction) -> OvTransaction:
-        assert check_out.fare is not None
-        assert -check_out.fare == check_in.amount + check_out.amount
-        assert check_out.reference == (check_in.type, check_in.place)
+        amount: Optional[Decimal] = None
+        if check_out.fare is not None:
+            assert check_in.amount is not None
+            assert check_out.amount is not None
+            assert -check_out.fare == check_in.amount + check_out.amount
+            assert check_out.reference == (check_in.type, check_in.place)
+            amount = -check_out.fare
         place = ' → '.join(f'{t.place} ({t.time:%H:%M})'
                            for t in (check_in, check_out))
         return OvTransaction(
@@ -374,7 +388,7 @@ class OvTransaction:
                 date=check_in.date,
                 mode_of_transportation=check_in.mode_of_transportation,
                 place=place,
-                amount=-check_out.fare,
+                amount=amount,
                 )
 
     @classmethod
@@ -392,12 +406,25 @@ class OvTransaction:
     @classmethod
     def recharge(cls, transaction: RawTransaction) -> OvTransaction:
         assert transaction.mode_of_transportation is None
+        assert transaction.amount is not None
         return OvTransaction(
                 type='recharge',
                 date=transaction.date,
                 mode_of_transportation=None,
                 place='',
                 amount=transaction.amount,
+                )
+
+    @classmethod
+    def balance_return(cls, transaction: RawTransaction) -> OvTransaction:
+        assert transaction.mode_of_transportation is None
+        assert transaction.amount is not None
+        return OvTransaction(
+                type='balance return',
+                date=transaction.date,
+                mode_of_transportation=None,
+                place='',
+                amount=-transaction.amount,
                 )
 
 
@@ -408,16 +435,26 @@ class RawTransaction:
     mode_of_transportation: Optional[str]
     time: time
     place: str
-    reference: Optional[tuple[str, str]]
-    amount: Decimal
+    meta: dict[str, str]
+    lines: list[NavigableString]
+    amount: Optional[Decimal]
     amount_description: Optional[str]
     fare: Optional[Decimal]
+
+    @property
+    def reference(self) -> Optional[tuple[str, str]]:
+        check_in = self.meta.get('Check-in')
+        if check_in is not None:
+            return 'Check-in', check_in
+        else:
+            return None
 
     @classmethod
     def from_soup(cls, transaction: BeautifulSoup) -> RawTransaction:
         datum, omschrijving, ritprijs, declareren = transaction.find_all('td')
         d = parse_nl_date(datum.text.lstrip().partition(' ')[0])
         b = omschrijving.find('b')
+        type_ = b.text.strip()
         n = b.next_sibling
         assert n.name != 'br'
         mode_of_transportation: Optional[str] = ' '.join(n.split())
@@ -426,34 +463,44 @@ class RawTransaction:
         n = n.next_sibling
         assert n.name == 'br'
         n = n.next_sibling
-        t, *rest = n.split()
-        place = ' '.join(rest)
-        n = n.next_sibling
-        assert n.name == 'br'
-        n = n.next_sibling
-        reference: Optional[tuple[str, str]] = None
-        if ':' in n:
-            reference = tuple(s.strip()
-                              for s in n.partition(':')[::2])  # type: ignore
+        t, _, rest_of_time_line = n.lstrip().partition('\xa0\xa0')
+        place = ' '.join(rest_of_time_line.split())
+        lines = []
+        while n.next_sibling is not None:
             n = n.next_sibling
             assert n.name == 'br'
             n = n.next_sibling
-        m = re.search(r'(€ -? ?\d+,\d\d)(.*)', n, flags=re.DOTALL)
-        assert m is not None
-        amount = parse_amount(m.group(1))
-        amount_description: Optional[str] = ' '.join(m.group(2).split())
-        if not amount_description:
-            amount_description = None
-        assert n.next_sibling is None
+            lines.append(n)
+        meta = {}
+        to_delete = []
+        for i, line in enumerate(lines):
+            if ':' in line:
+                key, _, value = line.partition(':')
+                meta[key.strip()] = value.strip()
+                to_delete.append(i)
+        for i in reversed(to_delete):
+            del lines[i]
+        if not lines:
+            amount: Optional[Decimal] = None
+            amount_description: Optional[str] = None
+        else:
+            assert len(lines) == 1
+            m = re.search(r'(€ -? ?\d+,\d\d)(.*)', lines[-1], flags=re.DOTALL)
+            assert m is not None
+            amount = parse_amount(m.group(1))
+            amount_description = ' '.join(m.group(2).split())
+            if not amount_description:
+                amount_description = None
         p = ritprijs.text.strip()
         price = parse_amount(p) if p else None
         return cls(
             date=d,
-            type=b.text.strip(),
+            type=type_,
             mode_of_transportation=mode_of_transportation,
             time=time.fromisoformat(t),
             place=place,
-            reference=reference,
+            meta=meta,
+            lines=lines,
             amount=amount,
             amount_description=amount_description,
             fare=price,
@@ -463,14 +510,21 @@ class RawTransaction:
 def travel_history_to_bank_statement(
         transactions: list[OvTransaction],
         accounts: dict[str, str]) -> BankStatement:
-    def convert_transaction(transaction: OvTransaction) -> Transaction:
+    def convert_transaction(transaction: OvTransaction,
+                            ) -> Optional[Transaction]:
         # TODO: That looks like a nice case for structural pattern matching
         #       once we depend on Python 3.10.
         if transaction.type == 'recharge':
             account = accounts['recharge']
+        elif transaction.type == 'balance return':
+            account = accounts['recharge']
         elif transaction.mode_of_transportation is None:
             raise RuntimeError('Expected mode_of_transportation for transaction'
                                f' {transaction}.')
+        elif transaction.amount is None:
+            # Don't create ledger transactions for itineraries that
+            # were payed with a monthly subscription.
+            return None
         elif transaction.mode_of_transportation.startswith('Trein'):
             account = accounts['train ticket']
         elif transaction.mode_of_transportation.startswith('Bus'):
@@ -479,6 +533,7 @@ def travel_history_to_bank_statement(
             raise RuntimeError('Unknown mode of transportation'
                                f' "{transaction.mode_of_transportation}" in'
                                f' transaction {transaction}.')
+        assert transaction.amount is not None
         description = 'OV-Chipkaart |'
         if transaction.mode_of_transportation is None:
             description += ' ' + transaction.type
@@ -497,7 +552,9 @@ def travel_history_to_bank_statement(
                 )
 
     return BankStatement(
-            transactions=[convert_transaction(t) for t in transactions],
+            transactions=[t for t in (convert_transaction(t)
+                                      for t in transactions)
+                          if t is not None],
             )
 
 
