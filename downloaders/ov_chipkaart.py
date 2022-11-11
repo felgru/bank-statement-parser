@@ -103,7 +103,7 @@ class MijnOvChipkaartWebsite:
         meta = soup.find('meta')
         assert isinstance(meta, Tag)
         url: str = cls.BASE_URL + cast(str, meta['content']).partition('=')[2]
-        res = requests.get(url)
+        res = s.get(url)
         res.raise_for_status()
         soup = BeautifulSoup(res.text, 'html.parser')
         form = soup.find('form')
