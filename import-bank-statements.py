@@ -226,7 +226,7 @@ def regenerate_includes(work_dir: Path, config: ImportConfig) -> None:
 
 
 class Main:
-    def __init__(self):
+    def __init__(self) -> None:
         aparser = argparse.ArgumentParser(
                 description='import account statement PDFs into hledger')
         aparser.add_argument('--force', dest='force', default=False,
