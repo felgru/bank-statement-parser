@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from collections.abc import Sequence
+from collections.abc import Iterable
 from datetime import date
 import json
 from typing import Any, Optional, TextIO
@@ -11,7 +11,7 @@ from transaction import BaseTransaction, Balance
 
 class BankStatement:
     def __init__(self,
-                 transactions: Sequence[BaseTransaction],
+                 transactions: Iterable[BaseTransaction],
                  old_balance: Optional[Balance] = None,
                  new_balance: Optional[Balance] = None):
         self.transactions = list(transactions)
