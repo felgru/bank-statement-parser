@@ -9,7 +9,6 @@ from collections import defaultdict
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import date, timedelta
-import io
 import os
 from pathlib import Path
 import sys
@@ -181,9 +180,7 @@ def parse_and_write_bank_statement(
                 pass
             raise e
     else:
-        with io.StringIO() as f:
-            bank_statement.write_ledger(f)
-            print(f.getvalue())
+        bank_statement.write_ledger(sys.stdout)
     import_transaction.add_file(dest_file)
     src_ext = src_file.suffix
     moved_src = dest_file.with_suffix(src_ext)
