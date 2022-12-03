@@ -251,15 +251,17 @@ class DescriptionParser:
     NEW_BEA_PATTERN = re.compile(
             r'(BEA), (?P<card_type>.*)\n'
             r'(?P<store>.*),PAS(?P<pas_nr>\d{3})\n'
-            r'NR:(?P<NR>\w+) +'
-            r'(?P<date>\d{2}\.\d{2}\.\d{2})\/(?P<time>\d{2}\.\d{2})\n'
+            r'NR:(?P<NR>\w+?),? +'
+            r'(?P<date>\d{2}\.\d{2}\.\d{2})\/'
+            r'(?P<time>\d{2}\.\d{2}|\d{2}:\d{2})\n'
             r'(?P<location>.*)(?P<currency_exchange>.*\n.*\n.*\n.*|)$'
             )
     GEA_PATTERN = re.compile(
             r'(GEA), (?P<card_type>.*)\n'
             r'(?P<atm_name>.*),PAS(?P<pas_nr>\d{3})\n'
-            r'NR:(?P<NR>\w+) +'
-            r'(?P<date>\d{2}\.\d{2}\.\d{2})\/(?P<time>\d{2}\.\d{2})'
+            r'NR:(?P<NR>\w+?),? +'
+            r'(?P<date>\d{2}\.\d{2}\.\d{2})\/'
+            r'(?P<time>\d{2}\.\d{2}|\d{2}:\d{2})'
             r'(?P<location>\n.*|)$'
             )
     CURRENCY_EXCHANGE_PATTERN = re.compile(

@@ -138,6 +138,37 @@ def test_parsing_bea_transaction() -> None:
     assert m['location'] == 'LOCATION'
 
 
+def test_parsing_bea_transaction_with_comma_after_nr() -> None:
+    """Test new BEA format.
+
+    It seems the BEA format changed in Nov 2022 again and
+    now contains a comma after the NR: field and uses a colon instead
+    of a dot as the seperator between hour and minute.
+    """
+    description = ["BEA, Betaalpas",
+                   "My example store,PAS123",
+                   "NR:123ABC, 01.01.22/12:23",
+                   "LOCATION"]
+
+    parser = DescriptionParser(currency='EUR',
+                               accounts=DEFAULT_ACCOUNTS)
+    transaction = parser.parse(
+            description=description,
+            bookdate=date(2022, 1, 1),
+            value_date=date(2022, 1, 1),
+            amount=Decimal("1.23"),
+            )
+    assert transaction.description == 'My example store'
+    m = transaction.metadata
+    assert m['transaction_type'] == 'BEA'
+    assert m['store'] == 'My example store'
+    assert m['pas_nr'] == '123'
+    assert m['NR'] == '123ABC'
+    assert m['date'] == date(2022, 1, 1)
+    assert m['time'] == '12:23'
+    assert m['location'] == 'LOCATION'
+
+
 def test_parsing_bea_transaction_with_currency_exchange() -> None:
     description = ["BEA, Google Pay",
                    "My example store,PAS123",
@@ -176,6 +207,36 @@ def test_parsing_gea_transaction() -> None:
     description = ["GEA, Betaalpas",
                    "Geldmaat Visstraat 54,PAS123",
                    "NR:123456   01.01.22/12.23"]
+
+    parser = DescriptionParser(currency='EUR',
+                               accounts=DEFAULT_ACCOUNTS)
+    transaction = parser.parse(
+            description=description,
+            bookdate=date(2022, 1, 1),
+            value_date=date(2022, 1, 1),
+            amount=Decimal("10.00"),
+            )
+    assert transaction.description \
+            == 'Withdrawal Betaalpas, Geldmaat Visstraat 54'
+    m = transaction.metadata
+    assert m['transaction_type'] == 'GEA'
+    assert m['atm_name'] == 'Geldmaat Visstraat 54'
+    assert m['pas_nr'] == '123'
+    assert m['NR'] == '123456'
+    assert m['date'] == date(2022, 1, 1)
+    assert m['time'] == '12:23'
+
+
+def test_parsing_new_gea_transaction() -> None:
+    """Test new GEA format.
+
+    It seems the GEA format changed in Nov 2022 again and
+    now contains a comma after the NR: field and uses a colon instead
+    of a dot as the seperator between hour and minute.
+    """
+    description = ["GEA, Betaalpas",
+                   "Geldmaat Visstraat 54,PAS123",
+                   "NR:123456, 01.01.22/12:23"]
 
     parser = DescriptionParser(currency='EUR',
                                accounts=DEFAULT_ACCOUNTS)
