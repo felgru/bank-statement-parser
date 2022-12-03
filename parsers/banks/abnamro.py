@@ -194,6 +194,19 @@ class MainTableIterator:
         self.description_parser = DescriptionParser(
                 currency=currency,
                 accounts=accounts)
+        # The transaction table might contain as it's first entry
+        # some information text. This text can be identified by a
+        # missing bookdate.
+        # We simply filter it out, but maybe we could put it in a
+        # block comment in the future.
+        try:
+            line = self.lines.peek()
+            while not line.bookdate:
+                next(self.lines)
+                line = self.lines.peek()
+        except StopIteration:
+            # Handle empty bank statement, just in case.
+            pass
 
     def __iter__(self) -> MainTableIterator:
         return self
