@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 from abc import ABCMeta, abstractmethod
+from getpass import getpass
 from pathlib import Path
 from typing import ClassVar, final, Generic, Optional, TypeVar
 
@@ -97,3 +98,21 @@ class PasswordAuthenticator(Authenticator[T]):
     def __init__(self, username: str, password: str):
         self.username = username
         self.password = password
+
+
+class InteractiveAuthenticator(Authenticator[T]):
+    def __init__(self) -> None:
+        pass
+
+
+def authenticate_interactively(auth_class: type[Authenticator[T]]) -> T:
+    auth: Authenticator[T]
+    if issubclass(auth_class, InteractiveAuthenticator):
+        auth = auth_class()
+    elif issubclass(auth_class, PasswordAuthenticator):
+        username = input('Username: ')
+        password = getpass('Password: ')
+        auth = auth_class(username, password)
+    else:
+        raise TypeError(f'Unknown Authenticator type: {auth_class.__name__}.')
+    return auth.login()

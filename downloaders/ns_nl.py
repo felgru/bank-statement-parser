@@ -24,7 +24,7 @@ from transaction import Transaction
 from .downloader import (
     Downloader,
     GenericDownloaderConfig,
-    PasswordAuthenticator,
+    InteractiveAuthenticator,
 )
 
 
@@ -269,10 +269,20 @@ def travel_history_to_bank_statement(transactions: dict,
             )
 
 
+# TODO: Login with username and password is currently broken
+#       due to some javascript that creates a fingerprint of the browser
+#       environment.
+# class NederlandseSpoorwegenAuthenticator(
+#         PasswordAuthenticator[NederlandseSpoorwegenDownloader]):
+#     def login(self) -> NederlandseSpoorwegenDownloader:
+#         api = NederlandseSpoorwegenApi.login(self.username, self.password)
+#         return NederlandseSpoorwegenDownloader(api)
+
+
 class NederlandseSpoorwegenAuthenticator(
-        PasswordAuthenticator[NederlandseSpoorwegenDownloader]):
+        InteractiveAuthenticator[NederlandseSpoorwegenDownloader]):
     def login(self) -> NederlandseSpoorwegenDownloader:
-        api = NederlandseSpoorwegenApi.login(self.username, self.password)
+        api = NederlandseSpoorwegenApi.interactive_login()
         return NederlandseSpoorwegenDownloader(api)
 
 
@@ -296,6 +306,32 @@ class NederlandseSpoorwegenApi:
         self.authorization_headers = auth_headers
 
     @classmethod
+    def interactive_login(cls) -> 'NederlandseSpoorwegenApi':
+        """Create an API object by manually logging in and copying cookies."""
+        s = requests.Session()
+        # Maybe I should set a User-Agent?
+        print('Go to the following URL and log in:\n'
+              f'{cls.OAUTH_BASE}/authorize'
+              '?scope=read'
+              '&response_type=code'
+              '&client_id=mijnns-productie'
+              '&state=/dashboard'
+              '&redirect_uri=https://www.ns.nl/mijnns')
+        print('Look for a GET request to '
+              f'{cls.API_BASE}/omni-authorization-api/token/authorize'
+              ' or any other Rest API call'
+              ' and copy the following information:')
+        token = input('Bearer token: ')
+        token = token.strip().removeprefix('Bearer ')
+        # Those headers are enough to access the API.
+        # I don't even need to set any cookies.
+        headers = {
+            "Authorization": f'Bearer {token}',
+            "Ocp-Apim-Subscription-Key": "e7f5ede34e384a3f9a87e75cce58c5ed",
+        }
+        return cls(s, headers)
+
+    @classmethod
     def login(cls, username: str, password: str) -> 'NederlandseSpoorwegenApi':
         """Create an API object with username and password."""
         s = requests.Session()
@@ -306,6 +342,7 @@ class NederlandseSpoorwegenApi:
                     '&state=/dashboard'
                     '&redirect_uri=https://www.ns.nl/mijnns')
         res.raise_for_status()
+        assert 'authorize?transaction_id=' in res.url
         soup = BeautifulSoup(res.text, 'html.parser')
         form = soup.find('form')
         assert isinstance(form, Tag)
@@ -323,12 +360,24 @@ class NederlandseSpoorwegenApi:
         token = form.find(lambda tag: tag.name == 'input'
                                       and tag['name'] == 'csrfToken')
         assert isinstance(token, Tag)
+        # Before this post, some Javascript from Akamai posts some json with
+        # a "sensor_data" payload.
+        # https://stackoverflow.com/questions/69562016/akamai-sensor-data-generator-for-a-valid-abck-cookie-on-post-request-python
+        # https://github.com/luluhoc/akamai_sensor_generator_1.69
+        # https://github.com/zedd3v/abck
         res = s.post(
                 urljoin(res.url, cast(str, form['action'])),
                 data={'csrfToken': token['value'],
                       'email': username,
                       'password': password,
                       },
+                headers=dict(s.headers,
+                             **{'Origin': 'https://login.ns.nl',
+                                'Sec-Fetch-Dest': 'document',
+                                'Sec-Fetch-Mode': 'navigate',
+                                'Sec-Fetch-Site': 'same-origin',
+                                'Sec-Fetch-User': '?1',
+                                }),
                 )
         res.raise_for_status()
         assert res.history[1].url == 'https://login.ns.nl/sessions/new'

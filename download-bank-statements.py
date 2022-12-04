@@ -10,7 +10,6 @@ import argparse
 from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta
 from decimal import Decimal
-from getpass import getpass
 from pathlib import Path
 import re
 import sys
@@ -21,7 +20,7 @@ from bs4 import BeautifulSoup  # type: ignore
 import requests
 
 from downloaders import downloaders
-from downloaders.downloader import PasswordAuthenticator
+from downloaders.downloader import authenticate_interactively
 
 
 def last_day_of_month(d: date) -> date:
@@ -84,11 +83,7 @@ if __name__ == '__main__':
         raise NotImplementedError(
                 'Selecting from multiple Authenticators not implemented, yet.')
     Authenticator = website.authenticators[0]
-    assert issubclass(Authenticator, PasswordAuthenticator)
-
-    username = input('Username: ')
-    password = getpass('Password: ')
-    downloader = Authenticator(username, password).login()
+    downloader = authenticate_interactively(Authenticator)
     config = downloader.config_type().load(args.rules)
     # TODO: Now that we can configure the balancing account
     #       via a config file, do we still want to have a
