@@ -23,20 +23,28 @@ class ThermoFisherConfig(BaseParserConfig):
     employer_name = 'Thermo Fisher Scientific'
     DEFAULT_ACCOUNTS: Final[dict[str, str]] = {
         'salary balancing account': 'assets:receivable:salary',
+        # base salary
         '1000': 'income:salary',
+        # bonus payments
+        '3007': 'income:salary:bonus',    # 13e maand hm
         '3011': 'income:salary:holiday allowance',  # Vacantiegeld
+        '3013': 'income:salary:bonus',    # Eindejaarsuitkering
         '3019': 'income:salary:bonus',
+        # taxes
         '4304': 'income:salary:30%',      # Bruto aftrek 30% reg.TB
         '4305': 'income:salary:30%',      # Bruto aftrek 30% reg.BT
         '4461': 'expenses:taxes:retirement insurance',
         '4466': 'expenses:taxes:social',  # WGA Aanvullend
         '4467': 'expenses:taxes:social',  # WIA bodem
+        # other payments
         '5150': 'income:salary',          # Netto thuiswerkvergoeding
         '5216': 'income:salary',          # Representatievergoeding
         '5990': 'income:salary:30%',      # Netto 30% regeling
+        # taxes
         '7380': 'expenses:taxes:social',  # PAWW unemployment insurance
         '7100': 'expenses:taxes:income',  # Loonheffing Tabel
         '7101': 'expenses:taxes:income',  # Loonheffing BT
+        # payments
         '9721': 'assets:receivable:salary:correction',  # Correctie TWK Bank 1
     }
     salary_balancing_account: str
