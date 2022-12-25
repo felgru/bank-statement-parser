@@ -146,13 +146,36 @@ class ThermoFisherPdfParser(Parser[ThermoFisherConfig]):
             address_col.append(line[0:left_table_offset].strip())
             left_col.append(line[left_table_offset:right_table_offset].rstrip())
             right_col.append(line[right_table_offset:])
-        addresses = ['\n'.join(lines)
-                     for empty, lines in groupby(address_col,
-                                                 key=lambda line: not line)
-                     if not empty]
+        # Split address field if at least 6 empty lines.
+        # (Sometimes pdftotext creates empty lines in an address, but
+        #  fortunately there are more blank lines as seperation between
+        #  addresses.)
+        addresses = []
+        current_address = []
+        num_empty = 0
+        for line in address_col:
+            if not line:
+                num_empty += 1
+                continue
+            if num_empty > 5 and current_address:
+                addresses.append('\n'.join(current_address))
+                current_address = []
+            num_empty = 0
+            current_address.append(line)
+        if current_address:
+            addresses.append('\n'.join(current_address))
+        if not (2 <= len(addresses) <= 3):
+            raise RuntimeError(
+                    f'Expected 2 or 3 addresses, but found {len(addresses)}:\n'
+                    + '\n======\n'.join(addresses)
+                    + '\n======\nRaw address column:\n'
+                    + '\n'.join(address_col))
         employer_address = addresses[0]
-        employee_address = '\n'.join(addresses[1:-1])
-        description = addresses[-1]
+        employee_address = addresses[1]
+        if len(addresses) > 2:
+            description = addresses[-1]
+        else:
+            description = ''
         for i, line in enumerate(left_col):
             if 'Deze periode' in line:
                 working_hours = left_col[i:]
@@ -182,7 +205,7 @@ class ThermoFisherPdfParser(Parser[ThermoFisherConfig]):
         start_date = parse_date(meta['Begin datum'])
         end_date = parse_date(meta['Eind datum'])
         payment_date = parse_date(meta['Verw.datum'])
-        if not description.startswith('Salaris'):
+        if not description:
             maanden = {
                 1: 'Januari',
                 2: 'Februari',
