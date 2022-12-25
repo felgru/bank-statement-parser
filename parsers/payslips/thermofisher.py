@@ -266,6 +266,7 @@ class ThermoFisherPdfParser(Parser[ThermoFisherConfig]):
                           config: ThermoFisherConfig) -> Decimal:
         accounts = config.accounts
         net_total: Optional[Decimal] = None
+        unknown_codes: list[MainTableItem] = []
         for item in self.tables[page].main_table:
             if item.is_total():
                 continue
@@ -273,7 +274,11 @@ class ThermoFisherPdfParser(Parser[ThermoFisherConfig]):
                 net_total = item.uitbetaling
                 continue
             assert item.code is not None
-            account = accounts[item.code]
+            try:
+                account = accounts[item.code]
+            except KeyError:
+                unknown_codes.append(item)
+                continue
             if item.tabel is not None:
                 amount = -item.tabel
             elif item.inhouding is not None:
@@ -286,6 +291,11 @@ class ThermoFisherPdfParser(Parser[ThermoFisherConfig]):
             p = Posting(account, amount,
                         comment=item.omschrijving)
             transaction.add_posting(p)
+        if unknown_codes:
+            raise RuntimeError(
+                    f'Encountered {len(unknown_codes)} unknown code(s):\n'
+                    + '\n'.join(f'  {item.code}: {item.omschrijving}'
+                                for item in unknown_codes))
         assert net_total is not None
         return net_total
 
