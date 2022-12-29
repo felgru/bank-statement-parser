@@ -34,6 +34,7 @@ class NederlandseSpoorwegenConfig(GenericDownloaderConfig):
     DEFAULT_ACCOUNTS = {
         'balancing': 'assets:balancing:NS',  # Used for invoices.
         'assets': 'assets:OV-Chipkaart',  # Used for "Reizen op Saldo".
+        'bus ticket': 'expenses:transportation:bus',
         'recharge': 'assets:balancing:OV-Chipkaart',
         'train ticket': 'expenses:transportation:train',
     }
@@ -166,11 +167,16 @@ def travel_history_to_bank_statement(transactions: dict,
                         f'{pformat(transaction, sort_dicts=False)}')
             amount = -parse_amount(transaction['amount'])
             journey = transaction['journey']
-            assert last_rhino is not None
-            assert (last_rhino['journey']['departure']['eventSequenceId']
-                    == journey['departure']['eventSequenceId'])
-            assert (transaction['productTemplateCode'].lstrip('0')
-                    == last_rhino['productCode'])
+            if last_rhino is not None:
+                # NS train journey
+                assert (last_rhino['journey']['departure']['eventSequenceId']
+                        == journey['departure']['eventSequenceId'])
+                assert (transaction['productTemplateCode'].lstrip('0')
+                        == last_rhino['productCode'])
+                tariff: Optional[str] = last_rhino['tariff']['type']
+            else:
+                # Non-train journey (bus, metro, etc.)
+                tariff = None
             departure = journey['departure']
             departure_time = parse_timestamp_as_local(departure['timestamp'])
             departure_station = departure['station']['name']
@@ -178,10 +184,14 @@ def travel_history_to_bank_statement(transactions: dict,
             arrival_time = parse_timestamp_as_local(arrival['timestamp'])
             arrival_station = arrival['station']['name']
             carrier = journey['carrier']['name']
-            tariff = last_rhino['tariff']
 
             if product_name == 'Treinreizen':
                 account = accounts['train ticket']
+            elif product_name == 'Bus, Tram en Metro reizen':
+                # Is 551 only for busses or also for tram and metro?
+                assert transaction['productCode'] == '551'
+                assert transaction['typeCode'] == 'ZU02'
+                account = accounts['bus ticket']
             else:
                 raise ValueError(f'Unknown product {product_name}.')
 
@@ -209,8 +219,8 @@ def travel_history_to_bank_statement(transactions: dict,
                     'depearture_time': departure_time,
                     'arrival_station': arrival_station,
                     'depearture_time': arrival_time,
-                    'travel_class': journey['travelClass'],
-                    'tariff': tariff['type'],
+                    'travel_class': journey.get('travelClass'),
+                    'tariff': tariff,
                 },
                 ))
             last_rhino = None
