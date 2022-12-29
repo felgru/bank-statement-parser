@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 from collections.abc import Iterable, Iterator
+from datetime import date
 from typing import TypeVar
 
 
@@ -41,3 +42,13 @@ class UserError(RuntimeError):
 
     def __init__(self, msg: str):
         self.msg = msg
+
+
+def merge_dateranges(dateranges: list[tuple[date, date]]) -> None:
+    dateranges.sort(key=lambda t: t[0])
+    for i in reversed(range(len(dateranges)-1)):
+        if 0 <= (dateranges[i+1][0] - dateranges[i][1]).days <= 1:
+            dateranges[i] = (dateranges[i][0], dateranges[i+1][1])
+            dateranges.pop(i+1)
+        elif dateranges[i+1] == dateranges[i]:
+            dateranges.pop(i+1)

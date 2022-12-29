@@ -30,7 +30,7 @@ from import_transaction import (
 from include_files import write_include_files
 from parsers import parsers
 from parsers.parser import BankStatementMetadata, BaseParserConfig, Parser
-from utils import UserError
+from utils import merge_dateranges, UserError
 from xdg_dirs import getXDGdirectories
 
 
@@ -186,13 +186,6 @@ def parse_and_write_bank_statement(
     moved_src = dest_file.with_suffix(src_ext)
     import_transaction.move_file_to_annex(src_file, moved_src)
     return True
-
-def merge_dateranges(dateranges: list[tuple[date, date]]) -> None:
-    dateranges.sort(key=lambda t: t[0])
-    for i in reversed(range(len(dateranges)-1)):
-        if 0 <= (dateranges[i+1][0] - dateranges[i][1]).days <= 1:
-            dateranges[i] = (dateranges[i][0], dateranges[i+1][1])
-            dateranges.pop(i+1)
 
 
 def get_ledger_config_containing_dir(work_dir: Path,
