@@ -129,8 +129,6 @@ def travel_history_to_bank_statement(transactions: dict,
                         f' → {arrival_station} ({arrival_time:%H:%M})'
                 )
 
-                tariff = transaction['tariff']
-
                 transformed_transactions.append(Transaction(
                     account=accounts['assets'],
                     description=description,
@@ -156,7 +154,7 @@ def travel_history_to_bank_statement(transactions: dict,
                            if 'newCardBalance' in transaction else {}),
                         'initial_fee':
                             parse_amount(transaction['initialFee']),
-                        'tariff': tariff['type'],
+                        'tariff': transaction['tariff']['type'],
                     },
                     ))
                 continue
