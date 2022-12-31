@@ -174,7 +174,7 @@ class CleaningParser(Parser[CCT], metaclass=ABCMeta):
     def parse(self, config: CCT) -> BankStatement:
         statement = self.parse_raw(config.accounts)
         cleaner = config.cleaner.with_builtin_rules(self.cleaning_rules)
-        transactions =  [cleaner.clean(t) for t in statement.transactions]
+        transactions = [cleaner.clean(t) for t in statement.transactions]
         config.mapper.map_transactions(transactions)
         statement.transactions = transactions
         return statement

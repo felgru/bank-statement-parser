@@ -69,9 +69,14 @@ class NederlandseSpoorwegenDownloader(Downloader[NederlandseSpoorwegenConfig]):
         transactions = self.api.get_transactions_of_ovcp_in_date_range(
                 card_number, start_date=start_date, end_date=end_date)
 
-        return travel_history_to_bank_statement(
+        statement = travel_history_to_bank_statement(
                 transactions,
                 config.accounts)
+        cleaner = config.cleaner
+        statement.transactions = [cleaner.clean(t)
+                                  for t in statement.transactions]
+        config.mapper.map_transactions(statement.transactions)
+        return statement
 
     def print_next_invoice(self) -> None:
         next_invoice = self.api.get_next_invoice_cost_overview()

@@ -65,9 +65,14 @@ class OvChipkaartDownloader(Downloader[OvChipkaartConfig]):
         print(f'Your current balance on {dt:%Y-%m-%d %H:%M} is {balance} €',
               file=sys.stderr)
 
-        return travel_history_to_bank_statement(
+        statement = travel_history_to_bank_statement(
                 transactions,
                 config.accounts)
+        cleaner = config.cleaner
+        statement.transactions = [cleaner.clean(t)
+                                  for t in statement.transactions]
+        config.mapper.map_transactions(statement.transactions)
+        return statement
 
 
 class OvChipkaartAuthenticator(PasswordAuthenticator[OvChipkaartDownloader]):
