@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2022 Felix Gruber <felgru@posteo.net>
+# SPDX-FileCopyrightText: 2022–2023 Felix Gruber <felgru@posteo.net>
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
@@ -64,8 +64,6 @@ class NederlandseSpoorwegenDownloader(Downloader[NederlandseSpoorwegenConfig]):
         assert len(cards) == 1  # TODO: Handle more than one OV-Chipkaart
         card_number = cards[0]['ovcpNumber']
 
-        self.print_next_invoice()
-
         transactions = self.api.get_transactions_of_ovcp_in_date_range(
                 card_number, start_date=start_date, end_date=end_date)
 
@@ -77,6 +75,9 @@ class NederlandseSpoorwegenDownloader(Downloader[NederlandseSpoorwegenConfig]):
                                   for t in statement.transactions]
         config.mapper.map_transactions(statement.transactions)
         return statement
+
+    def print_current_balance(self) -> None:
+        self.print_next_invoice()
 
     def print_next_invoice(self) -> None:
         next_invoice = self.api.get_next_invoice_cost_overview()

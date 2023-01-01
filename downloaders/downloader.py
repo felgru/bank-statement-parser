@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2022 Felix Gruber <felgru@posteo.net>
+# SPDX-FileCopyrightText: 2022–2023 Felix Gruber <felgru@posteo.net>
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
@@ -72,6 +72,9 @@ class Downloader(Generic[CT], metaclass=ABCMeta):
     def download(self,
                  config: CT,
                  **kwargs) -> BankStatement:
+        pass
+
+    def print_current_balance(self) -> None:
         pass
 
     @final

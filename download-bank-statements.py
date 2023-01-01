@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 
-# SPDX-FileCopyrightText: 2022 Felix Gruber <felgru@posteo.net>
+# SPDX-FileCopyrightText: 2022–2023 Felix Gruber <felgru@posteo.net>
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
@@ -110,3 +110,4 @@ if __name__ == '__main__':
             d = d.replace(month=d.month+1, day=1)
         else:
             d = d.replace(year=d.year+1, month=1, day=1)
+    downloader.print_current_balance()
