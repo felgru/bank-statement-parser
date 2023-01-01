@@ -303,6 +303,7 @@ class NederlandseSpoorwegenApi:
     OAUTH_BASE = 'https://loginapi.ns.nl/oauth'
     API_BASE = 'https://gateway.apiportal.ns.nl'
     CARDS_API = f'{API_BASE}/mijnns-card-coupling-api/cards'
+    OMNI_INVOICE_API = f'{API_BASE}/omni-invoice-api'
     OMNI_TRANSACTION_API = f'{API_BASE}/omni-transaction-api'
     OMNI_OVCP_API = f'{API_BASE}/omni-ovcp-api/ovcp'
 
@@ -506,6 +507,37 @@ class NederlandseSpoorwegenApi:
         """
         res = self.session.get(self.API_BASE
                                + '/omni-customer-api/klant/V1/',
+                               headers=self.authorization_headers)
+        res.raise_for_status()
+        return res.json()
+
+    def get_customer_details_v2(self) -> dict:
+        """Get customer details.
+
+        This returns a dict with the following entries:
+        * nsr: This seems to be an id for the customer. (str containing an int)
+        * initials
+        * firstName
+        * lastName
+        * emailAddress
+        * sex
+        * birthDate: Birthdate in ISO 8601 format.
+        * address: A dict containing the following entries:
+           * countryCode: Two letter country code, e.g. "NL".
+           * city: All-caps str.
+           * postalCode
+           * street
+           * houseNumber: Careful, this was an int in my test, but I guess
+                          that this can be a str if you have a suffix
+                          like '42 A'.
+        * telefoonnummers: A dict containing the following entries:
+           * private: The phone number as a str.
+           (There are probably other, optional, entries for other types of
+            phone numbers.)
+        """
+        res = self.session.get(self.API_BASE
+                               + '/omni-customer-api/v2/customers/me'
+                               + '?withConstraints=false',
                                headers=self.authorization_headers)
         res.raise_for_status()
         return res.json()
@@ -904,17 +936,46 @@ class NederlandseSpoorwegenApi:
     def get_next_invoice_cost_overview(self) -> dict:
         """Get next invoice cost overview.
 
-        This returns a list of dicts with the following entries:
+        This returns a dict with the following entries:
         * plannedInvoiceDate: An ISO 8601 date.
         * costCategories: A list of dicts containing:
           * type: e.g. 'SUBSCRIPTIONS', or 'REST'.
           * amount: An int representing the amount in Euro cents.
         """
-        res = self.session.get(self.API_BASE
-                               + '/omni-invoice-api/next-invoice-cost-overview',
+        res = self.session.get(self.OMNI_TRANSACTION_API
+                               + '/next-invoice-cost-overview',
                                headers=self.authorization_headers)
         res.raise_for_status()
         return res.json()
+
+    def get_invoices(self) -> list[dict]:
+        """Get list of already payed invoices.
+
+        This returns a list of dicts with the following entries:
+        * id: A hexadecimal str.
+        * date: An ISO 8601 date.
+        * amount: A str representing the amount in Euro cents.
+        * currency: An ISO 4217 currency code. (probably always "EUR")
+        * status: Always "PAID" in my tests.
+        * downloadIsAvailable: A boolean.
+        """
+        res = self.session.get(self.OMNI_TRANSACTION_API + '/invoice',
+                               headers=self.authorization_headers)
+        res.raise_for_status()
+        return res.json()
+
+    def get_invoice(self, id: str) -> bytes:
+        """Get PDF of invoice with given id.
+
+        Arguments:
+        * id: id from get_invoices().
+
+        This returns a bytes object containing PDF data.
+        """
+        res = self.session.get(self.OMNI_TRANSACTION_API + f'/invoice/{id}',
+                               headers=self.authorization_headers)
+        res.raise_for_status()
+        return res.content
 
     def get_tariefpunt(self, cd: int) -> dict:
         """Get information about a station.
