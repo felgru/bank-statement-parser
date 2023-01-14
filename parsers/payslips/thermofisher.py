@@ -9,7 +9,7 @@ from decimal import Decimal
 from itertools import chain, groupby
 from pathlib import Path
 import re
-from typing import cast, ClassVar, Final, Optional
+from typing import cast, Final, Optional
 
 from ..parser import BaseParserConfig, load_accounts, Parser
 from ..pdf_parser import read_pdf_file
