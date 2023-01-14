@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2022 Felix Gruber <felgru@posteo.net>
+# SPDX-FileCopyrightText: 2022–2023 Felix Gruber <felgru@posteo.net>
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
@@ -11,6 +11,7 @@ from typing import ClassVar, final, Generic, Optional, TypeVar
 from account_mapping import AccountMapper
 from bank_statement import BankStatement
 from parsers.parser import load_accounts
+from transaction_sanitation import TransactionCleaner
 
 
 ConfigSelf = TypeVar('ConfigSelf', bound='BaseDownloaderConfig')
@@ -36,18 +37,31 @@ class GenericDownloaderConfig(BaseDownloaderConfig):
     display_name: ClassVar[str]
     DEFAULT_ACCOUNTS: ClassVar[dict[str, str]]
 
-    def __init__(self, accounts: dict[str, str]):
+    def __init__(self,
+                 cleaner: TransactionCleaner,
+                 mapper: AccountMapper,
+                 accounts: dict[str, str]):
+        self.cleaner = cleaner
+        self.mapper = mapper
         self.accounts = accounts
 
     @classmethod
     def load(cls: type[GenericConfigSelf],
              config_dir: Optional[Path]) -> GenericConfigSelf:
-        config_file = config_dir / cls.name / 'accounts.cfg' \
+        if config_dir is not None:
+            config_dir = config_dir / cls.name
+        cleaning_rules = config_dir / 'cleaning_rules.py' \
+                         if config_dir is not None else None
+        cleaner = TransactionCleaner.from_rules_file(cleaning_rules)
+        account_mappings = config_dir / 'account_mappings.py' \
+                           if config_dir is not None else None
+        mapper = AccountMapper(account_mappings)
+        config_file = config_dir / 'accounts.cfg' \
                       if config_dir is not None else None
         accounts = load_accounts(config_file,
                                  cls.DEFAULT_ACCOUNTS,
                                  cls.display_name)
-        return cls(accounts)
+        return cls(cleaner, mapper, accounts)
 
 
 CT = TypeVar('CT', bound=BaseDownloaderConfig)
@@ -58,6 +72,9 @@ class Downloader(Generic[CT], metaclass=ABCMeta):
     def download(self,
                  config: CT,
                  **kwargs) -> BankStatement:
+        pass
+
+    def print_current_balance(self) -> None:
         pass
 
     @final

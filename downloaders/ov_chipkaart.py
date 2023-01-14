@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2022 Felix Gruber <felgru@posteo.net>
+# SPDX-FileCopyrightText: 2022–2023 Felix Gruber <felgru@posteo.net>
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
@@ -39,6 +39,7 @@ class OvChipkaartConfig(GenericDownloaderConfig):
 class OvChipkaartDownloader(Downloader[OvChipkaartConfig]):
     def __init__(self, website: MijnOvChipkaartWebsite):
         self.api = website
+        self.card_id = self.api.get_card_number()
 
     def download(self,
                  config: OvChipkaartConfig,
@@ -57,17 +58,22 @@ class OvChipkaartDownloader(Downloader[OvChipkaartConfig]):
         if kwargs:
             raise RuntimeError(
                     f'Unknown keyword arguments: {", ".join(kwargs.keys())}')
-        card_id = self.api.get_card_number()
         transactions = self.api.transactions_for_card(
-                card_id, start_date, end_date)
+                self.card_id, start_date, end_date)
 
-        balance, dt = self.api.current_balance(card_id)
-        print(f'Your current balance on {dt:%Y-%m-%d %H:%M} is {balance} €',
-              file=sys.stderr)
-
-        return travel_history_to_bank_statement(
+        statement = travel_history_to_bank_statement(
                 transactions,
                 config.accounts)
+        cleaner = config.cleaner
+        statement.transactions = [cleaner.clean(t)
+                                  for t in statement.transactions]
+        config.mapper.map_transactions(statement.transactions)
+        return statement
+
+    def print_current_balance(self) -> None:
+        balance, dt = self.api.current_balance(self.card_id)
+        print(f'Your current balance on {dt:%Y-%m-%d %H:%M} is {balance} €',
+              file=sys.stderr)
 
 
 class OvChipkaartAuthenticator(PasswordAuthenticator[OvChipkaartDownloader]):

@@ -151,7 +151,7 @@ class ThermoFisherPdfParser(Parser[ThermoFisherConfig]):
         #  fortunately there are more blank lines as seperation between
         #  addresses.)
         addresses = []
-        current_address = []
+        current_address: list[str] = []
         num_empty = 0
         for line in address_col:
             if not line:

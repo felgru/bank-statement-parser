@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2022 Felix Gruber <felgru@posteo.net>
+# SPDX-FileCopyrightText: 2022–2023 Felix Gruber <felgru@posteo.net>
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
@@ -34,6 +34,7 @@ class NederlandseSpoorwegenConfig(GenericDownloaderConfig):
     DEFAULT_ACCOUNTS = {
         'balancing': 'assets:balancing:NS',  # Used for invoices.
         'assets': 'assets:OV-Chipkaart',  # Used for "Reizen op Saldo".
+        'bus ticket': 'expenses:transportation:bus',
         'recharge': 'assets:balancing:OV-Chipkaart',
         'train ticket': 'expenses:transportation:train',
     }
@@ -63,14 +64,20 @@ class NederlandseSpoorwegenDownloader(Downloader[NederlandseSpoorwegenConfig]):
         assert len(cards) == 1  # TODO: Handle more than one OV-Chipkaart
         card_number = cards[0]['ovcpNumber']
 
-        self.print_next_invoice()
-
         transactions = self.api.get_transactions_of_ovcp_in_date_range(
                 card_number, start_date=start_date, end_date=end_date)
 
-        return travel_history_to_bank_statement(
+        statement = travel_history_to_bank_statement(
                 transactions,
                 config.accounts)
+        cleaner = config.cleaner
+        statement.transactions = [cleaner.clean(t)
+                                  for t in statement.transactions]
+        config.mapper.map_transactions(statement.transactions)
+        return statement
+
+    def print_current_balance(self) -> None:
+        self.print_next_invoice()
 
     def print_next_invoice(self) -> None:
         next_invoice = self.api.get_next_invoice_cost_overview()
@@ -128,8 +135,6 @@ def travel_history_to_bank_statement(transactions: dict,
                         f' → {arrival_station} ({arrival_time:%H:%M})'
                 )
 
-                tariff = transaction['tariff']
-
                 transformed_transactions.append(Transaction(
                     account=accounts['assets'],
                     description=description,
@@ -155,7 +160,7 @@ def travel_history_to_bank_statement(transactions: dict,
                            if 'newCardBalance' in transaction else {}),
                         'initial_fee':
                             parse_amount(transaction['initialFee']),
-                        'tariff': tariff['type'],
+                        'tariff': transaction['tariff']['type'],
                     },
                     ))
                 continue
@@ -166,11 +171,16 @@ def travel_history_to_bank_statement(transactions: dict,
                         f'{pformat(transaction, sort_dicts=False)}')
             amount = -parse_amount(transaction['amount'])
             journey = transaction['journey']
-            assert last_rhino is not None
-            assert (last_rhino['journey']['departure']['eventSequenceId']
-                    == journey['departure']['eventSequenceId'])
-            assert (transaction['productTemplateCode'].lstrip('0')
-                    == last_rhino['productCode'])
+            if last_rhino is not None:
+                # NS train journey
+                assert (last_rhino['journey']['departure']['eventSequenceId']
+                        == journey['departure']['eventSequenceId'])
+                assert (transaction['productTemplateCode'].lstrip('0')
+                        == last_rhino['productCode'])
+                tariff: Optional[str] = last_rhino['tariff']['type']
+            else:
+                # Non-train journey (bus, metro, etc.)
+                tariff = None
             departure = journey['departure']
             departure_time = parse_timestamp_as_local(departure['timestamp'])
             departure_station = departure['station']['name']
@@ -178,10 +188,14 @@ def travel_history_to_bank_statement(transactions: dict,
             arrival_time = parse_timestamp_as_local(arrival['timestamp'])
             arrival_station = arrival['station']['name']
             carrier = journey['carrier']['name']
-            tariff = last_rhino['tariff']
 
             if product_name == 'Treinreizen':
                 account = accounts['train ticket']
+            elif product_name == 'Bus, Tram en Metro reizen':
+                # Is 551 only for busses or also for tram and metro?
+                assert transaction['productCode'] == '551'
+                assert transaction['typeCode'] == 'ZU02'
+                account = accounts['bus ticket']
             else:
                 raise ValueError(f'Unknown product {product_name}.')
 
@@ -209,8 +223,8 @@ def travel_history_to_bank_statement(transactions: dict,
                     'depearture_time': departure_time,
                     'arrival_station': arrival_station,
                     'depearture_time': arrival_time,
-                    'travel_class': journey['travelClass'],
-                    'tariff': tariff['type'],
+                    'travel_class': journey.get('travelClass'),
+                    'tariff': tariff,
                 },
                 ))
             last_rhino = None
@@ -290,6 +304,7 @@ class NederlandseSpoorwegenApi:
     OAUTH_BASE = 'https://loginapi.ns.nl/oauth'
     API_BASE = 'https://gateway.apiportal.ns.nl'
     CARDS_API = f'{API_BASE}/mijnns-card-coupling-api/cards'
+    OMNI_INVOICE_API = f'{API_BASE}/omni-invoice-api'
     OMNI_TRANSACTION_API = f'{API_BASE}/omni-transaction-api'
     OMNI_OVCP_API = f'{API_BASE}/omni-ovcp-api/ovcp'
 
@@ -493,6 +508,37 @@ class NederlandseSpoorwegenApi:
         """
         res = self.session.get(self.API_BASE
                                + '/omni-customer-api/klant/V1/',
+                               headers=self.authorization_headers)
+        res.raise_for_status()
+        return res.json()
+
+    def get_customer_details_v2(self) -> dict:
+        """Get customer details.
+
+        This returns a dict with the following entries:
+        * nsr: This seems to be an id for the customer. (str containing an int)
+        * initials
+        * firstName
+        * lastName
+        * emailAddress
+        * sex
+        * birthDate: Birthdate in ISO 8601 format.
+        * address: A dict containing the following entries:
+           * countryCode: Two letter country code, e.g. "NL".
+           * city: All-caps str.
+           * postalCode
+           * street
+           * houseNumber: Careful, this was an int in my test, but I guess
+                          that this can be a str if you have a suffix
+                          like '42 A'.
+        * telefoonnummers: A dict containing the following entries:
+           * private: The phone number as a str.
+           (There are probably other, optional, entries for other types of
+            phone numbers.)
+        """
+        res = self.session.get(self.API_BASE
+                               + '/omni-customer-api/v2/customers/me'
+                               + '?withConstraints=false',
                                headers=self.authorization_headers)
         res.raise_for_status()
         return res.json()
@@ -891,17 +937,46 @@ class NederlandseSpoorwegenApi:
     def get_next_invoice_cost_overview(self) -> dict:
         """Get next invoice cost overview.
 
-        This returns a list of dicts with the following entries:
+        This returns a dict with the following entries:
         * plannedInvoiceDate: An ISO 8601 date.
         * costCategories: A list of dicts containing:
           * type: e.g. 'SUBSCRIPTIONS', or 'REST'.
           * amount: An int representing the amount in Euro cents.
         """
-        res = self.session.get(self.API_BASE
-                               + '/omni-invoice-api/next-invoice-cost-overview',
+        res = self.session.get(self.OMNI_TRANSACTION_API
+                               + '/next-invoice-cost-overview',
                                headers=self.authorization_headers)
         res.raise_for_status()
         return res.json()
+
+    def get_invoices(self) -> list[dict]:
+        """Get list of already payed invoices.
+
+        This returns a list of dicts with the following entries:
+        * id: A hexadecimal str.
+        * date: An ISO 8601 date.
+        * amount: A str representing the amount in Euro cents.
+        * currency: An ISO 4217 currency code. (probably always "EUR")
+        * status: Always "PAID" in my tests.
+        * downloadIsAvailable: A boolean.
+        """
+        res = self.session.get(self.OMNI_TRANSACTION_API + '/invoice',
+                               headers=self.authorization_headers)
+        res.raise_for_status()
+        return res.json()
+
+    def get_invoice(self, id: str) -> bytes:
+        """Get PDF of invoice with given id.
+
+        Arguments:
+        * id: id from get_invoices().
+
+        This returns a bytes object containing PDF data.
+        """
+        res = self.session.get(self.OMNI_TRANSACTION_API + f'/invoice/{id}',
+                               headers=self.authorization_headers)
+        res.raise_for_status()
+        return res.content
 
     def get_tariefpunt(self, cd: int) -> dict:
         """Get information about a station.

@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 
-# SPDX-FileCopyrightText: 2022 Felix Gruber <felgru@posteo.net>
+# SPDX-FileCopyrightText: 2022–2023 Felix Gruber <felgru@posteo.net>
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
@@ -43,9 +43,6 @@ if __name__ == '__main__':
     aparser.add_argument('--rules', metavar='RULES_DIR', default=None,
             type=Path,
             help='read cleaning and mapping rules from this dir')
-    aparser.add_argument('--balancing-account',
-            default=None,
-            help='balancing account for transactions to your other accounts')
     aparser.add_argument('--dry-run', '-n',
             dest='dry_run',
             action='store_true',
@@ -85,11 +82,6 @@ if __name__ == '__main__':
     Authenticator = website.authenticators[0]
     downloader = authenticate_interactively(Authenticator)
     config = downloader.config_type().load(args.rules)
-    # TODO: Now that we can configure the balancing account
-    #       via a config file, do we still want to have a
-    #       balancing account command line argument?
-    if args.balancing_account is not None:
-        config.accounts['recharge'] = args.balancing_account
 
     d = start_date
     while d < end_date:
@@ -110,3 +102,4 @@ if __name__ == '__main__':
             d = d.replace(month=d.month+1, day=1)
         else:
             d = d.replace(year=d.year+1, month=1, day=1)
+    downloader.print_current_balance()
