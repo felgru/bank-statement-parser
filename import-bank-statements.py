@@ -30,7 +30,8 @@ from import_transaction import (
 from include_files import write_include_files
 from parsers import parsers
 from parsers.parser import BankStatementMetadata, BaseParserConfig, Parser
-from utils import merge_dateranges, UserError
+from utils import UserError
+from utils.dates import merge_dateranges
 from xdg_dirs import getXDGdirectories
 
 

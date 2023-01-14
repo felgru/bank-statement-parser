@@ -11,6 +11,7 @@ from typing import Optional
 
 from bank_statement import BankStatementMetadata
 from transaction import Balance, Transaction
+from utils.languages.fr import parse_verbose_date
 
 from ..parser import BaseCleaningParserConfig
 from ..pdf_parser import OldPdfParser
@@ -181,25 +182,6 @@ class BnpParibasPdfParser(OldPdfParser[BnpParibasConfig]):
             d = d.replace(year=end_date.year)
         assert start_date <= d <= end_date
         return d
-
-
-def parse_verbose_date(d: str) -> date:
-    day_, month_, year_ = d.split()
-    day = int(day_)
-    month = {'janvier': 1,
-             'février': 2,
-             'mars': 3,
-             'avril': 4,
-             'mai': 5,
-             'juin': 6,
-             'juillet': 7,
-             'août': 8,
-             'septembre': 9,
-             'octobre': 10,
-             'novembre': 11,
-             'décembre': 12}[month_]
-    year = int(year_)
-    return date(year, month, day)
 
 
 def parse_date(d: str) -> date:

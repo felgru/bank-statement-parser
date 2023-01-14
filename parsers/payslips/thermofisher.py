@@ -16,6 +16,7 @@ from ..pdf_parser import read_pdf_file
 from bank_statement import BankStatement, BankStatementMetadata
 from transaction import MultiTransaction, Posting
 from utils import PeekableIterator
+from utils.languages.nl import MONTHS
 
 
 class ThermoFisherConfig(BaseParserConfig):
@@ -206,21 +207,7 @@ class ThermoFisherPdfParser(Parser[ThermoFisherConfig]):
         end_date = parse_date(meta['Eind datum'])
         payment_date = parse_date(meta['Verw.datum'])
         if not description:
-            maanden = {
-                1: 'Januari',
-                2: 'Februari',
-                3: 'Maart',
-                4: 'April',
-                5: 'Mei',
-                6: 'Juni',
-                7: 'Juli',
-                8: 'Augustus',
-                9: 'September',
-                10: 'Oktober',
-                11: 'November',
-                12: 'December',
-            }
-            description=f'Salaris {maanden[start_date.month]}'
+            description=f'Salaris {MONTHS[start_date.month - 1]}'
         return BankStatementMetadata(
                 start_date=start_date,
                 end_date=end_date,

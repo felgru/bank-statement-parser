@@ -4,7 +4,7 @@
 
 from datetime import date
 
-from utils import merge_dateranges
+from .dates import merge_dateranges
 
 
 def test_merge_overlapping_dateranges() -> None:

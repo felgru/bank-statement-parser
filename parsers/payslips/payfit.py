@@ -3,7 +3,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 from copy import copy
-from datetime import date
 from decimal import Decimal
 from pathlib import Path
 import re
@@ -13,6 +12,7 @@ from typing import Optional
 from ..parser import GenericParserConfig, Parser
 from bank_statement import BankStatement, BankStatementMetadata
 from transaction import MultiTransaction, Posting
+from utils.languages.fr import parse_verbose_date
 
 
 class PayfitConfig(GenericParserConfig):
@@ -48,12 +48,12 @@ class PayfitPdfParser(Parser[PayfitConfig]):
                       dates_text)
         if m is None:
             raise PayfitPdfParserError('Could not find start date.')
-        start_date = parse_verbose_date(m.group(1))
+        start_date = parse_verbose_date(m.group(1), uppercase=True)
         m = re.search(r'FIN +DE +PÉRIODE +(\d\d +\S+ +\d{4})',
                       dates_text)
         if m is None:
             raise PayfitPdfParserError('Could not find end date.')
-        end_date = parse_verbose_date(m.group(1))
+        end_date = parse_verbose_date(m.group(1), uppercase=True)
         m = re.search(r'N° +DE +SÉCURITÉ +SOCIALE *(\d*)',
                       dates_text)
         if m is None:
@@ -130,7 +130,7 @@ class PayfitItemParser:
                       self.summary_text)
         if m is None:
             raise PayfitPdfParserError('Could not find payment date.')
-        payment_date = parse_verbose_date(m.group(1))
+        payment_date = parse_verbose_date(m.group(1), uppercase=True)
         transaction = MultiTransaction('Salaire', payment_date)
 
         salary_postings, total_gross_salary = self._parse_salary()
@@ -396,25 +396,6 @@ def parse_amount(a: str) -> Decimal:
     """ parse a decimal amount like -10,00 """
     a = a.replace(' ', '').replace(',', '.')
     return Decimal(a)
-
-
-def parse_verbose_date(d: str) -> date:
-    day_, month_, year_ = d.split()
-    day = int(day_)
-    month = {'JANVIER': 1,
-             'FÉVRIER': 2,
-             'MARS': 3,
-             'AVRIL': 4,
-             'MAI': 5,
-             'JUIN': 6,
-             'JUILLET': 7,
-             'AOÛT': 8,
-             'SEPTEMBRE': 9,
-             'OCTOBRE': 10,
-             'NOVEMBRE': 11,
-             'DÉCEMBRE': 12}[month_]
-    year = int(year_)
-    return date(year, month, day)
 
 
 class PayfitPdfParserError(RuntimeError):
