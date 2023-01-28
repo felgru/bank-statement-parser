@@ -27,7 +27,7 @@ class Downloaders(dict[str, Website]):
         authenticators: dict[type[Downloader],
                              list[type[Authenticator]]] = defaultdict(list)
         for f in module_path.iterdir():
-            if f.name == '__init__.py':
+            if not f.name.endswith('.py') or f.name == '__init__.py':
                 continue
             mod_name = inspect.getmodulename(f)  # type: ignore # Irrespective of what mypy says, we can call getmodulename with a Path.
             if mod_name is None:

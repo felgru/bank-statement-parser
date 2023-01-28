@@ -16,7 +16,7 @@ class Parsers(dict[str, dict[str, type[Parser]]]):
         self.category = category
         _, _, filenames = next(os.walk(module_path))
         for f in filenames:
-            if f == '__init__.py':
+            if not f.endswith('.py') or f == '__init__.py':
                 continue
             mod_name = inspect.getmodulename(os.path.join(module_path, f))
             if mod_name is None:
