@@ -13,7 +13,7 @@ from pathlib import Path
 from pprint import pformat
 import re
 import sys
-from typing import cast, Literal, Optional
+from typing import cast, Iterator, Literal, Optional
 from urllib.parse import urljoin, urlparse
 from zoneinfo import ZoneInfo
 
@@ -76,6 +76,29 @@ class NederlandseSpoorwegenDownloader(Downloader[NederlandseSpoorwegenConfig]):
                                   for t in statement.transactions]
         config.mapper.map_transactions(statement.transactions)
         return statement
+
+    def enumerate_downloadable_pdfs(self) -> Iterator[tuple[date, str]]:
+        print('Available invoices')
+        for invoice in self.api.get_invoices():
+            print(invoice['date'], f"{invoice['downloadIsAvailable']=}")
+            if invoice['downloadIsAvailable']:
+                yield (datetime.fromisoformat(invoice['date']).date(),
+                       invoice['id'])
+
+    def download_files(self,
+                       config: NederlandseSpoorwegenConfig,
+                       **kwargs) -> Iterator[tuple[date, str, bytes]]:
+        downloadable: Iterator[tuple[date, str]] \
+                = self.enumerate_downloadable_pdfs()
+        if (start_date := kwargs.get('start_date')) is not None:
+            downloadable = ((d, s) for d, s in downloadable
+                            if d >= start_date)
+        if (end_date := kwargs.get('end_date')) is not None:
+            downloadable = ((d, s) for d, s in downloadable
+                            if d <= end_date)
+        for d, id_ in downloadable:
+            invoice = self.api.get_invoice(id_)
+            yield d, f'factuur-{d}.pdf', invoice
 
     @classmethod
     def instantiate_argparser(cls, aparser: argparse.ArgumentParser) -> None:

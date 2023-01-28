@@ -7,15 +7,18 @@ from __future__ import annotations
 from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TypeVar, Union
+from typing import Generic, TypeVar, Union
 
-from .downloader import Authenticator, Downloader
+from .downloader import Authenticator, BaseDownloaderConfig, Downloader
+
+
+CT = TypeVar('CT', bound=BaseDownloaderConfig)
 
 
 @dataclass
-class Website:
-    downloader: type[Downloader]
-    authenticators: list[type[Authenticator]]
+class Website(Generic[CT]):
+    downloader: type[Downloader[CT]]
+    authenticators: list[type[Authenticator[Downloader[CT]]]]
 
 class Downloaders(dict[str, Website]):
     def __init__(self, module_path: Union[str, Path]) -> None:
