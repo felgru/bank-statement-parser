@@ -20,6 +20,7 @@ from bs4 import BeautifulSoup  # type: ignore
 import requests
 
 from downloaders import downloaders
+from downloaders.autoloader import Downloaders, Website
 from downloaders.downloader import authenticate_interactively
 
 
@@ -31,25 +32,22 @@ def last_day_of_month(d: date) -> date:
     return d
 
 
-if __name__ == '__main__':
+def create_argument_parser(downloaders: Downloaders) -> argparse.ArgumentParser:
     aparser = argparse.ArgumentParser(
             description='Download transactions from a website.')
-    aparser.add_argument('--start-date', default=None,
-            help='start date of download in ISO format'
-                 ' (default: beginning of last month)')
-    aparser.add_argument('--end-date', default=None,
-            help='end date of download in ISO format'
-                 ' (default: end of last month)')
-    aparser.add_argument('--rules', metavar='RULES_DIR', default=None,
-            type=Path,
-            help='read cleaning and mapping rules from this dir')
-    aparser.add_argument('--dry-run', '-n',
-            dest='dry_run',
-            action='store_true',
-            help='print downloaded history to stdout instead of writing it'
-                 ' to hledger files.')
-    aparser.add_argument('website', action='store',
-            help=f'website to download from ({", ".join(sorted(downloaders))})')
+
+    subparsers = aparser.add_subparsers(title='websites',
+                                        help='website to download from')
+    for title, website in sorted(downloaders.items()):
+        subparser = subparsers.add_parser(title)
+        website.downloader.instantiate_argparser(subparser)
+        subparser.set_defaults(website=website)
+
+    return aparser
+
+
+if __name__ == '__main__':
+    aparser = create_argument_parser(downloaders)
 
     args = aparser.parse_args()
     if args.start_date is None:
@@ -70,11 +68,7 @@ if __name__ == '__main__':
     else:
         end_date = date.fromisoformat(args.end_date)
 
-    try:
-        website = downloaders[args.website]
-    except KeyError:
-        print(f"Unknown website {args.website}", file=sys.stderr)
-        exit(1)
+    website: Website = args.website
 
     if len(website.authenticators) != 1:
         raise NotImplementedError(

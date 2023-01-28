@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import argparse
 from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta
 from decimal import Decimal
@@ -69,6 +70,10 @@ class OvChipkaartDownloader(Downloader[OvChipkaartConfig]):
                                   for t in statement.transactions]
         config.mapper.map_transactions(statement.transactions)
         return statement
+
+    @classmethod
+    def instantiate_argparser(cls, aparser: argparse.ArgumentParser) -> None:
+        super().instantiate_argparser(aparser)
 
     def print_current_balance(self) -> None:
         balance, dt = self.api.current_balance(self.card_id)

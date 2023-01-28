@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import argparse
 from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta
 from decimal import Decimal
@@ -75,6 +76,13 @@ class NederlandseSpoorwegenDownloader(Downloader[NederlandseSpoorwegenConfig]):
                                   for t in statement.transactions]
         config.mapper.map_transactions(statement.transactions)
         return statement
+
+    @classmethod
+    def instantiate_argparser(cls, aparser: argparse.ArgumentParser) -> None:
+        super().instantiate_argparser(aparser)
+        aparser.add_argument('format',
+                    help='format to download',
+                    choices=['pdf', 'json'])
 
     def print_current_balance(self) -> None:
         self.print_next_invoice()
