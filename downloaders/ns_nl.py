@@ -943,7 +943,7 @@ class NederlandseSpoorwegenApi:
           * type: e.g. 'SUBSCRIPTIONS', or 'REST'.
           * amount: An int representing the amount in Euro cents.
         """
-        res = self.session.get(self.OMNI_TRANSACTION_API
+        res = self.session.get(self.OMNI_INVOICE_API
                                + '/next-invoice-cost-overview',
                                headers=self.authorization_headers)
         res.raise_for_status()
@@ -960,7 +960,7 @@ class NederlandseSpoorwegenApi:
         * status: Always "PAID" in my tests.
         * downloadIsAvailable: A boolean.
         """
-        res = self.session.get(self.OMNI_TRANSACTION_API + '/invoice',
+        res = self.session.get(self.OMNI_INVOICE_API + '/invoice',
                                headers=self.authorization_headers)
         res.raise_for_status()
         return res.json()
@@ -973,7 +973,7 @@ class NederlandseSpoorwegenApi:
 
         This returns a bytes object containing PDF data.
         """
-        res = self.session.get(self.OMNI_TRANSACTION_API + f'/invoice/{id}',
+        res = self.session.get(self.OMNI_INVOICE_API + f'/invoice/{id}',
                                headers=self.authorization_headers)
         res.raise_for_status()
         return res.content
