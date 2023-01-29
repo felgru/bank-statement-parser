@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import argparse
 from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta
 from decimal import Decimal
@@ -12,7 +13,7 @@ from pathlib import Path
 from pprint import pformat
 import re
 import sys
-from typing import cast, Literal, Optional
+from typing import cast, Iterator, Literal, Optional
 from urllib.parse import urljoin, urlparse
 from zoneinfo import ZoneInfo
 
@@ -75,6 +76,36 @@ class NederlandseSpoorwegenDownloader(Downloader[NederlandseSpoorwegenConfig]):
                                   for t in statement.transactions]
         config.mapper.map_transactions(statement.transactions)
         return statement
+
+    def enumerate_downloadable_pdfs(self) -> Iterator[tuple[date, str]]:
+        print('Available invoices')
+        for invoice in self.api.get_invoices():
+            print(invoice['date'], f"{invoice['downloadIsAvailable']=}")
+            if invoice['downloadIsAvailable']:
+                yield (datetime.fromisoformat(invoice['date']).date(),
+                       invoice['id'])
+
+    def download_files(self,
+                       config: NederlandseSpoorwegenConfig,
+                       **kwargs) -> Iterator[tuple[date, str, bytes]]:
+        downloadable: Iterator[tuple[date, str]] \
+                = self.enumerate_downloadable_pdfs()
+        if (start_date := kwargs.get('start_date')) is not None:
+            downloadable = ((d, s) for d, s in downloadable
+                            if d >= start_date)
+        if (end_date := kwargs.get('end_date')) is not None:
+            downloadable = ((d, s) for d, s in downloadable
+                            if d <= end_date)
+        for d, id_ in downloadable:
+            invoice = self.api.get_invoice(id_)
+            yield d, f'factuur-{d}.pdf', invoice
+
+    @classmethod
+    def instantiate_argparser(cls, aparser: argparse.ArgumentParser) -> None:
+        super().instantiate_argparser(aparser)
+        aparser.add_argument('format',
+                    help='format to download',
+                    choices=['pdf', 'json'])
 
     def print_current_balance(self) -> None:
         self.print_next_invoice()
@@ -943,7 +974,7 @@ class NederlandseSpoorwegenApi:
           * type: e.g. 'SUBSCRIPTIONS', or 'REST'.
           * amount: An int representing the amount in Euro cents.
         """
-        res = self.session.get(self.OMNI_TRANSACTION_API
+        res = self.session.get(self.OMNI_INVOICE_API
                                + '/next-invoice-cost-overview',
                                headers=self.authorization_headers)
         res.raise_for_status()
@@ -960,7 +991,7 @@ class NederlandseSpoorwegenApi:
         * status: Always "PAID" in my tests.
         * downloadIsAvailable: A boolean.
         """
-        res = self.session.get(self.OMNI_TRANSACTION_API + '/invoice',
+        res = self.session.get(self.OMNI_INVOICE_API + '/invoice',
                                headers=self.authorization_headers)
         res.raise_for_status()
         return res.json()
@@ -973,7 +1004,7 @@ class NederlandseSpoorwegenApi:
 
         This returns a bytes object containing PDF data.
         """
-        res = self.session.get(self.OMNI_TRANSACTION_API + f'/invoice/{id}',
+        res = self.session.get(self.OMNI_INVOICE_API + f'/invoice/{id}',
                                headers=self.authorization_headers)
         res.raise_for_status()
         return res.content

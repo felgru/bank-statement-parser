@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 from abc import ABCMeta, abstractmethod
+import argparse
 from getpass import getpass
 from pathlib import Path
 from typing import ClassVar, final, Generic, Optional, TypeVar
@@ -73,6 +74,34 @@ class Downloader(Generic[CT], metaclass=ABCMeta):
                  config: CT,
                  **kwargs) -> BankStatement:
         pass
+
+    @classmethod
+    @abstractmethod
+    def instantiate_argparser(cls, aparser: argparse.ArgumentParser) -> None:
+        """Instantiate command line argument parser for this downloader.
+
+        Arguments:
+        `aparser`: A subcommand argument parser for this downloader.
+
+        This method has to be defined in each subclass of Downloader.
+        You can use super().instantiate_argparse(aparser) in your subclass's
+        definition to add standard arguments that are expected of each
+        downloader.
+        """
+        aparser.add_argument('--start-date', default=None,
+                help='start date of download in ISO format'
+                     ' (default: beginning of last month)')
+        aparser.add_argument('--end-date', default=None,
+                help='end date of download in ISO format'
+                     ' (default: end of last month)')
+        aparser.add_argument('--rules', metavar='RULES_DIR', default=None,
+                type=Path,
+                help='read cleaning and mapping rules from this dir')
+        aparser.add_argument('--dry-run', '-n',
+                dest='dry_run',
+                action='store_true',
+                help='print downloaded history to stdout instead of writing it'
+                     ' to hledger files.')
 
     def print_current_balance(self) -> None:
         pass
