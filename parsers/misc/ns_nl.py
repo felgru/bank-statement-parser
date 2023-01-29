@@ -135,6 +135,7 @@ class NederlandseSpoorwegenPdfParser(Parser[NederlandseSpoorwegenConfig]):
         accounts = config.accounts
         transactions.append(self._parse_subscription_transaction(accounts))
         transactions.extend(self._parse_fares_transactions(accounts))
+        transactions.sort(key=lambda t: t.transaction_date)
         return BankStatement(transactions)
 
     def _parse_subscription_transaction(self, accounts: dict[str, str],
