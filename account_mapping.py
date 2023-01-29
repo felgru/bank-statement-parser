@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2019–2022 Felix Gruber <felgru@posteo.net>
+# SPDX-FileCopyrightText: 2019–2023 Felix Gruber <felgru@posteo.net>
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
@@ -58,7 +58,7 @@ def extract_unmapped_transactions(mt: MultiTransaction) \
         if posting.account is None:
             yield (i, Transaction(account='split from MultiTransaction',
                                   description=posting.comment or mt.description,
-                                  operation_date=mt.date,
+                                  transaction_date=mt.transaction_date,
                                   value_date=None,
                                   amount=-posting.amount,
                                   currency=posting.currency,

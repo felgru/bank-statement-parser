@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2020–2022 Felix Gruber <felgru@posteo.net>
+# SPDX-FileCopyrightText: 2020–2023 Felix Gruber <felgru@posteo.net>
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
@@ -148,7 +148,7 @@ class MercedesBenzPdfParser(OldPdfParser[MercedesBenzConfig]):
                 interests.append(
                         Transaction(account,
                             description=' '.join(m.group(1).split()),
-                            operation_date=abschluss_date,
+                            transaction_date=abschluss_date,
                             value_date=abschluss_date,
                             amount=parse_amount(m.group(2)),
                             metadata={

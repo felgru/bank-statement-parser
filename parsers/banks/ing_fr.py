@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2019–2022 Felix Gruber <felgru@posteo.net>
+# SPDX-FileCopyrightText: 2019–2023 Felix Gruber <felgru@posteo.net>
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
@@ -265,7 +265,7 @@ class IngFrPdfParser(OldPdfParser[IngFrConfig]):
                                                start+self.debit_start)
             if m is None:
                 return
-            operation_date = parse_date(m.group(1))
+            transaction_date = parse_date(m.group(1))
             value_date = parse_date(m.group(2)) if m.group(2) != '' else None
             description_lines = [m.group(3)]
             m = self.amount_pattern.search(self.transactions_text,
@@ -288,7 +288,7 @@ class IngFrPdfParser(OldPdfParser[IngFrConfig]):
             metadata = dict(type=transaction_type,
                             raw_description='\n'.join(description_lines))
             description = ' '.join(description_lines)
-            yield Transaction(account, description, operation_date,
+            yield Transaction(account, description, transaction_date,
                               value_date, amount,
                               metadata=metadata)
 

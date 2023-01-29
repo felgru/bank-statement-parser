@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2022 Felix Gruber <felgru@posteo.net>
+# SPDX-FileCopyrightText: 2022–2023 Felix Gruber <felgru@posteo.net>
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
@@ -386,7 +386,7 @@ class DescriptionParser:
             omschrijving = d.get('Kenmerk') or ''
         return Transaction(account=self.account,
                            description=omschrijving,
-                           operation_date=bookdate,
+                           transaction_date=bookdate,
                            value_date=value_date,
                            amount=amount,
                            currency=self.currency,
@@ -443,7 +443,7 @@ class DescriptionParser:
             d['costs'] = parse_amount(m.group('costs'))
         return Transaction(account=self.account,
                            description=d['store'],
-                           operation_date=bookdate,
+                           transaction_date=bookdate,
                            value_date=value_date,
                            amount=amount,
                            currency=self.currency,
@@ -477,7 +477,7 @@ class DescriptionParser:
         assert bookdate == value_date
         return Transaction(account=self.account,
                            description=f"Withdrawal {d['card_type']}, {d['atm_name']}",
-                           operation_date=bookdate,
+                           transaction_date=bookdate,
                            value_date=value_date,
                            amount=amount,
                            currency=self.currency,
@@ -536,7 +536,7 @@ class DescriptionParser:
         descr = f"{interest_type} {d['period_start']} to {d['period_end']}"
         return Transaction(account=self.account,
                            description=descr,
-                           operation_date=bookdate,
+                           transaction_date=bookdate,
                            value_date=value_date,
                            amount=amount,
                            currency=self.currency,
@@ -693,7 +693,7 @@ class AbnAmroTsvParser(CleaningParser[AbnAmroConfig]):
                 transaction = Transaction(
                         account='to be replaced later',
                         description=description,
-                        operation_date=date1,
+                        transaction_date=date1,
                         value_date=date2,
                         amount=amount,
                         currency='€' if currency == 'EUR' else currency,
@@ -702,8 +702,8 @@ class AbnAmroTsvParser(CleaningParser[AbnAmroConfig]):
         self.transactions = transactions
 
     def parse_metadata(self) -> BankStatementMetadata:
-        start_date = min(t.operation_date for t in self.transactions)
-        end_date   = max(t.operation_date for t in self.transactions)
+        start_date = min(t.transaction_date for t in self.transactions)
+        end_date   = max(t.transaction_date for t in self.transactions)
         return BankStatementMetadata(
                 start_date=start_date,
                 end_date=end_date,

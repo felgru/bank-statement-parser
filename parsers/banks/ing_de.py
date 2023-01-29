@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2019–2022 Felix Gruber <felgru@posteo.net>
+# SPDX-FileCopyrightText: 2019–2023 Felix Gruber <felgru@posteo.net>
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
@@ -73,7 +73,7 @@ class IngDePdfParser(OldPdfParser[IngDeConfig]):
 
         mt = MultiTransaction(
                 description=interest_transaction.description,
-                transaction_date=interest_transaction.operation_date,
+                transaction_date=interest_transaction.transaction_date,
                 metadata=interest_transaction.metadata)
         mt.add_posting(Posting(
                         interest_transaction.account,
@@ -513,7 +513,7 @@ class IngDeCsvParser(CleaningParser[IngDeConfig]):
                 transaction = Transaction(
                         account=account,
                         description=description,
-                        operation_date=parse_date(row['Buchung']),
+                        transaction_date=parse_date(row['Buchung']),
                         value_date=parse_date(row['Valuta']),
                         amount=parse_amount(row['Betrag']),
                         currency=currency,

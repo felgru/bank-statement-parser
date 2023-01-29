@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2022 Felix Gruber <felgru@posteo.net>
+# SPDX-FileCopyrightText: 2022–2023 Felix Gruber <felgru@posteo.net>
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
@@ -234,10 +234,10 @@ class ThermoFisherPdfParser(Parser[ThermoFisherConfig]):
         for i in range(0, len(statements), 2):
             old = cast(MultiTransaction, statements[i].transactions[0])
             new = cast(MultiTransaction, statements[i+1].transactions[0])
-            assert old.date == new.date
+            assert old.transaction_date == new.transaction_date
             assert old.description == new.description
             description = 'Correction ' + old.description
-            transaction = MultiTransaction(description, old.date)
+            transaction = MultiTransaction(description, old.transaction_date)
             # TODO: This assumes that types of postings in new are
             #       a superset of old's postings.
             new_postings = iter(new.postings)

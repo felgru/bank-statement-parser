@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2019–2022 Felix Gruber <felgru@posteo.net>
+# SPDX-FileCopyrightText: 2019–2023 Felix Gruber <felgru@posteo.net>
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
@@ -13,7 +13,7 @@ from typing import Any, NamedTuple, Optional, TypeVar, Union
 
 class BaseTransaction(metaclass=ABCMeta):
     description: str
-    operation_date: date
+    transaction_date: date
     metadata: dict[str, Any]
 
     @abstractmethod
@@ -38,14 +38,14 @@ class BaseTransaction(metaclass=ABCMeta):
 
 class Transaction(BaseTransaction):
     def __init__(self, account: str, description: str,
-                 operation_date: date, value_date: Optional[date],
+                 transaction_date: date, value_date: Optional[date],
                  amount: Decimal, currency: str = '€',
                  external_account: Optional[str] = None,
                  external_value_date: Optional[date] = None,
                  metadata: Optional[dict[str, Any]] = None):
         self.account = account
         self.description = description
-        self.operation_date = operation_date
+        self.transaction_date = transaction_date
         self.value_date = value_date
         self.external_value_date = external_value_date
         self.amount = amount
@@ -76,7 +76,7 @@ class Transaction(BaseTransaction):
 
     def to_multi_transaction(self) -> MultiTransaction:
         mt = MultiTransaction(description=self.description,
-                              transaction_date=self.operation_date,
+                              transaction_date=self.transaction_date,
                               metadata=self.metadata)
         mt.add_posting(Posting(self.account, self.amount, self.currency,
                                self.value_date))
@@ -93,12 +93,12 @@ class Transaction(BaseTransaction):
         comment = t.metadata.get('comment', '')
         if comment:
             comment = ' ; ' + comment
-        result = f'{t.operation_date} {t.description}{comment}\n'
+        result = f'{t.transaction_date} {t.description}{comment}\n'
         block_comment = t.metadata.get('block_comment')
         if block_comment is not None:
             block_comment = '\n    ; '.join(block_comment.split('\n'))
             result += '    ; ' + block_comment + '\n'
-        if t.value_date is not None and t.value_date != t.operation_date:
+        if t.value_date is not None and t.value_date != t.transaction_date:
             value_date = f' ; date:{t.value_date}'
         else:
             value_date = ''
@@ -127,7 +127,7 @@ class Transaction(BaseTransaction):
             meta = ''
         return (f'Transaction(account={s.account!r}, '
                 f'description={s.description!r}, '
-                f'operation_date={s.operation_date!r}, '
+                f'transaction_date={s.transaction_date!r}, '
                 f'value_date={s.value_date!r}, amount={s.amount!r}, '
                 f'currency={s.currency!r}'
                 f'{ext_account}{ext_date}{meta})')
@@ -137,7 +137,7 @@ class MultiTransaction(BaseTransaction):
                  postings: Optional[list[Posting]] = None,
                  metadata: Optional[dict[str, Any]] = None):
         self.description = description
-        self.date = transaction_date
+        self.transaction_date = transaction_date
         if postings is None:
             self.postings = []
         else:
@@ -169,12 +169,12 @@ class MultiTransaction(BaseTransaction):
         comment = t.metadata.get('comment', '')
         if comment:
             comment = ' ; ' + comment
-        result = f'{t.date} {t.description}{comment}\n'
+        result = f'{t.transaction_date} {t.description}{comment}\n'
         block_comment = t.metadata.get('block_comment')
         if block_comment is not None:
             block_comment = '\n    ; '.join(block_comment.split('\n'))
             result += '    ; ' + block_comment + '\n'
-        result += ''.join(p.format_as_ledger_transaction(t.date)
+        result += ''.join(p.format_as_ledger_transaction(t.transaction_date)
                           for p in t.postings)
         return result
 
@@ -196,7 +196,7 @@ class MultiTransaction(BaseTransaction):
             meta = f', metadata={s.metadata!r}'
         else:
             meta = ''
-        return (f'MultiTransaction({s.description}, {s.date},'
+        return (f'MultiTransaction({s.description}, {s.transaction_date},'
                 f' {s.postings}{meta})')
 
 class Posting:

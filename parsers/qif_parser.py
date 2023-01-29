@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2021–2022 Felix Gruber <felgru@posteo.net>
+# SPDX-FileCopyrightText: 2021–2023 Felix Gruber <felgru@posteo.net>
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
@@ -58,7 +58,7 @@ class QifParser(CleaningParser[CT], metaclass=ABCMeta):
                 transactions.append(Transaction(
                     account=account,
                     description=description,
-                    operation_date=date,
+                    transaction_date=date,
                     value_date=None,
                     amount=amount,
                     currency=self.currency,

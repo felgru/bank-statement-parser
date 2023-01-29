@@ -550,7 +550,7 @@ def travel_history_to_bank_statement(
         return Transaction(
                 account=accounts['assets'],
                 description=description,
-                operation_date=transaction.date,
+                transaction_date=transaction.date,
                 value_date=None,
                 amount=transaction.amount,
                 currency='€',
