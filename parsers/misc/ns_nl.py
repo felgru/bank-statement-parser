@@ -143,7 +143,11 @@ class NederlandseSpoorwegenPdfParser(Parser[NederlandseSpoorwegenConfig]):
         balancing_account = accounts['balancing']
         subscriptions_account = accounts['subscriptions']
         subscription_table = self.tables[0]
-        t = MultiTransaction(description=subscription_table.title,
+        toelichtingen = {line.toelichting for line in subscription_table}
+        assert len(toelichtingen) == 1
+        toelichting = '{t[0]} t/m {t[1]}'.format(t=next(iter(toelichtingen)))
+        description = f'{subscription_table.title} {toelichting}'
+        t = MultiTransaction(description=description,
                              transaction_date=self.meta['Factuurdatum'],
                              )
         t.add_posting(Posting(account=balancing_account,
