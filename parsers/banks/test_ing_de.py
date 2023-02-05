@@ -158,6 +158,25 @@ def test_parsing_exchange_fee_transaction() -> None:
     }
 
 
+def test_parsing_exchange_fee_transaction_without_rate() -> None:
+    description = ("VISA NAME OF SHOP\n"
+                   "VISA 4546 XXXX XXXX 1234 AUSLANDSEINSATZENTGELT VISA CARD\n"
+                   "(DEBITKARTE) ARN12345678901234567890123")
+    description, external_value_date, metadata \
+            = parse_transaction('Entgelt',
+                                description,
+                                date(2023, 1, 31),
+                                )
+    assert description == 'VISA NAME OF SHOP'
+    assert external_value_date is None
+    assert metadata == {
+        'ARN_number': 'ARN12345678901234567890123',
+        'card_number': '4546 XXXX XXXX 1234',
+        'fee_type': 'AUSLANDSEINSATZENTGELT',
+        'type': 'Entgelt',
+    }
+
+
 def test_parsing_ueberweisung_transaction() -> None:
     description = ("Sender\n"
                    "description1\n"

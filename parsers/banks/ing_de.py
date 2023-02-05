@@ -291,16 +291,18 @@ def parse_transaction(transaction_type: str,
             lines = description.split('\n')
             metadata['fee_type'] = 'AUSLANDSEINSATZENTGELT'
             m = re.match(r'VISA (\d{4} X{4} X{4} \d{3,4}) '
-                         r'(\d,\d\d)%AUSLANDSEINSATZENTGELT',
+                         r'(\d,\d\d%|)AUSLANDSEINSATZENTGELT',
                          lines[-2])
             if m is None:
                 raise RuntimeError(
                     f'card exchange fee pattern didn\'t match {lines[-2]!r}')
             metadata['card_number'] = m.group(1)
-            metadata['exchange_fee_rate'] = parse_amount(m.group(2)) / 100
-            m = re.match(r'\w+ \(.+?\) (ARN\d+)', lines[-1])
+            if m.group(2):
+                metadata['exchange_fee_rate'] = \
+                        parse_amount(m.group(2).removesuffix('%')) / 100
+            m = re.search(r'\(.+?\) (ARN\d+)', lines[-1])
             if m is None:
-                raise RuntimeError('ARN pattern didn\'t match.')
+                raise RuntimeError(f'ARN pattern didn\'t match {lines[-1]!r}.')
             metadata['ARN_number'] = m.group(1)
             description = ' '.join(lines[:-2])
         else:
