@@ -23,6 +23,7 @@ from transaction import (
         )
 from utils import PeekableIterator
 
+from utils.dates import parse_date_relative_to
 from ..parser import BaseCleaningParserConfig
 from ..pdf_parser import CleaningParser, PdfParser
 
@@ -81,7 +82,7 @@ class AbnAmroPdfParser(PdfParser[AbnAmroConfig]):
         meta = self.first_page_metadata
         return MainTableIterator(
                 self.pdf_pages,
-                year=meta.date.year,
+                date=meta.date,
                 currency=meta.currency,
                 accounts=accounts)
 
@@ -187,10 +188,10 @@ class FirstPageMetadata:
 
 class MainTableIterator:
     def __init__(self, pdf_pages: list[str], *,
-                 year: int, currency: str,
+                 date: date, currency: str,
                  accounts: dict[str, str]):
         self.lines = PeekableIterator(MainTableLines(pdf_pages))
-        self.year = year
+        self.date = date
         self.description_parser = DescriptionParser(
                 currency=currency,
                 accounts=accounts)
@@ -215,7 +216,7 @@ class MainTableIterator:
         # first line
         # If next raises StopIteration let it bubble up the call chain.
         line = next(self.lines)
-        bookdate = parse_short_date(line.bookdate, self.year)
+        bookdate = parse_date_relative_to(line.bookdate, self.date)
         description = [line.description]
         debit = line.amount_debit
         credit = line.amount_credit
@@ -226,7 +227,8 @@ class MainTableIterator:
         except StopIteration:
             raise AbnAmroPdfParserError(
                     'Transaction with missing second line.') from None
-        value_date = parse_short_date(line.bookdate.strip('()'), self.year)
+        value_date = parse_date_relative_to(line.bookdate.strip('()'),
+                                            self.date)
         # second line can be empty except for value date if we're at
         # the end of the page. We filter out those empty description lines.
         if line.description:
@@ -613,12 +615,6 @@ def parse_short_year_date(d: str) -> date:
     # Dotted year with two digit year
     day, month, year = d.split('.')
     return date(int('20'+year), int(month), int(day))
-
-
-def parse_short_date(d: str, year: int) -> date:
-    # Dutch inverse ISO format
-    day, month = d.split('-')
-    return date(year, int(month), int(day))
 
 
 def parse_amount(a: str) -> Decimal:
