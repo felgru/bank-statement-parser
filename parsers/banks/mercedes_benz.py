@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 from collections.abc import Iterator
-from datetime import date, timedelta
+from datetime import date
 from decimal import Decimal
 from pathlib import Path
 import re
@@ -14,6 +14,7 @@ from bank_statement import BankStatementMetadata
 from transaction import (BaseTransaction, Balance, MultiTransaction,
                          Posting, Transaction)
 
+from utils.dates import parse_date_relative_to
 from ..parser import BaseCleaningParserConfig
 from ..pdf_parser import OldPdfParser
 
@@ -24,6 +25,7 @@ class MercedesBenzConfig(BaseCleaningParserConfig):
     DEFAULT_ACCOUNTS = {
         'default account': 'assets:bank:saving:Mercedes-Benz Bank',
     }
+
 
 class MercedesBenzPdfParser(OldPdfParser[MercedesBenzConfig]):
     num_cols = 4
@@ -199,6 +201,7 @@ class MercedesBenzPdfParser(OldPdfParser[MercedesBenzConfig]):
     def parse_short_date(self, d: str) -> date:
         return parse_date_relative_to(d, self.new_balance.date)
 
+
 def parse_date_with_year(d: str) -> date:
     """parse a date in "dd.mm.yyyy" or "dd.mm.yy" format
 
@@ -211,20 +214,6 @@ def parse_date_with_year(d: str) -> date:
         year += 2000
     return date(year, month, day)
 
-def parse_date_relative_to(s: str, ref_d: date) -> date:
-    """parse a date in "dd.mm." format while guessing year relative to date ref_d"""
-    day = int(s[:2])
-    month = int(s[3:5])
-    year = ref_d.year
-    d = date(year, month, day)
-    half_a_year = timedelta(days=356/2)
-    diff = d - ref_d
-    if abs(diff) > half_a_year:
-        if diff < timedelta(days=0):
-            d = date(year + 1, month, day)
-        else:
-            d = date(year - 1, month, day)
-    return d
 
 def parse_amount(a: str) -> Decimal:
     """parse a decimal amount like 1.200,00-."""

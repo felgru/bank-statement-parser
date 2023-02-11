@@ -14,6 +14,7 @@ from bank_statement import BankStatement, BankStatementMetadata
 from transaction import (BaseTransaction, Balance, MultiTransaction,
                          Posting, Transaction)
 
+from utils.dates import parse_date_relative_to
 from ..parser import BaseCleaningParserConfig, CleaningParser
 from ..pdf_parser import OldPdfParser
 
@@ -540,21 +541,6 @@ def parse_date(d: str) -> date:
     month = int(d[3:5])
     year = int(d[6:])
     return date(year, month, day)
-
-
-def parse_date_relative_to(d: str, ref_d: date) -> date:
-    day = int(d[:2])
-    month = int(d[3:5])
-    year = ref_d.year
-    dd = date(year, month, day)
-    half_a_year = timedelta(days=356/2)
-    diff = dd - ref_d
-    if abs(diff) > half_a_year:
-        if diff < timedelta(days=0):
-            dd = date(year + 1, month, day)
-        else:
-            dd = date(year - 1, month, day)
-    return dd
 
 
 def parse_amount(a: str) -> Decimal:
