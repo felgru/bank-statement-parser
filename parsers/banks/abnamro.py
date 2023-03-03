@@ -269,7 +269,8 @@ class DescriptionParser:
             r'NR:(?P<NR>\w+?),? +'
             r'(?P<date>\d{2}\.\d{2}\.\d{2})\/'
             r'(?P<time>\d{2}\.\d{2}|\d{2}:\d{2})\n'
-            r'(?P<location>.*)(?P<currency_exchange>.*\n.*\n.*\n.*|)$'
+            r'(?P<location>.*)(?P<currency_exchange>.*\n.*\n.*\n.*|)'
+            r'(?P<extra>|\nTERUGBOEKING BEA-TRANSACTIE)$'
             )
     GEA_PATTERN = re.compile(
             r'(GEA), (?P<card_type>.*)\n'
@@ -405,9 +406,18 @@ class DescriptionParser:
         if (m := self.OLD_BEA_PATTERN.match(joined_description)) is not None:
             card_type = None
             currency_exchange = ''
+            block_comment: str | None = None
         elif (m := self.NEW_BEA_PATTERN.match(joined_description)) is not None:
             card_type = m.group('card_type')
             currency_exchange = m.group('currency_exchange')
+            if m.group('extra').startswith('\nTERUGBOEKING '):
+                block_comment = 'Terugboeking BEA-transactie'
+            elif m.group('extra') == '':
+                block_comment = None
+            else:
+                raise AbnAmroPdfParserError(
+                        'Unexpected extra line in BEA transaction: '
+                        f'{m.group("extra")}.')
         else:
             raise AbnAmroPdfParserError(
                     f'Could not parse BEA transaction\n{joined_description}')
@@ -426,6 +436,8 @@ class DescriptionParser:
                 pas_nr=m.group('pas_nr'),
                 location=m.group('location'),
                 )
+        if block_comment is not None:
+            d['block_comment'] = block_comment
         assert d['date'] == bookdate, \
                 f"Date {d['date']} does not match bookdate {bookdate}."
         assert bookdate == value_date
