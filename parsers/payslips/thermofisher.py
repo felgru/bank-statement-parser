@@ -31,6 +31,7 @@ class ThermoFisherConfig(BaseParserConfig):
         '3011': 'income:salary:holiday allowance',  # Vacantiegeld
         '3013': 'income:salary:bonus',    # Eindejaarsuitkering
         '3019': 'income:salary:bonus',
+        '3069': 'income:salary:bonus',    # Incentive Comp G
         # taxes
         '4304': 'income:salary:30%',      # Bruto aftrek 30% reg.TB
         '4305': 'income:salary:30%',      # Bruto aftrek 30% reg.BT
