@@ -306,9 +306,13 @@ def parse_transaction(transaction_type: str,
                 raise RuntimeError(f'ARN pattern didn\'t match {lines[-1]!r}.')
             metadata['ARN_number'] = m.group(1)
             description = ' '.join(lines[:-2])
+        elif 'Kontofuehrungsentgelt ' in description:
+            metadata['fee_type'] = 'KONTOFUEHRUNGSENTGELT'
+            description \
+                    = description[description.find('Kontofuehrungsentgelt '):]
         else:
             # other fee
-            raise RuntimeError('Unknown fee type')
+            raise RuntimeError(f'Unknown fee type:\n{description}')
             metadata['fee_type'] = 'UNKNOWN'
     elif transaction_type == 'Gutschrift' or transaction_type == 'Ueberweisung':
         # Giro transfer

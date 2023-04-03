@@ -118,6 +118,21 @@ def test_parsing_foreign_cash_withdrawal_transaction() -> None:
     }
 
 
+def test_parsing_account_fee_transaction() -> None:
+    description = ("Lastname\n"
+                   "Kontofuehrungsentgelt 01/2023")
+    description, external_value_date, metadata \
+            = parse_transaction('Entgelt',
+                                description,
+                                date(2023, 1, 2),
+                                )
+    assert description == 'Kontofuehrungsentgelt 01/2023'
+    assert metadata == {
+        'fee_type': 'KONTOFUEHRUNGSENTGELT',
+        'type': 'Entgelt',
+    }
+
+
 def test_parsing_direct_debit_transaction() -> None:
     description = ("NAME OF SHOP\n"
                    "description line 1\n"
