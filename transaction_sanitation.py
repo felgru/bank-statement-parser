@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2019–2022 Felix Gruber <felgru@posteo.net>
+# SPDX-FileCopyrightText: 2019–2023 Felix Gruber <felgru@posteo.net>
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
@@ -11,8 +11,8 @@ from transaction import BaseTransaction, MultiTransaction, Transaction
 
 class TransactionCleaner:
     def __init__(self,
-                 rules: list[AnyCleanerRule]):
-        self.rules = rules
+                 rules: Sequence[AnyCleanerRule]):
+        self.rules = list(rules)
 
     @classmethod
     def from_rules_file(cls, rules_file: Optional[Path]):
