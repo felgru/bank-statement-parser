@@ -427,12 +427,7 @@ class DescriptionParser:
                 NR=m.group('NR'),
                 date=parse_short_year_date(m.group('date')),
                 time=m.group('time').replace('.', ':'),
-                # Sometimes the store name is prefixed with "CCV " or "CCV*".
-                # This is not part of the store name, but the name of a Dutch
-                # payment provider. We therefore remove this prefix from the
-                # store name.
-                store=m.group('store').removeprefix('CCV ')
-                                      .removeprefix('CCV*'),
+                store=m.group('store'),
                 pas_nr=m.group('pas_nr'),
                 location=m.group('location'),
                 )

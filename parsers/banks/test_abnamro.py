@@ -5,7 +5,8 @@
 from datetime import date
 from decimal import Decimal
 
-from .abnamro import AbnAmroConfig, DescriptionParser
+from transaction_sanitation import TransactionCleaner
+from .abnamro import AbnAmroConfig, AbnAmroPdfParser, DescriptionParser
 
 DEFAULT_ACCOUNTS = AbnAmroConfig.DEFAULT_ACCOUNTS
 
@@ -152,9 +153,12 @@ def test_parsing_bea_transaction_with_ccv_prefix() -> None:
             value_date=date(2022, 1, 1),
             amount=Decimal("1.23"),
             )
+    cleaner = TransactionCleaner(AbnAmroPdfParser.cleaning_rules)
+    transaction = cleaner.clean(transaction)
     assert transaction.description == 'My example store'
     m = transaction.metadata
     assert m['transaction_type'] == 'BEA'
+    assert m['payment_provider'] == 'CCV'
     assert m['store'] == 'My example store'
     assert m['pas_nr'] == '123'
     assert m['NR'] == '123ABC'
@@ -177,9 +181,68 @@ def test_parsing_bea_transaction_with_ccv_prefix2() -> None:
             value_date=date(2022, 1, 1),
             amount=Decimal("1.23"),
             )
+    cleaner = TransactionCleaner(AbnAmroPdfParser.cleaning_rules)
+    transaction = cleaner.clean(transaction)
     assert transaction.description == 'My example store'
     m = transaction.metadata
     assert m['transaction_type'] == 'BEA'
+    assert m['payment_provider'] == 'CCV'
+    assert m['store'] == 'My example store'
+    assert m['pas_nr'] == '123'
+    assert m['NR'] == '123ABC'
+    assert m['date'] == date(2022, 1, 1)
+    assert m['time'] == '12:23'
+    assert m['location'] == 'LOCATION'
+
+
+def test_parsing_bea_transaction_with_zettle_prefix() -> None:
+    description = ["BEA, Betaalpas",
+                   "Zettle_*My example store,PAS123",
+                   "NR:123ABC   01.01.22/12.23",
+                   "LOCATION"]
+
+    parser = DescriptionParser(currency='EUR',
+                               accounts=DEFAULT_ACCOUNTS)
+    transaction = parser.parse(
+            description=description,
+            bookdate=date(2022, 1, 1),
+            value_date=date(2022, 1, 1),
+            amount=Decimal("1.23"),
+            )
+    cleaner = TransactionCleaner(AbnAmroPdfParser.cleaning_rules)
+    transaction = cleaner.clean(transaction)
+    assert transaction.description == 'My example store'
+    m = transaction.metadata
+    assert m['transaction_type'] == 'BEA'
+    assert m['payment_provider'] == 'Zettle_'
+    assert m['store'] == 'My example store'
+    assert m['pas_nr'] == '123'
+    assert m['NR'] == '123ABC'
+    assert m['date'] == date(2022, 1, 1)
+    assert m['time'] == '12:23'
+    assert m['location'] == 'LOCATION'
+
+
+def test_parsing_bea_transaction_with_pay_nl_prefix() -> None:
+    description = ["BEA, Betaalpas",
+                   "PAY.nl*My example store,PAS123",
+                   "NR:123ABC   01.01.22/12.23",
+                   "LOCATION"]
+
+    parser = DescriptionParser(currency='EUR',
+                               accounts=DEFAULT_ACCOUNTS)
+    transaction = parser.parse(
+            description=description,
+            bookdate=date(2022, 1, 1),
+            value_date=date(2022, 1, 1),
+            amount=Decimal("1.23"),
+            )
+    cleaner = TransactionCleaner(AbnAmroPdfParser.cleaning_rules)
+    transaction = cleaner.clean(transaction)
+    assert transaction.description == 'My example store'
+    m = transaction.metadata
+    assert m['transaction_type'] == 'BEA'
+    assert m['payment_provider'] == 'PAY.nl'
     assert m['store'] == 'My example store'
     assert m['pas_nr'] == '123'
     assert m['NR'] == '123ABC'
