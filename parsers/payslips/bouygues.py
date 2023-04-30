@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2021–2022 Felix Gruber <felgru@posteo.net>
+# SPDX-FileCopyrightText: 2021–2023 Felix Gruber <felgru@posteo.net>
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
@@ -16,6 +16,7 @@ from ..parser import GenericParserConfig, Parser
 from ..pdf_parser import read_pdf_file
 from bank_statement import BankStatement, BankStatementMetadata
 from transaction import MultiTransaction, Posting
+from utils import PeekableIterator
 
 
 class BouyguesConfig(GenericParserConfig):
@@ -100,14 +101,18 @@ class BouyguesItemParser:
         transaction = MultiTransaction(description, payment_date)
 
         lines = self.iter_main_table()
-        header = next(lines)
-        if header.is_section_header() and header.description == 'ELEMENTS DE REVENU BRUT':
+        header = lines.peek()
+        if (header.is_section_header()
+            and header.description == 'ELEMENTS DE REVENU BRUT'):
             salary_postings, total_gross_salary \
                     = self._parse_gross_income(lines)
-        else:
-            assert header.description == "AUTRES CONTRIBUTIONS DUES PAR L'EMPLOYEUR"
+        elif (header.description == "AUTRES CONTRIBUTIONS DUES PAR L'EMPLOYEUR"
+              or header.description == 'COTISATIONS ET CONTRIBUTIONS SOCIALES'):
             salary_postings = []
             total_gross_salary = Decimal('0.00')
+        else:
+            raise BouyguesPdfParserError(
+                    f'Unexpected header: {header.description}')
         social_security_postings, social_security_total = \
                 self._parse_social_security_payments(lines)
         misc_postings, misc_total = self._parse_misc(lines)
@@ -132,6 +137,11 @@ class BouyguesItemParser:
     def _parse_gross_income(self,
                             lines: MainTableIterator,
                             ) -> tuple[list[Posting], Decimal]:
+        header = next(lines)
+        if not (header.is_section_header()
+                and header.description == 'ELEMENTS DE REVENU BRUT'):
+            raise BouyguesPdfParserError(
+                    f'Unexpected header: {header.description}')
         postings: list[Posting] = []
         for line in lines:
             assert line.montant_employee is not None
@@ -152,12 +162,15 @@ class BouyguesItemParser:
     def _parse_social_security_payments(self,
                                         lines: MainTableIterator,
                                         ) -> tuple[list[Posting], Decimal]:
-        postings: list[Posting] = []
         header = next(lines)
-        if not header.is_section_header() \
-           or not header.description == 'COTISATIONS ET CONTRIBUTIONS SOCIALES':
-               raise BouyguesPdfParserError(
-                       'Missing COTISATIONS ET CONTRIBUTIONS SOCIALES.')
+        if header.description == "AUTRES CONTRIBUTIONS DUES PAR L'EMPLOYEUR":
+            header = next(lines)
+        assert header.is_section_header()
+        if not (header.is_section_header()
+                and header.description == 'COTISATIONS ET CONTRIBUTIONS SOCIALES'):
+            raise BouyguesPdfParserError(
+                    f'Unexpected header: {header.description}')
+        postings: list[Posting] = []
         header = next(lines)
         if header.is_section_header():
             assert header.description == 'SANTÉ'
@@ -220,25 +233,35 @@ class BouyguesItemParser:
                     'Missing TOTAL DES COTISATIONS ET CONTRIBUTIONS.')
         else:
             for line in itertools.chain([header], lines):
-                if line.description == "CSG/CRDS déductible de l'impôt sur le revenu":
+                if line.description == "CSG déductible de l'impôt sur le revenu":
+                    assert line.montant_employee is not None
+                    postings.append(Posting(
+                        self.accounts['deductible social taxes'],
+                        -line.montant_employee,
+                        comment="CSG déductible de l'impôt sur le revenu"))
+                    continue
+                elif line.description == "CSG/CRDS déductible de l'impôt sur le revenu":
                     assert line.montant_employee is not None
                     postings.append(Posting(
                         self.accounts['deductible social taxes'],
                         -line.montant_employee,
                         comment=line.description))
                     continue
-                if line.description == "CSG/CRDS non déductible de l'impôt sur le revenu":
+                elif line.description == "CSG/CRDS non déductible de l'impôt sur le revenu":
                     assert line.montant_employee is not None
                     postings.append(Posting(
                         self.accounts['nondeductible social taxes'],
                         -line.montant_employee,
                         comment=line.description))
                     continue
-                if line.description == 'TOTAL DES COTISATIONS ET CONTRIBUTIONS':
+                elif line.description == 'TOTAL DES COTISATIONS ET CONTRIBUTIONS':
                     assert line.montant_employee is not None
                     total = line.montant_employee
                     assert sum(p.amount for p in postings) == -total
                     return postings, total
+                else:
+                    raise BouyguesPdfParserError('Unexpected social security'
+                                                 f' item: {line.description}')
             raise BouyguesPdfParserError(
                     'Missing TOTAL DES COTISATIONS ET CONTRIBUTIONS.')
 
@@ -289,7 +312,7 @@ class BouyguesItemParser:
                           lines: MainTableIterator,
                           ) -> tuple[Decimal, Posting]:
         source_tax_description \
-                = 'Impôt sur le revenu prélevé à la source - Taux personnalisé'
+                = 'Impôt sur le revenu prélevé à la source - Taux '
         net_line = next(lines)
         if net_line.description == 'NET A PAYER AVANT IMPOT SUR LE REVENU':
             # A normal payslip.
@@ -300,11 +323,11 @@ class BouyguesItemParser:
 
             # skip "Dont évolution de la rénumération…"
             for line in lines:
-                if line.description == source_tax_description:
+                if line.description.startswith(source_tax_description):
                     break
             else:
                 raise BouyguesPdfParserError('Missing Impôt sur le revenu.')
-        elif net_line.description == source_tax_description:
+        elif net_line.description.startswith(source_tax_description):
             # payslip without any pay.
             net_payment = Decimal('0.00')
             line = net_line
@@ -343,6 +366,30 @@ def parse_date(d: str) -> date:
 
 class MainTableIterator:
     def __init__(self, pdf_pages: list[str]):
+        self.orig_iter = iter(NonpeekableMainTableIterator(pdf_pages))
+        self.iter = PeekableIterator(self.orig_iter)
+        _, self.page, self.end = self.iter.peek()
+
+    def __iter__(self) -> MainTableIterator:
+        return self
+
+    def __next__(self) -> MainTableItem:
+        item, self.page, self.end = next(self.iter)
+        return item
+
+    def peek(self) -> MainTableItem:
+        item, self.page, self.end = self.iter.peek()
+        return item
+
+    def current_page(self) -> int:
+        return self.page
+
+    def current_table_end(self) -> int:
+        return self.end
+
+
+class NonpeekableMainTableIterator:
+    def __init__(self, pdf_pages: list[str]):
         self.pdf_pages = pdf_pages
         self.page = 0
         range_ = self._parse_main_table_header(self.page)
@@ -376,10 +423,10 @@ class MainTableIterator:
                     f'Could not find end of main table on page {page}.')
         return start, m.start() + 1  # Keep the '\n' at the end of the line
 
-    def __iter__(self) -> MainTableIterator:
+    def __iter__(self) -> NonpeekableMainTableIterator:
         return self
 
-    def __next__(self) -> MainTableItem:
+    def __next__(self) -> tuple[MainTableItem, int, int]:
         page = self.pdf_pages[self.page]
         while self.pos < self.end:
             eol = page.index('\n', self.pos, self.end)
@@ -408,13 +455,7 @@ class MainTableIterator:
             else:
                 value = None
             amounts.append(value)
-        return MainTableItem(description, *amounts)
-
-    def current_page(self) -> int:
-        return self.page
-
-    def current_table_end(self) -> int:
-        return self.end
+        return MainTableItem(description, *amounts), self.page, self.end
 
 
 @dataclass
