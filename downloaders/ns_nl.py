@@ -96,9 +96,15 @@ class NederlandseSpoorwegenDownloader(Downloader[NederlandseSpoorwegenConfig]):
         if (end_date := kwargs.get('end_date')) is not None:
             downloadable = ((d, s) for d, s in downloadable
                             if d <= end_date)
-        for d, id_ in downloadable:
+        if start_date is None and end_date is None:
+            # If user does not specify date range, only download last invoice.
+            d, id_ = max(downloadable)
             invoice = self.api.get_invoice(id_)
             yield d, f'factuur-{d}.pdf', invoice
+        else:
+            for d, id_ in downloadable:
+                invoice = self.api.get_invoice(id_)
+                yield d, f'factuur-{d}.pdf', invoice
 
     @classmethod
     def instantiate_argparser(cls, aparser: argparse.ArgumentParser) -> None:
