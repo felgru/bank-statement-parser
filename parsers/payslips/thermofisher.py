@@ -83,6 +83,55 @@ class ThermoFisherPdfParser(Parser[ThermoFisherConfig]):
     def __init__(self, pdf_file: Path):
         super().__init__(pdf_file)
         self.pdf_pages = read_pdf_file(pdf_file)
+        self.parser = self._choose_parser()
+
+    def _choose_parser(self) -> Parser[ThermoFisherConfig]:
+        m = re.match(r' *1PAYSLNL\d+ ', self.pdf_pages[0])
+        if m is not None:
+            return ThermoFisherAdpPdfParser(self.pdf_pages)
+        return ThermoFisherWorkdayPdfParser(self.pdf_pages)
+
+    def parse_metadata(self) -> BankStatementMetadata:
+        return self.parser.parse_metadata()
+
+    def parse(self, config: ThermoFisherConfig) -> BankStatement:
+        return self.parser.parse(config)
+
+
+class ThermoFisherAdpPdfParser(Parser[ThermoFisherConfig]):
+    """Parser for ADP payslips.
+
+    Since May 2023, Thermo Fisher changed its payslip format and
+    provides the payslips on the ADP platform. These payslips are parsed
+    by this class.
+    """
+    autoload = False
+    file_extension = '.pdf'
+
+    def __init__(self, pdf_pages: list[str]):
+        self.pdf_pages = pdf_pages
+        raise NotImplementedError(
+                'Parsing Thermo Fisher ADP payslips not implemented, yet.')
+
+    def parse_metadata(self) -> BankStatementMetadata:
+        pass
+
+    def parse(self, config: ThermoFisherConfig) -> BankStatement:
+        pass
+
+
+class ThermoFisherWorkdayPdfParser(Parser[ThermoFisherConfig]):
+    """Parser for Workday payslips.
+
+    Before the introduction of the ADP payslip platform in May 2023,
+    Thermo Fisher provided payslips via Workday in a different format.
+    These payslips are parsed by this class.
+    """
+    autoload = False
+    file_extension = '.pdf'
+
+    def __init__(self, pdf_pages: list[str]):
+        self.pdf_pages = pdf_pages
         self.tables = [get_tables(self.pdf_pages, i)
                        for i in range(len(self.pdf_pages))]
         self._metadata: Optional[BankStatementMetadata] = None
