@@ -28,3 +28,11 @@ def parse_date_relative_to(d: str, ref_d: date) -> date:
         else:
             dd = date(year - 1, month, day)
     return dd
+
+
+def end_of_month(d: date) -> date:
+    if d.month == 12:
+        next_month = d.replace(year=d.year + 1, month=1, day=1)
+    else:
+        next_month = d.replace(month=d.month + 1, day=1)
+    return next_month - timedelta(days=1)
