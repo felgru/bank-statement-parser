@@ -286,16 +286,28 @@ class ThermoFisherAdpPdfParser(Parser[ThermoFisherAdpConfig]):
                           transaction: MultiTransaction,
                           config: ThermoFisherAdpConfig) -> None:
         accounts = config.accounts
-        net_total: Decimal | None = None
+        net_payment: Decimal | None = None
+        nettoloon: Decimal | None = None
+        voorschotten: Decimal | None = None
+        sum_unmarked = Decimal(0)
+        sum_marked = Decimal(0)
         unknown_codes: list[AdpMainTableItem] = []
         for item in self.main_table:
             assert item.code is not None
             if item.code == '/550':  # Nettoloon
+                assert nettoloon is None, 'Nettoloon given twice.'
                 nettoloon = item.uitbetaling
-                assert -sum(p.amount for p in transaction.postings) == nettoloon
+                assert -sum(p.amount for p in transaction.postings) \
+                       == nettoloon
+                assert sum_unmarked + sum_marked == nettoloon
+                continue
+            if item.code == '4717':  # Voorschotten
+                # TODO: How does voorschotten work?
+                assert voorschotten is None, 'Voorschotten given twice.'
+                voorschotten = -item.uitbetaling
                 continue
             if item.code == '/560':
-                net_total = item.uitbetaling
+                net_payment = item.uitbetaling
                 continue
             if item.code == '/404':  # Basis LH
                 continue  # ignore
@@ -306,6 +318,10 @@ class ThermoFisherAdpPdfParser(Parser[ThermoFisherAdpConfig]):
                 continue
             if item.uitbetaling is not None:
                 amount = -item.uitbetaling
+                if item.star_marker:
+                    sum_marked -= amount
+                else:
+                    sum_unmarked -= amount
             else:
                 raise ThermoFisherPdfParserError(
                         f'Missing amount in {item}.')
@@ -317,12 +333,21 @@ class ThermoFisherAdpPdfParser(Parser[ThermoFisherAdpConfig]):
                     f'Encountered {len(unknown_codes)} unknown code(s):\n'
                     + '\n'.join(f'  {item.code}: {item.omschrijving}'
                                 for item in unknown_codes))
-        assert net_total is not None
-        assert net_total == self.main_table.payment
-        p = Posting(config.salary_balancing_account,
-                    net_total,
-                    comment='Uitbetalingsbedrag')
-        transaction.add_posting(p)
+        assert net_payment is not None
+        assert net_payment == self.main_table.payment
+        assert nettoloon is not None
+        assert sum_marked + sum_unmarked \
+                == -sum(p.amount for p in transaction.postings)
+        if voorschotten is not None:
+            assert sum_marked + sum_unmarked - voorschotten == net_payment
+            transaction.add_posting(
+                Posting(config.salary_balancing_account,
+                        voorschotten,
+                        comment='Voorschotten'))
+        transaction.add_posting(
+            Posting(config.salary_balancing_account,
+                    net_payment,
+                    comment='Uitbetalingsbedrag'))
 
 
 class AdpMainTable:
@@ -339,7 +364,7 @@ class AdpMainTable:
         self.main_table_start = m.start()
         self.main_table_body_start = m.end() + 1
         assert m.lastindex is not None
-        m2 = re.compile(r'^1110 +(Salaris)',
+        m2 = re.compile(r'^[ \*]?1110 +(Salaris)',
                         flags=re.MULTILINE,
                         ).search(page, pos=self.main_table_body_start)
         if m2 is None:
@@ -395,6 +420,7 @@ class AdpMainTableIterator:
 
 @dataclass
 class AdpMainTableItem:
+    star_marker: bool
     code: str
     omschrijving: str
     basis: None
@@ -416,8 +442,13 @@ class AdpMainTableItem:
 
         assert not d['basis']
         assert not d['tarief']
+        code = d['code']
+        prefix = code.startswith('*')
+        if prefix:
+            code = code[1:]
         return cls(
-                code=d['code'],
+                star_marker=prefix,
+                code=code,
                 omschrijving=d['omschrijving'],
                 basis=None,
                 tarief=None,
