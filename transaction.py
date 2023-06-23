@@ -196,8 +196,8 @@ class MultiTransaction(BaseTransaction):
             meta = f', metadata={s.metadata!r}'
         else:
             meta = ''
-        return (f'MultiTransaction({s.description}, {s.transaction_date},'
-                f' {s.postings}{meta})')
+        return (f'MultiTransaction({s.description!r}, {s.transaction_date!r},'
+                f' {s.postings!r}{meta})')
 
 class Posting:
     def __init__(self, account: Optional[str], amount: Decimal,
