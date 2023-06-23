@@ -56,9 +56,12 @@ class ThermoFisherAdpConfig(BaseParserConfig):
         '365Z': 'income:salary:holiday allowance',  # Holiday Allowance
         # taxes
         '=H1': 'income:salary:30%',       # Correctie 30%-regeling
+        '=H2': 'income:salary:30%',       # Correctie 30%-regeling BB
         '93PA': 'expenses:taxes:retirement insurance',  # WN-premie pens1
         '=E1': 'expenses:taxes:social',  # WGA Aanvullend
-        '=E5': 'expenses:taxes:social',  # WIA bodem
+        '=E5': 'expenses:taxes:social',  # WIA Bodem
+        '=E6': 'expenses:taxes:social',  # WGA Aanvullend BT
+        '=EA': 'expenses:taxes:social',  # WIA Bodem BT
         # other payments
         '4736': 'income:salary',          # Netto thuiswerkvergoeding
         '4737': 'income:salary',          # Representatievergoeding
