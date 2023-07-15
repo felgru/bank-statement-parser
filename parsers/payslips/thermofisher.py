@@ -304,6 +304,7 @@ class ThermoFisherAdpPdfParser(Parser[ThermoFisherAdpConfig]):
             if item.code == '4717':  # Voorschotten
                 # TODO: How does voorschotten work?
                 assert voorschotten is None, 'Voorschotten given twice.'
+                assert item.uitbetaling is not None
                 voorschotten = -item.uitbetaling
                 continue
             if item.code == '/560':
