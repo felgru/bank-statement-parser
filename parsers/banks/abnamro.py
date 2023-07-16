@@ -648,18 +648,41 @@ class AbnAmroTsvParser(CleaningParser[AbnAmroConfig]):
 
     def __init__(self, tsv_file: Path):
         super().__init__(tsv_file)
-        self._parse_file(tsv_file)
-
-    def _parse_file(self, tsv_file: Path) -> None:
         if not tsv_file.exists():
             raise IOError(f'Unknown file: {tsv_file}')
-        transactions = []
-        key_pattern = re.compile(r'/([A-Z]+)/')
-        card_payment_pattern = re.compile(
-                r'BEA +NR:([^ ]+) +(\d\d\.\d\d\.\d\d)\/(\d\d\.\d\d) '
-                r'(.*),PAS(\d+) +(.*)')
+        self._raw_transactions = AbnAmroTsvRow.read_rows_from_file(tsv_file)
+
+    def parse_metadata(self) -> BankStatementMetadata:
+        start_date = min(t.date1 for t in self._raw_transactions)
+        end_date   = max(t.date1 for t in self._raw_transactions)
+        return BankStatementMetadata(
+                start_date=start_date,
+                end_date=end_date,
+               )
+
+    def parse_raw(self, accounts: dict[str, str]) -> BankStatement:
+        parser = AbnAmroTsvRowParser(accounts)
+        transactions = [parser.parse(row) for row in self._raw_transactions]
+        #self.check_transactions_consistency(transactions)
+        return BankStatement(transactions)
+
+
+@dataclass
+class AbnAmroTsvRow:
+    account: str
+    currency: str
+    date1: date
+    balance_before: Decimal
+    balance_after: Decimal
+    date2: date
+    amount: Decimal
+    rest: str
+
+    @classmethod
+    def read_rows_from_file(cls, tsv_file: Path) -> list[AbnAmroTsvRow]:
         with open(tsv_file, newline='') as f:
             reader = csv.reader(f, dialect='excel-tab')
+            rows = []
             for row in reader:
                 account = row[0]
                 currency = row[1]
@@ -670,54 +693,85 @@ class AbnAmroTsvParser(CleaningParser[AbnAmroConfig]):
                 assert date1 == date2
                 amount = parse_amount(row[6])
                 rest = row[7]
-                if rest.startswith('/'):
-                    matches = list(key_pattern.finditer(rest))
-                    meta: dict[str, str] = {}
-                    for m1, m2 in zip(matches, matches[1:]):
-                        meta[m1.group(1)] = rest[m1.end():m2.start()]
-                    meta[matches[-1].group(1)] = rest[matches[-1].end():].rstrip()
-                    description = meta['NAME'] + ' | ' + meta['REMI']
-                else:
-                    m = card_payment_pattern.match(rest)
-                    if m is None:
-                        raise RuntimeError(f'{rest!r} does not match card'
-                                           'payment pattern.')
-                    description = m.group(4)
-                    meta = {}
-                    meta['nr'] = m.group(1)
-                    meta['card_number'] = m.group(5)
-                    meta['location'] = m.group(6)
-                    day, month, year = m.group(2).split('.')
-                    pay_date = date(year=int('20'+year),
-                                    month=int(month),
-                                    day=int(day))
-                    pay_time = m.group(3).replace('.', ':')
-                    assert pay_date == date2
-                transaction = Transaction(
-                        account='to be replaced later',
-                        description=description,
-                        transaction_date=date1,
-                        value_date=date2,
-                        amount=amount,
-                        currency='€' if currency == 'EUR' else currency,
-                        metadata=meta)
-                transactions.append(transaction)
-        self.transactions = transactions
+                rows.append(cls(
+                    account=account,
+                    currency=currency,
+                    date1=date1,
+                    balance_before=balance_before,
+                    balance_after=balance_after,
+                    date2=date2,
+                    amount=amount,
+                    rest=rest,
+                ))
+        return rows
 
-    def parse_metadata(self) -> BankStatementMetadata:
-        start_date = min(t.transaction_date for t in self.transactions)
-        end_date   = max(t.transaction_date for t in self.transactions)
-        return BankStatementMetadata(
-                start_date=start_date,
-                end_date=end_date,
-               )
 
-    def parse_raw(self, accounts: dict[str, str]) -> BankStatement:
-        account = accounts['checking']
-        for transaction in self.transactions:
-            transaction.account = account
-        #self.check_transactions_consistency(self.transactions)
-        return BankStatement(self.transactions)
+class AbnAmroTsvRowParser:
+    def __init__(self, accounts: dict[str, str]):
+        self.this_account = accounts['checking']
+        self.accounts = accounts
+        self.key_pattern = re.compile(r'/([A-Z]+)/')
+        self.card_payment_pattern = re.compile(
+                r'BEA +NR:([^ ]+) +(\d\d\.\d\d\.\d\d)\/(\d\d\.\d\d) '
+                r'(.*),PAS(\d+) +(.*)')
+        self.banking_fee_pattern = re.compile(
+                r'(ABN AMRO Bank N.V.) +(Account) +(\d+,\d\d)'
+                r'(Debit card) +(\d+,\d\d)\s*')
+
+    def parse(self, row: AbnAmroTsvRow) -> BaseTransaction:
+        currency = '€' if row.currency == 'EUR' else row.currency
+        rest = row.rest
+        if rest.startswith('/'):
+            matches = list(self.key_pattern.finditer(rest))
+            meta: dict[str, str] = {}
+            for m1, m2 in zip(matches, matches[1:]):
+                meta[m1.group(1)] = rest[m1.end():m2.start()]
+            meta[matches[-1].group(1)] = rest[matches[-1].end():].rstrip()
+            description = meta['NAME'] + ' | ' + meta['REMI']
+        elif (m := self.card_payment_pattern.match(rest)) is not None:
+            description = m.group(4)
+            meta = {}
+            meta['nr'] = m.group(1)
+            meta['card_number'] = m.group(5)
+            meta['location'] = m.group(6)
+            day, month, year = m.group(2).split('.')
+            pay_date = date(year=int('20'+year),
+                            month=int(month),
+                            day=int(day))
+            pay_time = m.group(3).replace('.', ':')
+            assert pay_date == row.date2
+        elif (m := self.banking_fee_pattern.match(rest)) is not None:
+            t = MultiTransaction(
+                    description=f'{m.group(1)} | Banking fees',
+                    transaction_date=row.date1,
+                    metadata={
+                        'transaction_type': 'banking fees',
+                    })
+            t.add_posting(Posting(
+                account=self.this_account,
+                amount=row.amount,
+                currency=currency,
+                posting_date=row.date2,
+                ))
+            for desc_group, amount_group in ((2, 3), (4, 5)):
+                t.add_posting(Posting(
+                        account=self.accounts['banking fees'],
+                        amount=parse_amount(m.group(amount_group)),
+                        currency=currency,
+                        posting_date=row.date2,
+                        comment=m.group(desc_group)))
+            return t
+        else:
+            raise RuntimeError(f'{rest!r} does not match card'
+                               'payment pattern.')
+        return Transaction(
+                account=self.this_account,
+                description=description,
+                transaction_date=row.date1,
+                value_date=row.date2,
+                amount=row.amount,
+                currency=currency,
+                metadata=meta)
 
 
 def parse_compact_date(d: str) -> date:

@@ -6,7 +6,13 @@ from datetime import date
 from decimal import Decimal
 
 from transaction_sanitation import TransactionCleaner
-from .abnamro import AbnAmroConfig, AbnAmroPdfParser, DescriptionParser
+from .abnamro import (
+    AbnAmroConfig,
+    AbnAmroPdfParser,
+    AbnAmroTsvRow,
+    AbnAmroTsvRowParser,
+    DescriptionParser,
+)
 
 DEFAULT_ACCOUNTS = AbnAmroConfig.DEFAULT_ACCOUNTS
 
@@ -455,3 +461,25 @@ def test_parsing_interest() -> None:
         "see your interest note for more",
         "information",
     ])
+
+
+def test_tsv_parsing_banking_fees() -> None:
+    parser = AbnAmroTsvRowParser(accounts=DEFAULT_ACCOUNTS)
+    transaction = parser.parse(AbnAmroTsvRow(
+        account='123456789',
+        currency='EUR',
+        date1=date(2023, 6, 15),
+        balance_before=Decimal('1234.56'),
+        balance_after=Decimal('1230.21'),
+        date2=date(2023, 6, 15),
+        amount=Decimal('-4.35'),
+        rest='ABN AMRO Bank N.V.               '
+             'Account                     2,95'
+             'Debit card                  1,40'
+             '                                 '))
+    omschrijving = "ABN AMRO Bank N.V. | Banking fees"
+    assert transaction.description == omschrijving
+    m = transaction.metadata
+    assert m['transaction_type'] == "banking fees"
+    transaction.transaction_date == date(2023, 6, 15)
+    assert transaction.is_balanced()
