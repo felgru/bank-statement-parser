@@ -711,9 +711,31 @@ class AbnAmroTsvRowParser:
         self.this_account = accounts['checking']
         self.accounts = accounts
         self.key_pattern = re.compile(r'/([A-Z]+)/')
-        self.card_payment_pattern = re.compile(
-                r'BEA +NR:([^ ]+) +(\d\d\.\d\d\.\d\d)\/(\d\d\.\d\d) '
-                r'(.*),PAS(\d+) +(.*)')
+        self.old_bea_pattern = re.compile(
+                r'(BEA) +NR:(?P<NR>\w+) +'
+                r'(?P<date>\d{2}\.\d{2}\.\d{2})\/(?P<time>\d{2}\.\d{2}) +'
+                r'(?P<store>.*),PAS(?P<pas_nr>\d{3}) +'
+                r'(?P<location>.*)'
+                )
+        self.new_bea_pattern = re.compile(
+                r'(BEA), (?P<card_type>.*?) +'
+                r'(?P<store>.*),PAS(?P<pas_nr>\d{3}) +'
+                r'NR:(?P<NR>\w+?),? +'
+                r'(?P<date>\d{2}\.\d{2}\.\d{2})\/'
+                r'(?P<time>\d{2}\.\d{2}|\d{2}:\d{2}) +'
+                r'(?P<location>.*)(?P<currency_exchange>.*? +.*? +.*? +.*?|)'
+                r'(?P<extra>| +TERUGBOEKING BEA-TRANSACTIE)'
+                )
+        # TODO: Currency exchange pattern guessed from PDF parser, might need
+        #       adjustments.
+        self.currency_exchange_pattern = re.compile(
+                r'\n(?P<foreign_currency>[A-Z]{3}) (?P<foreign_amount>\d+,?\d*)'
+                r' 1(?P<currency>[A-Z]{3})=(?P<exchange_rate>\d+,\d+)'
+                r' (?P=foreign_currency) +'
+                r'ECB Koers=(?P<ecb_exchange_rate>\d+,\d+)'
+                r' OPSLAG (?P<surcharge>\d+,\d+)% +'
+                r'KOSTEN •(?P<costs>\d+,\d\d) ACHTERAF BEREKEND'
+                )
         self.banking_fee_pattern = re.compile(
                 r'(ABN AMRO Bank N.V.) +(Account) +(\d+,\d\d)'
                 r'(Debit card) +(\d+,\d\d)\s*')
@@ -728,18 +750,53 @@ class AbnAmroTsvRowParser:
                 meta[m1.group(1)] = rest[m1.end():m2.start()]
             meta[matches[-1].group(1)] = rest[matches[-1].end():].rstrip()
             description = meta['NAME'] + ' | ' + meta['REMI']
-        elif (m := self.card_payment_pattern.match(rest)) is not None:
-            description = m.group(4)
-            meta = {}
-            meta['nr'] = m.group(1)
-            meta['card_number'] = m.group(5)
-            meta['location'] = m.group(6)
-            day, month, year = m.group(2).split('.')
-            pay_date = date(year=int('20'+year),
-                            month=int(month),
-                            day=int(day))
-            pay_time = m.group(3).replace('.', ':')
-            assert pay_date == row.date2
+        elif rest.startswith('BEA'):
+            if (m := self.old_bea_pattern.match(rest)) is not None:
+                card_type = None
+                currency_exchange = ''
+                block_comment: str | None = None
+            elif (m := self.new_bea_pattern.match(rest)) is not None:
+                card_type = m.group('card_type')
+                currency_exchange = m.group('currency_exchange')
+                if m.group('extra').lstrip().startswith('TERUGBOEKING '):
+                    block_comment = 'Terugboeking BEA-transactie'
+                elif m.group('extra') == '':
+                    block_comment = None
+                else:
+                    raise AbnAmroPdfParserError(
+                            'Unexpected extra line in BEA transaction: '
+                            f'{m.group("extra")}.')
+            d = dict[str, Any](
+                    transaction_type='BEA',
+                    card_type=card_type,
+                    NR=m.group('NR'),
+                    date=parse_short_year_date(m.group('date')),
+                    time=m.group('time').replace('.', ':'),
+                    store=m.group('store'),
+                    pas_nr=m.group('pas_nr'),
+                    location=m.group('location').rstrip(),
+                    )
+            if block_comment is not None:
+                d['block_comment'] = block_comment
+            assert d['date'] == row.date1, \
+                    f"Date {d['date']} does not match bookdate {row.date1}."
+            if currency_exchange:
+                m = self.currency_exchange_pattern.match(currency_exchange)
+                if m is None:
+                    raise AbnAmroPdfParserError(
+                            'Could not parse currency exchange:\n'
+                            f'{currency_exchange}')
+                assert m.group('currency') == row.currency
+                d['foreign_amount'] = parse_amount(m.group('foreign_amount'))
+                d['foreign_currency'] = m.group('foreign_currency')
+                d['exchange_rate'] = parse_amount(m.group('exchange_rate'))
+                d['ecb_exchange_rate'] = parse_amount(
+                        m.group('ecb_exchange_rate'))
+                d['surcharge'] = parse_amount(m.group('surcharge')) \
+                                 / Decimal(100)
+                d['costs'] = parse_amount(m.group('costs'))
+            description = d['store']
+            meta = d
         elif (m := self.banking_fee_pattern.match(rest)) is not None:
             t = MultiTransaction(
                     description=f'{m.group(1)} | Banking fees',
@@ -762,8 +819,8 @@ class AbnAmroTsvRowParser:
                         comment=m.group(desc_group)))
             return t
         else:
-            raise RuntimeError(f'{rest!r} does not match card'
-                               'payment pattern.')
+            raise RuntimeError(f'{rest!r} does not match any known '
+                               'transaction pattern.')
         return Transaction(
                 account=self.this_account,
                 description=description,
