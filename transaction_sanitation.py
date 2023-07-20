@@ -43,8 +43,19 @@ class TransactionCleaner:
 
     def clean(self, transaction: BaseTransaction) -> BaseTransaction:
         for r in self.rules:
-            if r.applies_to(transaction):
-                transaction = r.clean(transaction)
+            try:
+                applies = r.applies_to(transaction)
+            except Exception as e:
+                raise RuntimeError(
+                        'Error while trying to check if cleaning rule'
+                        f' is applicable to transaction {transaction}.') from e
+            if applies:
+                try:
+                    transaction = r.clean(transaction)
+                except Exception as e:
+                    raise RuntimeError(
+                            'Error while trying to clean transaction'
+                            f' {transaction}.') from e
         return transaction
 
     def __repr__(self) -> str:
