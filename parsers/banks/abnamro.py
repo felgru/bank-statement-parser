@@ -644,7 +644,7 @@ class AbnAmroPdfParserError(RuntimeError):
 class AbnAmroTsvParser(CleaningParser[AbnAmroConfig]):
     file_extension = '.tab'
     num_cols = None
-    # cleaning_rules = cleaning_rules.rules
+    cleaning_rules = cleaning_rules.rules
 
     def __init__(self, tsv_file: Path):
         super().__init__(tsv_file)
