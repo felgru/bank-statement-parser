@@ -463,6 +463,34 @@ def test_parsing_interest() -> None:
     ])
 
 
+def test_tsv_parsing_sepa_incasso_transaction() -> None:
+    parser = AbnAmroTsvRowParser(accounts=DEFAULT_ACCOUNTS)
+    transaction = parser.parse(AbnAmroTsvRow(
+        account='123456789',
+        currency='EUR',
+        date1=date(2022, 1, 1),
+        balance_before=Decimal('1234.56'),
+        balance_after=Decimal('1230.00'),
+        date2=date(2022, 1, 1),
+        amount=Decimal('-4.56'),
+        rest='/TRTP/SEPA Incasso algemeen doorlopend/CSID/NL12345678'
+             '/NAME/SOME SHOP/MARF/AB-12345678-9/'
+             'IBAN/NL11ABNA1234567890  /BIC/ABNANL2A'
+             '/EREF/abcde-1234567890'
+    ))
+    assert transaction.description == 'SOME SHOP | abcde-1234567890'
+    m = transaction.metadata
+    assert m['transaction_type'] == 'SEPA Incasso algemeen doorlopend'
+    # assert m['store'] == 'SOME SHOP'
+    assert m['TRTP'] == 'SEPA Incasso algemeen doorlopend'
+    assert m['CSID'] == 'NL12345678'
+    assert m['NAME'] == 'SOME SHOP'
+    assert m['MARF'] == 'AB-12345678-9'
+    assert m['IBAN'] == 'NL11ABNA1234567890'
+    assert m['BIC'] == 'ABNANL2A'
+    assert m['EREF'] == 'abcde-1234567890'
+
+
 def test_tsv_parsing_old_bea_transaction() -> None:
     parser = AbnAmroTsvRowParser(accounts=DEFAULT_ACCOUNTS)
     transaction = parser.parse(AbnAmroTsvRow(

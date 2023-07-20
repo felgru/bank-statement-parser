@@ -747,10 +747,11 @@ class AbnAmroTsvRowParser:
             matches = list(self.key_pattern.finditer(rest))
             meta: dict[str, str] = {}
             for m1, m2 in zip(matches, matches[1:]):
-                meta[m1.group(1)] = rest[m1.end():m2.start()]
+                meta[m1.group(1)] = rest[m1.end():m2.start()].rstrip()
             meta[matches[-1].group(1)] = rest[matches[-1].end():].rstrip()
             description = meta['NAME'] + ' | ' + meta.get('REMI',
                                                           meta.get('EREF'))
+            meta['transaction_type'] = meta['TRTP']
         elif rest.startswith('BEA'):
             if (m := self.old_bea_pattern.match(rest)) is not None:
                 card_type = None
