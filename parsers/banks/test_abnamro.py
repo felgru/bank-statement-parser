@@ -541,7 +541,7 @@ def test_tsv_parsing_foreign_bea() -> None:
     assert m['location'] == 'Berlin, Land: DEU'
 
 
-def test_tsv_parsing_banking_fees() -> None:
+def test_tsv_parsing_old_banking_fees() -> None:
     parser = AbnAmroTsvRowParser(accounts=DEFAULT_ACCOUNTS)
     transaction = parser.parse(AbnAmroTsvRow(
         account='123456789',
@@ -560,4 +560,26 @@ def test_tsv_parsing_banking_fees() -> None:
     m = transaction.metadata
     assert m['transaction_type'] == "banking fees"
     transaction.transaction_date == date(2023, 6, 15)
+    assert transaction.is_balanced()
+
+
+def test_tsv_parsing_new_banking_fees() -> None:
+    parser = AbnAmroTsvRowParser(accounts=DEFAULT_ACCOUNTS)
+    transaction = parser.parse(AbnAmroTsvRow(
+        account='123456789',
+        currency='EUR',
+        date1=date(2023, 7, 15),
+        balance_before=Decimal('1234.56'),
+        balance_after=Decimal('1230.21'),
+        date2=date(2023, 7, 15),
+        amount=Decimal('-4.35'),
+        rest='ABN AMRO Bank N.V.               '
+             'Basic Package               2,95'
+             'Debit card                  1,40'
+             '                                 '))
+    omschrijving = "ABN AMRO Bank N.V. | Banking fees"
+    assert transaction.description == omschrijving
+    m = transaction.metadata
+    assert m['transaction_type'] == "banking fees"
+    transaction.transaction_date == date(2023, 7, 15)
     assert transaction.is_balanced()

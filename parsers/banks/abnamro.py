@@ -737,8 +737,9 @@ class AbnAmroTsvRowParser:
                 r'KOSTEN •(?P<costs>\d+,\d\d) ACHTERAF BEREKEND'
                 )
         self.banking_fee_pattern = re.compile(
-                r'(ABN AMRO Bank N.V.) +(Account) +(\d+,\d\d)'
-                r'(Debit card) +(\d+,\d\d)\s*')
+                r'(ABN AMRO Bank N.V.) +((.+? +\d+,\d\d)+)')
+        self.banking_fee_item_pattern = re.compile(
+                r'(.+?) +(\d+,\d\d)')
 
     def parse(self, row: AbnAmroTsvRow) -> BaseTransaction:
         currency = '€' if row.currency == 'EUR' else row.currency
@@ -812,13 +813,13 @@ class AbnAmroTsvRowParser:
                 currency=currency,
                 posting_date=row.date2,
                 ))
-            for desc_group, amount_group in ((2, 3), (4, 5)):
+            for m in self.banking_fee_item_pattern.finditer(m.group(2)):
                 t.add_posting(Posting(
                         account=self.accounts['banking fees'],
-                        amount=parse_amount(m.group(amount_group)),
+                        amount=parse_amount(m.group(2)),
                         currency=currency,
                         posting_date=row.date2,
-                        comment=m.group(desc_group)))
+                        comment=m.group(1)))
             return t
         else:
             raise RuntimeError(f'{rest!r} does not match any known '
