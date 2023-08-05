@@ -10,7 +10,7 @@ from datetime import date
 from decimal import Decimal
 from pathlib import Path
 import re
-from typing import Any, Optional
+from typing import Any, cast, Optional
 
 from .cleaning_rules import abnamro as cleaning_rules
 from bank_statement import BankStatement, BankStatementMetadata
@@ -641,6 +641,10 @@ class AbnAmroPdfParserError(RuntimeError):
     pass
 
 
+class AbnAmroTsvParserError(RuntimeError):
+    pass
+
+
 class AbnAmroTsvParser(CleaningParser[AbnAmroConfig]):
     file_extension = '.tab'
     num_cols = None
@@ -750,8 +754,8 @@ class AbnAmroTsvRowParser:
             for m1, m2 in zip(matches, matches[1:]):
                 meta[m1.group(1)] = rest[m1.end():m2.start()].rstrip()
             meta[matches[-1].group(1)] = rest[matches[-1].end():].rstrip()
-            description = meta['NAME'] + ' | ' + meta.get('REMI',
-                                                          meta.get('EREF'))
+            description = meta['NAME'] + ' | ' \
+                        + cast(str, meta.get('REMI', meta.get('EREF')))
             meta['transaction_type'] = meta['TRTP']
         elif rest.startswith('BEA'):
             if (m := self.old_bea_pattern.match(rest)) is not None:
@@ -766,9 +770,11 @@ class AbnAmroTsvRowParser:
                 elif m.group('extra') == '':
                     block_comment = None
                 else:
-                    raise AbnAmroPdfParserError(
+                    raise AbnAmroTsvParserError(
                             'Unexpected extra line in BEA transaction: '
                             f'{m.group("extra")}.')
+            else:
+                raise AbnAmroTsvParserError(f'Unknown BEA pattern: {rest!r}.')
             d = dict[str, Any](
                     transaction_type='BEA',
                     card_type=card_type,
@@ -786,7 +792,7 @@ class AbnAmroTsvRowParser:
             if currency_exchange:
                 m = self.currency_exchange_pattern.match(currency_exchange)
                 if m is None:
-                    raise AbnAmroPdfParserError(
+                    raise AbnAmroTsvParserError(
                             'Could not parse currency exchange:\n'
                             f'{currency_exchange}')
                 assert m.group('currency') == row.currency

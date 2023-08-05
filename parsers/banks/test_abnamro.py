@@ -5,6 +5,7 @@
 from datetime import date
 from decimal import Decimal
 
+from transaction import MultiTransaction
 from transaction_sanitation import TransactionCleaner
 from .abnamro import (
     AbnAmroConfig,
@@ -560,6 +561,7 @@ def test_tsv_parsing_old_banking_fees() -> None:
     m = transaction.metadata
     assert m['transaction_type'] == "banking fees"
     transaction.transaction_date == date(2023, 6, 15)
+    assert isinstance(transaction, MultiTransaction)
     assert transaction.is_balanced()
 
 
@@ -582,4 +584,5 @@ def test_tsv_parsing_new_banking_fees() -> None:
     m = transaction.metadata
     assert m['transaction_type'] == "banking fees"
     transaction.transaction_date == date(2023, 7, 15)
+    assert isinstance(transaction, MultiTransaction)
     assert transaction.is_balanced()
