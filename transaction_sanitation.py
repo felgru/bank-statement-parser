@@ -53,9 +53,14 @@ class TransactionCleaner:
                 try:
                     transaction = r.clean(transaction)
                 except Exception as e:
+                    import inspect
+                    assert e.__traceback__ is not None
+                    ef = inspect.getinnerframes(e.__traceback__)[-1]
                     raise RuntimeError(
-                            'Error while trying to clean transaction'
-                            f' {transaction}.') from e
+                        'Error while trying to clean transaction'
+                        f' {transaction} '
+                        f'in {ef.filename}, line {ef.lineno}:\n'
+                        f'{type(e).__name__}: {e}') from e
         return transaction
 
     def __repr__(self) -> str:
