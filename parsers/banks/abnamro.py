@@ -433,8 +433,8 @@ class DescriptionParser:
                 )
         if block_comment is not None:
             d['block_comment'] = block_comment
-        assert d['date'] == bookdate, \
-                f"Date {d['date']} does not match bookdate {bookdate}."
+        assert d['date'] <= bookdate, \
+                f"Date {d['date']} later than bookdate {bookdate}."
         assert bookdate == value_date
         if currency_exchange:
             m = self.CURRENCY_EXCHANGE_PATTERN.match(currency_exchange)
