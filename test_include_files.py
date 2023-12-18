@@ -1,9 +1,10 @@
-# SPDX-FileCopyrightText: 2022 Felix Gruber <felgru@posteo.net>
+# SPDX-FileCopyrightText: 2022–2023 Felix Gruber <felgru@posteo.net>
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Optional
+from typing import TypeAlias
 
 import pytest
 
@@ -11,8 +12,11 @@ from git import FakeGit
 from include_files import write_include_files
 
 
+TestFiles: TypeAlias = Iterable[str | tuple[str, TestFiles]]
+
+
 def create_test_dir(base_dir: Path,
-                    test_files: list) -> None:
+                    test_files: TestFiles) -> None:
     for t in test_files:
         if isinstance(t, str):
             (base_dir / t).touch()
@@ -25,13 +29,13 @@ def create_test_dir(base_dir: Path,
 
 
 def check_generated_files(base_dir: Path,
-                          test_files: list) -> None:
+                          test_files: TestFiles) -> None:
     check_dir_equal_to(base_dir, test_files)
     check_include_content(base_dir)
 
 
 def check_dir_equal_to(base_dir: Path,
-                       test_files: list) -> None:
+                       test_files: TestFiles) -> None:
     assert base_dir.is_dir()
     dir_content = {p.name for p in base_dir.iterdir()}
     expected_dir_content = set()
@@ -47,7 +51,7 @@ def check_dir_equal_to(base_dir: Path,
 
 def check_include_content(base_dir: Path) -> bool:
     assert base_dir.is_dir()
-    journal_file: Optional[Path] = None
+    journal_file: Path | None = None
     directories: list[str] = []
     files: list[str] = []
     for p in base_dir.iterdir():
@@ -72,7 +76,7 @@ def check_include_content(base_dir: Path) -> bool:
     return True
 
 
-def test_write_include_files_for_the_first_time(tmp_path):
+def test_write_include_files_for_the_first_time(tmp_path: Path) -> None:
     create_test_dir(
         tmp_path,
         [('2021', [
@@ -118,7 +122,8 @@ def test_write_include_files_for_the_first_time(tmp_path):
     )
 
 
-def test_write_include_files_with_existing_include_files(tmp_path):
+def test_write_include_files_with_existing_include_files(
+        tmp_path: Path) -> None:
     create_test_dir(
         tmp_path,
         [('2021', [
@@ -166,7 +171,8 @@ def test_write_include_files_with_existing_include_files(tmp_path):
     )
 
 
-def test_leaf_dir_without_ledger_should_not_contain_include_file(tmp_path):
+def test_leaf_dir_without_ledger_should_not_contain_include_file(
+        tmp_path: Path) -> None:
     create_test_dir(
         tmp_path,
         [('2021', [
@@ -209,7 +215,7 @@ def test_leaf_dir_without_ledger_should_not_contain_include_file(tmp_path):
     )
 
 
-def test_unnecessary_include_files_should_be_removed(tmp_path):
+def test_unnecessary_include_files_should_be_removed(tmp_path: Path) -> None:
     create_test_dir(
         tmp_path,
         [('2021', [
