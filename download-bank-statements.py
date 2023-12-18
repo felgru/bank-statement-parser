@@ -16,7 +16,7 @@ import sys
 from typing import Optional, TypeVar
 from urllib.parse import urljoin, urlparse
 
-from bs4 import BeautifulSoup  # type: ignore
+from bs4 import BeautifulSoup
 import requests
 
 from config import ImportConfig

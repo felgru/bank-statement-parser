@@ -3,9 +3,9 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 from __future__ import annotations
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from pathlib import Path
-from typing import Any, Callable, Optional, Union
+from typing import Any, Self
 
 from transaction import BaseTransaction, MultiTransaction, Transaction
 
@@ -15,7 +15,7 @@ class TransactionCleaner:
         self.rules = list(rules)
 
     @classmethod
-    def from_rules_file(cls, rules_file: Optional[Path]):
+    def from_rules_file(cls, rules_file: Path | None) -> Self:
         if rules_file is None or not rules_file.exists():
             return cls([])
         with open(rules_file, 'r') as f:
@@ -34,7 +34,7 @@ class TransactionCleaner:
             return cls(rules)
 
     def with_builtin_rules(self,
-                           builtin_rules: Optional[Sequence[AnyCleanerRule]],
+                           builtin_rules: Sequence[AnyCleanerRule] | None,
                            ) -> TransactionCleaner:
         rules = list(self.rules)
         if builtin_rules is not None:
@@ -69,7 +69,7 @@ class TransactionCleaner:
 class TransactionCleanerRule:
     def __init__(self, condition: Callable[[BaseTransaction], bool],
                  cleaner: Callable[[BaseTransaction], Any],
-                 field: Union[str, tuple[str, ...]] = 'description'):
+                 field: str | tuple[str, ...] = 'description'):
         self.condition: Callable[[BaseTransaction], bool] = condition
         self.cleaner: Callable[[BaseTransaction], Any] = cleaner
         self.field = field
@@ -103,4 +103,4 @@ class ToMultiTransactionRule:
         return (f'<{self.__class__.__name__}('
                 f'{self.condition.__name__}, {self.cleaner.__name__})>')
 
-AnyCleanerRule = Union[TransactionCleanerRule, ToMultiTransactionRule]
+AnyCleanerRule = TransactionCleanerRule | ToMultiTransactionRule

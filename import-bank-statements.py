@@ -14,6 +14,7 @@ from pathlib import Path
 import sys
 from typing import Any, Optional
 
+from bank_statement import BankStatementMetadata
 from config import ImportConfig, LedgerConfig
 from git import (
         BaseGit,
@@ -29,7 +30,7 @@ from import_transaction import (
         )
 from include_files import write_include_files
 from parsers import parsers
-from parsers.parser import BankStatementMetadata, BaseParserConfig, Parser
+from parsers.parser import BaseParserConfig, Parser
 from utils import UserError
 from utils.dates import merge_dateranges
 from xdg_dirs import getXDGdirectories

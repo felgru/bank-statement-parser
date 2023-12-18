@@ -239,12 +239,16 @@ class IngDePdfParser(OldPdfParser[IngDeConfig]):
                 transactions: list[BaseTransaction],
                 config: IngDeConfig) -> None:
         account = config.accounts[self.metadata.account_type]
-        def amount(transaction: BaseTransaction):
+        def amount(transaction: BaseTransaction) -> Decimal:
             if isinstance(transaction, Transaction):
                 return transaction.amount
             elif isinstance(transaction, MultiTransaction):
-                return sum(p.amount for p in transaction.postings
-                           if p.account == account)
+                return sum((p.amount for p in transaction.postings
+                            if p.account == account),
+                           start=Decimal(0))
+            else:
+                raise TypeError(
+                        f'Unknown transaction type: {type(transaction)}')
 
         assert self.old_balance.balance + sum(amount(t)
                                               for t in transactions) \
@@ -333,7 +337,7 @@ def parse_transaction(transaction_type: str,
         raise RuntimeError(f'Unknown transaction type {transaction_type!r}.')
     return description, external_value_date, metadata
 
-def parse_card_metadata(metadata_pattern: re.Match,
+def parse_card_metadata(metadata_pattern: re.Match[str],
                         operation_date: date,
                         ) -> tuple[str, date, dict[str, Any]]:
     orig_match = metadata_pattern.group(0)
