@@ -5,6 +5,6 @@
 from .autoloader import Downloaders
 
 
-downloaders = Downloaders(__path__[0])  # type: ignore # mypy pull request #9454
+downloaders = Downloaders(__path__[0])
 
 __all__ = ['downloaders']

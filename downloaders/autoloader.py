@@ -32,7 +32,7 @@ class Downloaders(dict[str, Website]):
         for f in module_path.iterdir():
             if not f.name.endswith('.py') or f.name == '__init__.py':
                 continue
-            mod_name = inspect.getmodulename(f)  # type: ignore # Irrespective of what mypy says, we can call getmodulename with a Path.
+            mod_name = inspect.getmodulename(f)
             if mod_name is None:
                 continue
             package_name = module_path.name
