@@ -10,7 +10,7 @@ from decimal import Decimal
 from itertools import chain, groupby
 from pathlib import Path
 import re
-from typing import cast, Final, Optional
+from typing import cast, Final, Optional, TypeVar
 
 from ..parser import BaseParserConfig, load_accounts, Parser
 from ..pdf_parser import read_pdf_file
@@ -432,14 +432,11 @@ class AdpMainTableItem:
 
     @classmethod
     def from_dict(cls, d: dict[str, str]) -> AdpMainTableItem:
-        def decimal(value):
+        def decimal(value: str) -> Decimal:
             value = value.replace('.', '').replace(',', '.')
             if value.endswith('-'):
                 value = '-' + value[:-1]
             return Decimal(value)
-
-        def parse_optional(value, type):
-            return type(value) if value else None
 
         assert not d['basis']
         assert not d['tarief']
@@ -834,9 +831,6 @@ class WorkdayMainTableItem:
         def decimal(value):
             return Decimal(value.replace(',', '.'))
 
-        def parse_optional(value, type):
-            return type(value) if value else None
-
         try:
             code = parse_optional(d['code'], int)
             omschrijving = d['omschrijving']
@@ -914,3 +908,10 @@ class WorkdayPaymentTableItem:
 
 class ThermoFisherPdfParserError(RuntimeError):
     pass
+
+
+T = TypeVar('T')
+
+
+def parse_optional(value: str, type: Callable[[str], T]) -> T | None:
+    return type(value) if value else None

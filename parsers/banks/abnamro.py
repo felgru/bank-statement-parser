@@ -24,8 +24,8 @@ from transaction import (
 from utils import PeekableIterator
 
 from utils.dates import parse_date_relative_to
-from ..parser import BaseCleaningParserConfig
-from ..pdf_parser import CleaningParser, PdfParser
+from ..parser import BaseCleaningParserConfig, CleaningParser
+from ..pdf_parser import PdfParser
 
 
 class AbnAmroConfig(BaseCleaningParserConfig):
