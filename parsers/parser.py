@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2019–2022 Felix Gruber <felgru@posteo.net>
+# SPDX-FileCopyrightText: 2019–2023 Felix Gruber <felgru@posteo.net>
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
@@ -35,21 +35,53 @@ class BaseParserConfig(metaclass=ABCMeta):
         pass
 
 
-def load_accounts(config_file: Optional[Path],
+def load_accounts(config_file: Path | None,
                   default_accounts: dict[str, str],
-                  name: str) -> dict[str, str]:
+                  name: str,
+                  *,
+                  config_section_name: str = 'accounts',
+                  config_section_is_optional: bool = False,
+                  ) -> dict[str, str]:
     if config_file is None or not config_file.exists():
-        accounts: dict[str, str] = {}
+        return dict(default_accounts)
     else:
-        config = configparser.ConfigParser()
-        # Don't convert keys to lower case.
-        config.optionxform = lambda option: option  # type: ignore
-        config.read(config_file)
-        try:
-            accounts_section = config['accounts']
-        except KeyError:
+        config = read_accounts_file(config_file)
+        return load_accounts_from_config_parser(
+            config,
+            config_file,
+            default_accounts,
+            name,
+            config_section_name=config_section_name,
+            config_section_is_optional=config_section_is_optional,
+        )
+
+
+def read_accounts_file(config_file: Path) -> configparser.ConfigParser:
+    config = configparser.ConfigParser()
+    # Don't convert keys to lower case.
+    config.optionxform = lambda option: option  # type: ignore
+    config.read(config_file)
+    return config
+
+
+def load_accounts_from_config_parser(
+        config: configparser.ConfigParser,
+        config_file: Path,
+        default_accounts: dict[str, str],
+        name: str,
+        *,
+        config_section_name: str = 'accounts',
+        config_section_is_optional: bool = False,
+) -> dict[str, str]:
+    try:
+        accounts_section = config[config_section_name]
+    except KeyError:
+        if not config_section_is_optional:
             raise ParserConfigError(
-                    f'{config_file} has no [accounts] section.') from None
+                f'{config_file} has no [{config_section_name}] section.'
+            ) from None
+        accounts = {}
+    else:
         accounts = dict(**accounts_section)
     unknown_accounts = set(accounts.keys()).difference(default_accounts.keys())
     if unknown_accounts:

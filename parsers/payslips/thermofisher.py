@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 from collections.abc import Callable
+import configparser
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
@@ -12,7 +13,12 @@ from pathlib import Path
 import re
 from typing import cast, Final, Optional, TypeVar
 
-from ..parser import BaseParserConfig, load_accounts, Parser
+from ..parser import (
+    BaseParserConfig,
+    load_accounts_from_config_parser,
+    Parser,
+    read_accounts_file,
+)
 from ..pdf_parser import read_pdf_file
 from bank_statement import BankStatement, BankStatementMetadata
 from transaction import MultiTransaction, Posting
@@ -39,8 +45,17 @@ class ThermoFisherConfig(BaseParserConfig):
 
         If `config_dir` is `None`, return the default configuration.
         """
-        adp_config = ThermoFisherAdpConfig.load(config_dir)
-        workday_config = ThermoFisherWorkdayConfig.load(config_dir)
+        config_file = config_dir / cls.bank_folder / 'accounts.cfg' \
+                      if config_dir is not None else None
+        if config_file is None:
+            adp_config = ThermoFisherAdpConfig.create_default()
+            workday_config = ThermoFisherWorkdayConfig.create_default()
+        else:
+            config = read_accounts_file(config_file)
+            adp_config = ThermoFisherAdpConfig.load_from_config_parser(
+                    config, config_file, section_is_optional=True)
+            workday_config = ThermoFisherWorkdayConfig.load_from_config_parser(
+                    config, config_file, section_is_optional=True)
         return cls(adp_config=adp_config,
                    workday_config=workday_config)
 
@@ -79,6 +94,14 @@ class ThermoFisherAdpConfig(BaseParserConfig):
         self.accounts = accounts
 
     @classmethod
+    def create_default(cls) -> ThermoFisherAdpConfig:
+        accounts = dict(cls.DEFAULT_ACCOUNTS)
+        return cls(
+            salary_balancing_account=accounts['salary balancing account'],
+            accounts=accounts,
+        )
+
+    @classmethod
     def load(cls, config_dir: Optional[Path]) -> ThermoFisherAdpConfig:
         """Load Parser configuration from given directory.
 
@@ -86,9 +109,27 @@ class ThermoFisherAdpConfig(BaseParserConfig):
         """
         config_file = config_dir / cls.bank_folder / 'accounts.cfg' \
                       if config_dir is not None else None
-        accounts = load_accounts(config_file,
-                                 cls.DEFAULT_ACCOUNTS,
-                                 cls.employer_name)
+        if config_file is None:
+            return cls.create_default()
+        config = read_accounts_file(config_file)
+        return cls.load_from_config_parser(
+                config, config_file, section_is_optional=False)
+
+    @classmethod
+    def load_from_config_parser(
+            cls,
+            config: configparser.ConfigParser,
+            config_file: Path,
+            *,
+            section_is_optional: bool,
+    ) -> ThermoFisherAdpConfig:
+        accounts = load_accounts_from_config_parser(
+            config,
+            config_file,
+            cls.DEFAULT_ACCOUNTS,
+            cls.employer_name,
+            config_section_name='adp_accounts',
+        )
         return cls(
             salary_balancing_account=accounts['salary balancing account'],
             accounts=accounts,
@@ -134,6 +175,18 @@ class ThermoFisherWorkdayConfig(BaseParserConfig):
         self.accounts = accounts
 
     @classmethod
+    def create_default(cls) -> ThermoFisherWorkdayConfig:
+        return cls(
+            salary_balancing_account
+                = cls.DEFAULT_ACCOUNTS['salary balancing account'],
+            accounts={
+                int(key): account
+                for key, account in cls.DEFAULT_ACCOUNTS.items()
+                if key.isnumeric()
+            },
+        )
+
+    @classmethod
     def load(cls, config_dir: Optional[Path]) -> ThermoFisherWorkdayConfig:
         """Load Parser configuration from given directory.
 
@@ -141,9 +194,28 @@ class ThermoFisherWorkdayConfig(BaseParserConfig):
         """
         config_file = config_dir / cls.bank_folder / 'accounts.cfg' \
                       if config_dir is not None else None
-        accounts = load_accounts(config_file,
-                                 cls.DEFAULT_ACCOUNTS,
-                                 cls.employer_name)
+        if config_file is None:
+            return cls.create_default()
+        config = read_accounts_file(config_file)
+        return cls.load_from_config_parser(
+                config, config_file, section_is_optional=False)
+
+    @classmethod
+    def load_from_config_parser(
+            cls,
+            config: configparser.ConfigParser,
+            config_file: Path,
+            *,
+            section_is_optional: bool,
+    ) -> ThermoFisherWorkdayConfig:
+        accounts = load_accounts_from_config_parser(
+            config,
+            config_file,
+            cls.DEFAULT_ACCOUNTS,
+            cls.employer_name,
+            config_section_name='workday_accounts',
+            config_section_is_optional=section_is_optional,
+        )
         return cls(
             salary_balancing_account=accounts['salary balancing account'],
             accounts={
