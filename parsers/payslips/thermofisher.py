@@ -47,7 +47,7 @@ class ThermoFisherConfig(BaseParserConfig):
         """
         config_file = config_dir / cls.bank_folder / 'accounts.cfg' \
                       if config_dir is not None else None
-        if config_file is None:
+        if config_file is None or not config_file.exists():
             adp_config = ThermoFisherAdpConfig.create_default()
             workday_config = ThermoFisherWorkdayConfig.create_default()
         else:
