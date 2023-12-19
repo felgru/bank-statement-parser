@@ -69,6 +69,7 @@ class ThermoFisherAdpConfig(BaseParserConfig):
         '1110': 'income:salary',          # Salaris
         # bonus payments
         '365Z': 'income:salary:holiday allowance',  # Holiday Allowance
+        '3660': 'income:salary:bonus',  # 13de Maand
         # taxes
         '=H1': 'income:salary:30%',       # Correctie 30%-regeling
         '=H2': 'income:salary:30%',       # Correctie 30%-regeling BB
