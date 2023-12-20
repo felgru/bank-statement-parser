@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 
-# SPDX-FileCopyrightText: 2019–2022 Felix Gruber <felgru@posteo.net>
+# SPDX-FileCopyrightText: 2019–2023 Felix Gruber <felgru@posteo.net>
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
@@ -227,15 +227,23 @@ class Main:
         aparser.add_argument('--dry-run', dest='dry_run',
                              default=False, action='store_true',
                              help='run parsers without writing any output files')
-        aparser.add_argument('--regenerate-includes', dest='regenerate_includes',
-                             default=False, action='store_true',
-                             help='only regenerate include files; don\'t import '
-                                  'new bank statements')
-        aparser.add_argument('--reimport',
-                             default=None,
-                             help='reimport bank statements from given bank '
-                                  + ' ({})'.format(', '.join(sorted(parsers)))
-                                  + '; or "all" to reimport from all banks.')
+        subcommands = aparser.add_mutually_exclusive_group()
+        subcommands.add_argument(
+                '--regenerate-includes',
+                dest='regenerate_includes',
+                default=False,
+                action='store_true',
+                help='only regenerate include files; don\'t import '
+                     'new bank statements',
+        )
+        banks = sorted(parsers)
+        subcommands.add_argument(
+                '--reimport',
+                default=None,
+                choices=['all', *banks],
+                help='reimport bank statements from given bank; '
+                     'argument can be "all" to reimport from all banks',
+        )
         aparser.add_argument('--no-merge', dest='merge',
                              default=True, action='store_false',
                              help='don\'t merge import branch after import')
@@ -245,11 +253,6 @@ class Main:
         self.xdg = getXDGdirectories('bank-statement-parser')
         self.config_file = self.xdg['config'] / 'import.cfg'
         self.config = ImportConfig.read_from_file(self.config_file)
-
-        if self.args.reimport is not None and self.args.regenerate_includes:
-            print('--regenerate-includes cannot be specified together with '
-                  '--reimport.', file=sys.stderr)
-            exit(1)
 
         mode: Callable[[], None]
         if self.args.regenerate_includes:
