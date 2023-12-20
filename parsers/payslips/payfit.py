@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2019–2022 Felix Gruber <felgru@posteo.net>
+# SPDX-FileCopyrightText: 2019–2023 Felix Gruber <felgru@posteo.net>
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
@@ -22,7 +22,8 @@ class PayfitConfig(GenericParserConfig):
         'salary balancing account': 'assets:receivable:salary',
         'salary': 'income:salary',
         'overtime': 'income:salary:overtime',
-        'bonus': 'income:salary:bonus',
+        'bonus/13th month': 'income:salary:bonus',
+        'bonus/incentive': 'income:salary:bonus',
         'indemnité CP N': 'income:salary:vacation?',
         'health insurance': 'expenses:insurance:health',
         'retirement insurance': 'expenses:taxes:retirement insurance',
@@ -176,8 +177,8 @@ class PayfitItemParser:
                 'Salaire de base': self.accounts['salary'],
                 'Heures supplémentaires contractuelles 25 %':
                                     self.accounts['overtime'],
-                'Prime de 13ème mois': self.accounts['bonus'],
-                'Prime sur objectifs': self.accounts['bonus'],
+                'Prime de 13ème mois': self.accounts['bonus/13th month'],
+                'Prime sur objectifs': self.accounts['bonus/incentive'],
                 'Absence maladie ordinaire': self.accounts['salary'],
                 'Maintien employeur maladie ordinaire':
                                     self.accounts['salary'],
