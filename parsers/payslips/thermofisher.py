@@ -15,9 +15,11 @@ from typing import cast, Final, Optional, TypeVar
 
 from ..parser import (
     BaseParserConfig,
+    create_config_parser,
     load_accounts_from_config_parser,
     Parser,
     read_accounts_file,
+    write_accounts_section,
 )
 from ..pdf_parser import read_pdf_file
 from bank_statement import BankStatement, BankStatementMetadata
@@ -58,6 +60,17 @@ class ThermoFisherConfig(BaseParserConfig):
                     config, config_file, section_is_optional=True)
         return cls(adp_config=adp_config,
                    workday_config=workday_config)
+
+    def store(self, config_dir: Path) -> None:
+        config = create_config_parser()
+
+        self.adp_config.write_to_config_parser(config)
+        self.workday_config.write_to_config_parser(config)
+
+        config_file = config_dir / self.bank_folder / 'accounts.cfg'
+        config_file.parent.mkdir(parents=True, exist_ok=True)
+        with config_file.open('w') as f:
+            config.write(f)
 
 
 class ThermoFisherAdpConfig(BaseParserConfig):
@@ -149,6 +162,24 @@ class ThermoFisherAdpConfig(BaseParserConfig):
             accounts={cls.deescape_key(k): v for k, v in accounts.items()},
         )
 
+    def store(self, config_dir: Path) -> None:
+        config = create_config_parser()
+
+        self.write_to_config_parser(config)
+
+        config_file = config_dir / self.bank_folder / 'accounts.cfg'
+        config_file.parent.mkdir(parents=True, exist_ok=True)
+        with config_file.open('w') as f:
+            config.write(f)
+
+    def write_to_config_parser(self,
+                               config: configparser.ConfigParser) -> None:
+        write_accounts_section(
+            config,
+            {self.escape_key(k): v for k, v in self.accounts.items()},
+            section_name='adp_accounts',
+        )
+
 
 class ThermoFisherWorkdayConfig(BaseParserConfig):
     bank_folder = 'thermofisher'
@@ -237,6 +268,25 @@ class ThermoFisherWorkdayConfig(BaseParserConfig):
                 for key, account in accounts.items()
                 if key.isnumeric()
             })
+
+    def store(self, config_dir: Path) -> None:
+        config = create_config_parser()
+
+        self.write_to_config_parser(config)
+
+        config_file = config_dir / self.bank_folder / 'accounts.cfg'
+        config_file.parent.mkdir(parents=True, exist_ok=True)
+        with config_file.open('w') as f:
+            config.write(f)
+
+    def write_to_config_parser(self,
+                               config: configparser.ConfigParser) -> None:
+        accounts = {
+            'salary balancing account': self.salary_balancing_account,
+            **{str(k): v for k, v in self.accounts.items()},
+        }
+        write_accounts_section(config, accounts,
+                               section_name='workday_accounts')
 
 
 class ThermoFisherPdfParser(Parser[ThermoFisherConfig]):

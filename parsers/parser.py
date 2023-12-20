@@ -34,6 +34,15 @@ class BaseParserConfig(metaclass=ABCMeta):
         """
         pass
 
+    @abstractmethod
+    def store(self, config_dir: Path) -> None:
+        """Write Parser configuration to given directory.
+
+        This is mainly meant to write an expanded accounts.cfg to aid
+        in creating a customized one from the default accounts mapping.
+        """
+        pass
+
 
 def load_accounts(config_file: Path | None,
                   default_accounts: dict[str, str],
@@ -56,10 +65,15 @@ def load_accounts(config_file: Path | None,
         )
 
 
-def read_accounts_file(config_file: Path) -> configparser.ConfigParser:
-    config = configparser.ConfigParser()
+def create_config_parser() -> configparser.ConfigParser:
+    config = configparser.ConfigParser(interpolation=None)
     # Don't convert keys to lower case.
     config.optionxform = lambda option: option  # type: ignore
+    return config
+
+
+def read_accounts_file(config_file: Path) -> configparser.ConfigParser:
+    config = create_config_parser()
     config.read(config_file)
     return config
 
@@ -94,6 +108,24 @@ def load_accounts_from_config_parser(
     }
 
 
+def store_accounts(config_file: Path,
+                   accounts: dict[str, str]) -> None:
+    config = create_config_parser()
+
+    write_accounts_section(config, accounts)
+
+    config_file.parent.mkdir(parents=True, exist_ok=True)
+    with config_file.open('w') as f:
+        config.write(f)
+
+
+def write_accounts_section(config: configparser.ConfigParser,
+                           accounts: dict[str, str],
+                           *,
+                           section_name: str = 'accounts') -> None:
+    config[section_name] = {k: v for k, v in accounts.items()}
+
+
 GenericConfigSelf = TypeVar('GenericConfigSelf', bound='GenericParserConfig')
 
 
@@ -113,6 +145,10 @@ class GenericParserConfig(BaseParserConfig):
                                  cls.DEFAULT_ACCOUNTS,
                                  cls.bank_name)
         return cls(accounts)
+
+    def store(self, config_dir: Path) -> None:
+        config_file = config_dir / self.bank_folder / 'accounts.cfg'
+        store_accounts(config_file, self.accounts)
 
 
 CT = TypeVar('CT', bound=BaseParserConfig)
@@ -191,6 +227,10 @@ class BaseCleaningParserConfig(BaseParserConfig):
                                  cls.DEFAULT_ACCOUNTS,
                                  cls.bank_name)
         return cls(cleaner, mapper, accounts)
+
+    def store(self, config_dir: Path) -> None:
+        config_file = config_dir / self.bank_folder / 'accounts.cfg'
+        store_accounts(config_file, self.accounts)
 
 
 CCT = TypeVar('CCT', bound=BaseCleaningParserConfig)

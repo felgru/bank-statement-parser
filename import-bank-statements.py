@@ -85,11 +85,22 @@ def sort_incoming_statements_to_ledger_dirs(
     return classified
 
 
-class ParserConfigs(defaultdict[type[Parser], BaseParserConfig]):
+class ParserConfigs:
     def __init__(self, ledger_dir: Path):
         self.rules_dir = ledger_dir / 'rules'
-    def __missing__(self, key: type[Parser]) -> BaseParserConfig:
-        config = key.config_type().load(self.rules_dir)
+        self.by_config_type = ParserConfigsForConfigTypes(ledger_dir)
+
+    def __getitem__(self, key: type[Parser]) -> BaseParserConfig:
+        return self.by_config_type[key.config_type()]
+
+
+class ParserConfigsForConfigTypes(defaultdict[type[BaseParserConfig],
+                                              BaseParserConfig]):
+    def __init__(self, ledger_dir: Path):
+        self.rules_dir = ledger_dir / 'rules'
+
+    def __missing__(self, key: type[BaseParserConfig]) -> BaseParserConfig:
+        config = key.load(self.rules_dir)
         self[key] = config
         return config
 
@@ -244,6 +255,14 @@ class Main:
                 help='reimport bank statements from given bank; '
                      'argument can be "all" to reimport from all banks',
         )
+        subcommands.add_argument(
+                '--create-accounts-cfg',
+                default=None,
+                nargs='*',
+                choices=banks,
+                help='create accounts config with default mapping for given '
+                     'bank(s)',
+        )
         aparser.add_argument('--no-merge', dest='merge',
                              default=True, action='store_false',
                              help='don\'t merge import branch after import')
@@ -259,6 +278,8 @@ class Main:
             mode = self.regenerate_includes
         elif self.args.reimport is not None:
             mode = self.reimport_bank_statements
+        elif self.args.create_accounts_cfg is not None:
+            mode = self.create_accounts_cfg
         else:
             mode = self.import_new_bank_statements
         self.selected_mode = mode
@@ -456,6 +477,38 @@ class Main:
                 bank_statement.write_ledger(f)
             reimported_ledgers.append(ledger_file)
         return reimported_ledgers
+
+    def create_accounts_cfg(self) -> None:
+        bank_names = self.args.create_accounts_cfg
+        if not bank_names:
+            print('please specify bank to create accounts config for.',
+                  file=sys.stderr)
+            exit(1)
+        selected_parsers = {bank_name: parsers.get(bank_name)
+                            for bank_name in bank_names}
+        ledger_config = get_ledger_config_containing_dir(Path.cwd(),
+                                                         self.config)
+        print(f'Create accounts config in {ledger_config.ledger_dir}.')
+        # change working directory for git status to work correctly
+        os.chdir(ledger_config.ledger_dir)
+        #git: BaseGit
+        #if ledger_config.git_dir is not None:
+        #    git = Git(ledger_config.ledger_dir, ledger_config.git_dir)
+        #    import_branch = ledger_config.import_branch
+        #else:
+        #    git = FakeGit()
+        #    import_branch = git.current_branch()
+
+        parser_configs = ParserConfigs(ledger_config.ledger_dir)
+        for bank_name, parsers_ in selected_parsers.items():
+            unique_configs = set(parser_configs[parser]
+                                 for parser in parsers_.values())
+            if len(unique_configs) != 1:
+                print(f'Parser config for {bank_name} is not unique.')
+                exit(1)
+            parser_config = next(iter(unique_configs))
+            print(f'Write accounts mapping for {bank_name}.')
+            parser_config.store(parser_configs.rules_dir)
 
 
 if __name__ == '__main__':
