@@ -26,6 +26,7 @@ class BouyguesConfig(GenericParserConfig):
         'salary balancing account': 'assets:receivable:salary',
         'salary': 'income:salary',
         'bonus': 'income:salary:bonus',
+        'bonus/13eme mois': 'income:salary:bonus',
         'health insurance': 'expenses:insurance:health',
         'retirement insurance': 'expenses:taxes:retirement insurance',
         'nondeductible social taxes': 'expenses:taxes:social:nondeductible',
@@ -150,8 +151,8 @@ class BouyguesItemParser:
                 assert sum(p.amount for p in postings) \
                        + total_gross_salary == 0
                 return postings, total_gross_salary
-            if '13ème mois' in line.description:
-                account = self.accounts['bonus']
+            if re.search('13ème [Mm]ois', line.description) is not None:
+                account = self.accounts['bonus/13eme mois']
             else:
                 account = self.accounts['salary']
             p = Posting(account, -line.montant_employee,
