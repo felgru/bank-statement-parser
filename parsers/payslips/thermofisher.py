@@ -116,6 +116,18 @@ class ThermoFisherAdpConfig(BaseParserConfig):
         return cls.load_from_config_parser(
                 config, config_file, section_is_optional=False)
 
+    @staticmethod
+    def escape_key(k: str) -> str:
+        if k.startswith('='):
+            return 'eq' + k[1:]
+        return k
+
+    @staticmethod
+    def deescape_key(k: str) -> str:
+        if k.startswith('eq'):
+            return '=' + k[2:]
+        return k
+
     @classmethod
     def load_from_config_parser(
             cls,
@@ -127,13 +139,14 @@ class ThermoFisherAdpConfig(BaseParserConfig):
         accounts = load_accounts_from_config_parser(
             config,
             config_file,
-            cls.DEFAULT_ACCOUNTS,
+            {cls.escape_key(k): v for k, v in cls.DEFAULT_ACCOUNTS.items()},
             cls.employer_name,
             config_section_name='adp_accounts',
         )
+
         return cls(
             salary_balancing_account=accounts['salary balancing account'],
-            accounts=accounts,
+            accounts={cls.deescape_key(k): v for k, v in accounts.items()},
         )
 
 
