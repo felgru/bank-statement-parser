@@ -158,7 +158,7 @@ class BouyguesItemParser:
             p = Posting(account, -line.montant_employee,
                         comment=' '.join(line.description.split()))
             postings.append(p)
-        raise BouyguesPdfParserError('Missing TOTOAL BRUT.')
+        raise BouyguesPdfParserError('Missing TOTAL BRUT.')
 
     def _parse_social_security_payments(self,
                                         lines: MainTableIterator,
