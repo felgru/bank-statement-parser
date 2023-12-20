@@ -251,6 +251,7 @@ class Main:
         subcommands.add_argument(
                 '--reimport',
                 default=None,
+                nargs='+',
                 choices=['all', *banks],
                 help='reimport bank statements from given bank; '
                      'argument can be "all" to reimport from all banks',
@@ -258,7 +259,7 @@ class Main:
         subcommands.add_argument(
                 '--create-accounts-cfg',
                 default=None,
-                nargs='*',
+                nargs='+',
                 choices=banks,
                 help='create accounts config with default mapping for given '
                      'bank(s)',
@@ -378,16 +379,16 @@ class Main:
                     git.commit(f"Merge branch '{import_branch}'")
 
     def reimport_bank_statements(self) -> None:
-        bank_name = self.args.reimport
-        if bank_name == 'all':
+        bank_names = self.args.reimport
+        if not bank_names:
+            print('please specify bank to reimport.',
+                  file=sys.stderr)
+            exit(1)
+        if 'all' in bank_names:
             selected_parsers = dict(parsers.items())
+            bank_names = ['all']
         else:
-            selected_parser = parsers.get(bank_name)
-            if selected_parser is None:
-                print(f'Unknown bank name: {bank_name}.', file=sys.stderr)
-                exit(1)
-            selected_parsers = {bank_name: selected_parser}
-            del selected_parser
+            selected_parsers = {bank: parsers[bank] for bank in bank_names}
         ledger_config = get_ledger_config_containing_dir(Path.cwd(),
                                                          self.config)
         print(f'Reimport bank statements in {ledger_config.ledger_dir}.')
@@ -426,7 +427,8 @@ class Main:
                                                        selected_parsers,
                                                        parser_configs)
                         git.add_files(updated_ledgers)
-                commit_message = f'reimport {bank_name} bank statements'
+                commit_message \
+                        = f'reimport {", ".join(bank_names)} bank statements'
                 transaction.set_commit_message(commit_message)
         except GitEmptyCommitError:
             print('Nothing changed with the reimport.')
