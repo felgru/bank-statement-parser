@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 
-# SPDX-FileCopyrightText: 2019–2023 Felix Gruber <felgru@posteo.net>
+# SPDX-FileCopyrightText: 2019–2024 Felix Gruber <felgru@posteo.net>
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
@@ -457,7 +457,7 @@ class Main:
     def reimport_bank_dir(self,
                           bank_dir: Path,
                           parsers: dict[str, dict[str, type[Parser]]],
-                          parser_configs: dict[type[Parser], BaseParserConfig],
+                          parser_configs: ParserConfigs,
                           ) -> list[Path]:
         bank_parsers = parsers.get(bank_dir.name)
         if bank_parsers is None:
@@ -486,7 +486,7 @@ class Main:
             print('please specify bank to create accounts config for.',
                   file=sys.stderr)
             exit(1)
-        selected_parsers = {bank_name: parsers.get(bank_name)
+        selected_parsers = {bank_name: parsers[bank_name]
                             for bank_name in bank_names}
         ledger_config = get_ledger_config_containing_dir(Path.cwd(),
                                                          self.config)
