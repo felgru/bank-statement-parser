@@ -258,19 +258,19 @@ class DescriptionParser:
     SEPA_INCASSO_KEYWORDS = re.compile(
             r'(Incassant|Naam|Machtiging|Omschrijving|IBAN|Kenmerk|Voor): ')
     OLD_BEA_PATTERN = re.compile(
-            r'(BEA) +NR:(?P<NR>\w+) +'
+            r'(?P<transaction_type>BEA) +NR:(?P<NR>\w+) +'
             r'(?P<date>\d{2}\.\d{2}\.\d{2})\/(?P<time>\d{2}\.\d{2})\n'
             r'(?P<store>.*),PAS(?P<pas_nr>\d{3})\n'
             r'(?P<location>.*)$'
             )
     NEW_BEA_PATTERN = re.compile(
-            r'(BEA), (?P<card_type>.*)\n'
+            r'(?P<transaction_type>BEA|eCom), (?P<card_type>.*)\n'
             r'(?P<store>.*),PAS(?P<pas_nr>\d{3})\n'
             r'NR:(?P<NR>\w+?),? +'
             r'(?P<date>\d{2}\.\d{2}\.\d{2})\/'
             r'(?P<time>\d{2}\.\d{2}|\d{2}:\d{2})\n'
             r'(?P<location>.*)(?P<currency_exchange>.*\n.*\n.*\n.*|)'
-            r'(?P<extra>|\nTERUGBOEKING BEA-TRANSACTIE)$'
+            r'(?P<extra>|\nTERUGBOEKING[ -]BEA-TRANSACTIE)$'
             )
     GEA_PATTERN = re.compile(
             r'(GEA), (?P<card_type>.*)\n'
@@ -330,7 +330,8 @@ class DescriptionParser:
                                              bookdate=bookdate,
                                              value_date=value_date,
                                              amount=amount)
-        elif transaction_type.startswith('BEA'):
+        elif (transaction_type.startswith('BEA')
+              or transaction_type.startswith('eCom, ')):
             return self._parse_bea(description,
                                    bookdate=bookdate,
                                    value_date=value_date,
@@ -412,7 +413,7 @@ class DescriptionParser:
         elif (m := self.NEW_BEA_PATTERN.match(joined_description)) is not None:
             card_type = m.group('card_type')
             currency_exchange = m.group('currency_exchange')
-            if m.group('extra').startswith('\nTERUGBOEKING '):
+            if m.group('extra').startswith('\nTERUGBOEKING'):
                 block_comment = 'Terugboeking BEA-transactie'
             elif m.group('extra') == '':
                 block_comment = None
@@ -424,7 +425,7 @@ class DescriptionParser:
             raise AbnAmroPdfParserError(
                     f'Could not parse BEA transaction\n{joined_description}')
         d = dict[str, Any](
-                transaction_type='BEA',
+                transaction_type=m.group('transaction_type'),
                 card_type=card_type,
                 NR=m.group('NR'),
                 date=parse_short_year_date(m.group('date')),

@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2022–2023 Felix Gruber <felgru@posteo.net>
+# SPDX-FileCopyrightText: 2022–2024 Felix Gruber <felgru@posteo.net>
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
@@ -372,6 +372,33 @@ def test_parsing_bea_terugboeking() -> None:
     assert m['date'] == date(2022, 1, 1)
     assert m['time'] == '12:23'
     assert m['location'] == 'LOCATION'
+    assert m['block_comment'] == 'Terugboeking BEA-transactie'
+
+
+def test_parsing_ecom_bea_terugboeking() -> None:
+    description = ["eCom, Betaalpas",
+                   "My example store,PAS123",
+                   "NR:123ABC, 01.12.23/12:23",
+                   r"ABC\www.example",
+                   "TERUGBOEKING-BEA-TRANSACTIE"]
+
+    parser = DescriptionParser(currency='EUR',
+                               accounts=DEFAULT_ACCOUNTS)
+    transaction = parser.parse(
+            description=description,
+            bookdate=date(2023, 12, 1),
+            value_date=date(2023, 12, 1),
+            amount=Decimal("1.23"),
+            )
+    assert transaction.description == 'My example store'
+    m = transaction.metadata
+    assert m['transaction_type'] == 'eCom'
+    assert m['store'] == 'My example store'
+    assert m['pas_nr'] == '123'
+    assert m['NR'] == '123ABC'
+    assert m['date'] == date(2023, 12, 1)
+    assert m['time'] == '12:23'
+    assert m['location'] == r'ABC\www.example'
     assert m['block_comment'] == 'Terugboeking BEA-transactie'
 
 
