@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2022–2023 Felix Gruber <felgru@posteo.net>
+# SPDX-FileCopyrightText: 2022–2024 Felix Gruber <felgru@posteo.net>
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
@@ -12,7 +12,7 @@ from git import FakeGit
 from include_files import write_include_files
 
 
-TestFiles: TypeAlias = Iterable[str | tuple[str, TestFiles]]
+TestFiles: TypeAlias = Iterable[str | tuple[str, 'TestFiles']]
 
 
 def create_test_dir(base_dir: Path,
