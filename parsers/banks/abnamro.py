@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2022–2023 Felix Gruber <felgru@posteo.net>
+# SPDX-FileCopyrightText: 2022–2024 Felix Gruber <felgru@posteo.net>
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
@@ -352,7 +352,9 @@ class DescriptionParser:
                                         amount=amount)
         else:
             raise AbnAmroPdfParserError(
-                    f'Unknown transaction type: {transaction_type}')
+                    f'Unknown transaction type: {transaction_type}\n'
+                    f'in transaction with description:'
+                    + '\n'.join(description))
 
     def _parse_from_keywords(self,
                              transaction_type: str,
