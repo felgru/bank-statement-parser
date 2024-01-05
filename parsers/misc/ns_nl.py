@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2023 Felix Gruber <felgru@posteo.net>
+# SPDX-FileCopyrightText: 2023–2024 Felix Gruber <felgru@posteo.net>
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
@@ -11,7 +11,7 @@ from pathlib import Path
 import re
 from typing import Any, Final, Iterator, Optional
 
-from ..parser import BaseParserConfig, load_accounts, Parser
+from ..parser import BaseParserConfig, load_accounts, Parser, store_accounts
 from ..pdf_parser import read_pdf_file
 from bank_statement import BankStatement, BankStatementMetadata
 from transaction import BaseTransaction, MultiTransaction, Posting, Transaction
@@ -46,6 +46,10 @@ class NederlandseSpoorwegenConfig(BaseParserConfig):
                                  cls.DEFAULT_ACCOUNTS,
                                  cls.display_name)
         return cls(accounts=accounts)
+
+    def store(self, config_dir: Path) -> None:
+        config_file = config_dir / self.bank_folder / 'accounts.cfg'
+        store_accounts(config_file, self.accounts)
 
 
 class NederlandseSpoorwegenPdfParser(Parser[NederlandseSpoorwegenConfig]):
