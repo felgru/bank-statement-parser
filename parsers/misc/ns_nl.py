@@ -25,6 +25,7 @@ class NederlandseSpoorwegenConfig(BaseParserConfig):
         'assets': 'assets:OV-Chipkaart',  # Used for "Reizen op Saldo".
         'balancing': 'assets:balancing:NS',  # Used for invoices.
         'bus ticket': 'expenses:transportation:bus',
+        'correction': 'expenses:transportation:public transport:correction',
         'recharge': 'assets:balancing:OV-Chipkaart',
         'subscriptions': 'expenses:transportation:public transport',
         'train ticket': 'expenses:transportation:train',
@@ -174,7 +175,7 @@ class NederlandseSpoorwegenPdfParser(Parser[NederlandseSpoorwegenConfig]):
                 case 'Treinreizen' | 'Bus, Tram en Metro reizen':
                     stations_pattern = re.compile(r'^(.*?)  +(.*)$')
                     if title == 'Treinreizen':
-                        external_account = accounts['train ticket']
+                        table_account = accounts['train ticket']
                         description_pattern = (
                                 '{line[Dienstverlener]} Trein | '
                                 '{start_station} → {end_station}')
@@ -182,7 +183,7 @@ class NederlandseSpoorwegenPdfParser(Parser[NederlandseSpoorwegenConfig]):
                                           ) -> dict[str, Any]:
                             return {'block_comment': line['Kenmerk']}
                     elif title == 'Bus, Tram en Metro reizen':
-                        external_account = accounts['bus ticket']
+                        table_account = accounts['bus ticket']
                         description_pattern = (
                                 '{line[Dienstverlener]} {line[Kenmerk]} | '
                                 '{start_station} → {end_station}')
@@ -192,13 +193,21 @@ class NederlandseSpoorwegenPdfParser(Parser[NederlandseSpoorwegenConfig]):
                     else:
                         raise RuntimeError(f'Unknown table {title!r}.')
                     for line in table:
-                        m = stations_pattern.match(line['Omschrijving'])
-                        assert m is not None
-                        description = description_pattern.format(
-                                line=line,
-                                start_station = m.group(1),
-                                end_station = m.group(2),
-                                )
+                        if line['Kenmerk'].startswith('Correctietarief'):
+                            external_account = accounts['correction']
+                            description = (
+                                f'{line["Dienstverlener"]}'
+                                f' {line["Kenmerk"]} | {line["Omschrijving"]}'
+                            )
+                        else:
+                            external_account = table_account
+                            m = stations_pattern.match(line['Omschrijving'])
+                            assert m is not None
+                            description = description_pattern.format(
+                                    line=line,
+                                    start_station = m.group(1),
+                                    end_station = m.group(2),
+                                    )
                         yield Transaction(
                                 account=balancing_account,
                                 description=description,
