@@ -302,6 +302,7 @@ class Main:
             with open(selection_script, 'r') as f:
                 content = f.read()
                 parse_globals: dict[str, Any] = {
+                    '__file__': selection_script,
                     'BankStatementMetadata': BankStatementMetadata,
                     }
                 exec(compile(content, selection_script, 'exec'), parse_globals)

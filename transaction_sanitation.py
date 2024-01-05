@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2019–2023 Felix Gruber <felgru@posteo.net>
+# SPDX-FileCopyrightText: 2019–2024 Felix Gruber <felgru@posteo.net>
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
@@ -7,7 +7,7 @@ from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Any, Self
 
-from transaction import BaseTransaction, MultiTransaction, Transaction
+from transaction import BaseTransaction, MultiTransaction, Posting, Transaction
 
 class TransactionCleaner:
     def __init__(self,
@@ -24,8 +24,11 @@ class TransactionCleaner:
                 'Rule': TransactionCleanerRule,
                 'ToMultiRule': ToMultiTransactionRule,
                 'Transaction': Transaction,
-                **globals(),
+                'MultiTransaction': MultiTransaction,
+                'Posting': Posting,
+                **globals(),  # TODO: Why did I add all globals()?
                 }
+            parse_globals['__file__'] = rules_file
             exec(compile(content, rules_file, 'exec'), parse_globals)
             if 'rules' not in parse_globals:
                 raise RuntimeError(

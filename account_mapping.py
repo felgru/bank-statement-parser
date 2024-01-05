@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2019–2023 Felix Gruber <felgru@posteo.net>
+# SPDX-FileCopyrightText: 2019–2024 Felix Gruber <felgru@posteo.net>
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
@@ -23,6 +23,7 @@ class AccountMapper:
             with open(self.conf_file, 'r') as f:
                 content = f.read()
                 parse_globals: dict[str, Any] = {
+                    '__file__': self.conf_file,
                     'Transaction': Transaction,
                     }
                 exec(compile(content, self.conf_file, 'exec'), parse_globals)
