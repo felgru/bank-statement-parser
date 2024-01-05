@@ -21,14 +21,13 @@ class TransactionCleaner:
         with open(rules_file, 'r') as f:
             content = f.read()
             parse_globals: dict[str, Any] = {
+                '__file__': rules_file,
                 'Rule': TransactionCleanerRule,
                 'ToMultiRule': ToMultiTransactionRule,
                 'Transaction': Transaction,
                 'MultiTransaction': MultiTransaction,
                 'Posting': Posting,
-                **globals(),  # TODO: Why did I add all globals()?
                 }
-            parse_globals['__file__'] = rules_file
             exec(compile(content, rules_file, 'exec'), parse_globals)
             if 'rules' not in parse_globals:
                 raise RuntimeError(
