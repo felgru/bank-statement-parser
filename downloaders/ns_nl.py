@@ -898,7 +898,7 @@ class NederlandseSpoorwegenApi:
         """Get OV-Chipkaart contract info.
 
         This returns a list of dicts with the following entries:
-        * cardNo: A str contraining the OV-Chipkaart card number.
+        * cardNo: A str containing the OV-Chipkaart card number.
         * price: An int containing the monthly fee in Euro cents.
         * flexProductName: A user-readable name.
         * startDate: An ISO 8601 date.
@@ -932,7 +932,7 @@ class NederlandseSpoorwegenApi:
         get_ovcp_contract_info().
 
         This returns a list of dicts with the following entries:
-        * cardNo: A str contraining the OV-Chipkaart card number.
+        * cardNo: A str containing the OV-Chipkaart card number.
         * price: An int containing the monthly fee in Euro cents.
         * flexProductName: A user-readable name.
         * startDate: An ISO 8601 date.
@@ -987,7 +987,7 @@ class NederlandseSpoorwegenApi:
         return res.json()
 
     def get_invoices(self) -> list[dict]:
-        """Get list of already payed invoices.
+        """Get list of already paid invoices.
 
         This returns a list of dicts with the following entries:
         * id: A hexadecimal str.

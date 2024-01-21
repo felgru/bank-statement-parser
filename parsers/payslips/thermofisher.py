@@ -671,7 +671,7 @@ class ThermoFisherWorkdayPdfParser(Parser[ThermoFisherWorkdayConfig]):
             right_col.append(line[right_table_offset:])
         # Split address field if at least 6 empty lines.
         # (Sometimes pdftotext creates empty lines in an address, but
-        #  fortunately there are more blank lines as seperation between
+        #  fortunately there are more blank lines as separation between
         #  addresses.)
         addresses = []
         current_address: list[str] = []

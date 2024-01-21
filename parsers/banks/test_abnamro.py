@@ -288,7 +288,7 @@ def test_parsing_bea_transaction_with_comma_after_nr() -> None:
 
     It seems the BEA format changed in Nov 2022 again and
     now contains a comma after the NR: field and uses a colon instead
-    of a dot as the seperator between hour and minute.
+    of a dot as the separator between hour and minute.
     """
     description = ["BEA, Betaalpas",
                    "My example store,PAS123",
@@ -431,7 +431,7 @@ def test_parsing_new_gea_transaction() -> None:
 
     It seems the GEA format changed in Nov 2022 again and
     now contains a comma after the NR: field and uses a colon instead
-    of a dot as the seperator between hour and minute.
+    of a dot as the separator between hour and minute.
     """
     description = ["GEA, Betaalpas",
                    "Geldmaat Visstraat 54,PAS123",

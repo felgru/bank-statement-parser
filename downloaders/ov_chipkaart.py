@@ -534,7 +534,7 @@ def travel_history_to_bank_statement(
                                f' {transaction}.')
         elif transaction.amount is None:
             # Don't create ledger transactions for itineraries that
-            # were payed with a monthly subscription.
+            # were paid with a monthly subscription.
             return None
         elif transaction.mode_of_transportation.startswith('Trein'):
             account = accounts['train ticket']

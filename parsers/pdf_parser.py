@@ -24,7 +24,7 @@ def read_pdf_file(pdf_file: Path, *, cols: Optional[int] = None) -> list[str]:
     poppler-utils package on Debian.
 
     Given the `cols` option, the PDF is parsed as a table with that many
-    columns, otherwise we try to keep the existing formating.
+    columns, otherwise we try to keep the existing formatting.
     """
     if not pdf_file.exists():
         raise IOError(f'Unknown file: {pdf_file}')

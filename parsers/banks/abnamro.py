@@ -844,6 +844,6 @@ class AbnAmroTsvRowParser:
 
 
 def parse_compact_date(d: str) -> date:
-    # year month and day glued together without seperator
+    # year month and day glued together without separator
     year, month, day = int(d[0:4]), int(d[4:6]), int(d[6:8])
     return date(year, month, day)
