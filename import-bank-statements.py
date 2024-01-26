@@ -471,11 +471,11 @@ class Main:
         )
         reimported_ledgers: list[Path] = []
         for file_, parser in files_with_parser:
-            bank_statement = parser(file_).parse(parser_configs[parser])
             ledger_file = file_.with_suffix('.hledger')
             if not ledger_file.exists():
                 continue
             print(f'Reimporting {file_}')
+            bank_statement = parser(file_).parse(parser_configs[parser])
             with ledger_file.open('w') as f:
                 bank_statement.write_ledger(f)
             reimported_ledgers.append(ledger_file)
