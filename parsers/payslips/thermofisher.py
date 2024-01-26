@@ -86,6 +86,8 @@ class ThermoFisherAdpConfig(BaseParserConfig):
         # taxes
         '=H1': 'income:salary:30%',       # Correctie 30%-regeling
         '=H2': 'income:salary:30%',       # Correctie 30%-regeling BB
+        '/3W1': 'income:salary:30%',      # Bruto aanpassing 30%
+        '/3W2': 'income:salary:30%',      # Bruto aanpassing 30% BB
         '93PA': 'expenses:taxes:retirement insurance',  # WN-premie pens1
         '=E1': 'expenses:taxes:social',  # WGA Aanvullend
         '=E5': 'expenses:taxes:social',  # WIA Bodem
@@ -97,7 +99,11 @@ class ThermoFisherAdpConfig(BaseParserConfig):
         '=M9': 'income:salary:30%',       # 30%-regeling kostenverg.
         # taxes
         '=E3': 'expenses:taxes:social',  # PAWW unemployment insurance
+        '=E8': 'expenses:taxes:social',  # PAWW unemployment insurance BT
         '/406': 'expenses:taxes:income',  # Loonheffing
+        # misc bookkeeping
+        '3212': 'expenses:reimbursable:misc',  # Flex Select- Holiday
+        '3644': 'expenses:reimbursable:misc',  # Kopen vakantiedagen
     }
     salary_balancing_account: str
     accounts: dict[str, str]
