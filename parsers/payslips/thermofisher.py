@@ -433,8 +433,21 @@ class ThermoFisherAdpPdfParser(Parser[ThermoFisherAdpConfig]):
             if item.code == '/550':  # Nettoloon
                 assert nettoloon is None, 'Nettoloon given twice.'
                 nettoloon = item.uitbetaling
-                assert -sum(p.amount for p in transaction.postings) \
-                       == nettoloon
+                nettoloon_difference \
+                        = (nettoloon
+                           + sum(p.amount for p in transaction.postings))
+                if nettoloon_difference != 0:
+                    unknown = (
+                        '' if not unknown_codes
+                        else f'\nEncountered {len(unknown_codes)}'
+                             ' unknown code(s):\n'
+                             + '\n'.join(f'  {item.code}: {item.omschrijving}'
+                                         for item in unknown_codes))
+                    raise ThermoFisherPdfParserError(
+                            f'Nettoloon {nettoloon} does not match postings:\n'
+                            + '\n'.join(str(p) for p in transaction.postings)
+                            + '\nDifference of nettoloon is'
+                            + f' {nettoloon_difference}{unknown}')
                 assert sum_unmarked + sum_marked == nettoloon
                 continue
             if item.code == '4717':  # Voorschotten
