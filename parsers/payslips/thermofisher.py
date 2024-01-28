@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2022–2023 Felix Gruber <felgru@posteo.net>
+# SPDX-FileCopyrightText: 2022–2024 Felix Gruber <felgru@posteo.net>
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
@@ -599,16 +599,22 @@ class AdpMainTableItem:
         prefix = code.startswith('*')
         if prefix:
             code = code[1:]
-        return cls(
-                star_marker=prefix,
-                code=code,
-                omschrijving=d['omschrijving'],
-                basis=None,
-                tarief=None,
-                tabelloon=parse_optional(d['tabelloon'], decimal),
-                bijz_loon=parse_optional(d['bijz.loon'], decimal),
-                uitbetaling=parse_optional(d['uitbetaling'], decimal),
-                )
+        res = cls(
+            star_marker=prefix,
+            code=code,
+            omschrijving=d['omschrijving'],
+            basis=None,
+            tarief=None,
+            tabelloon=parse_optional(d['tabelloon'], decimal),
+            bijz_loon=parse_optional(d['bijz.loon'], decimal),
+            uitbetaling=parse_optional(d['uitbetaling'], decimal),
+        )
+        assert (
+            res.tabelloon is None and res.bijz_loon is None
+            or res.uitbetaling is None
+            or (res.tabelloon or 0) + (res.bijz_loon or 0) == res.uitbetaling
+        )
+        return res
 
 
 class ThermoFisherWorkdayPdfParser(Parser[ThermoFisherWorkdayConfig]):
