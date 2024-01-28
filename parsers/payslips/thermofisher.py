@@ -6,7 +6,7 @@ from __future__ import annotations
 from collections.abc import Callable
 import configparser
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 from itertools import chain, groupby
 from pathlib import Path
@@ -481,8 +481,18 @@ class ThermoFisherAdpPdfParser(Parser[ThermoFisherAdpConfig]):
             else:
                 raise ThermoFisherPdfParserError(
                         f'Missing amount in {item}.')
+            comment = item.omschrijving
+            if item.star_marker:
+                # * marks corrections of previous payslips.
+                # Those postings most likely belong to the previous month's
+                # payslip.
+                posting_date = (
+                    transaction.transaction_date
+                    - timedelta(days=transaction.transaction_date.day)
+                )
+                comment += f', date={posting_date}'
             p = Posting(account, amount,
-                        comment=item.omschrijving)
+                        comment=comment)
             transaction.add_posting(p)
         if unknown_codes:
             raise ThermoFisherPdfParserError(
