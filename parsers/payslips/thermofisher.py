@@ -490,7 +490,7 @@ class ThermoFisherAdpPdfParser(Parser[ThermoFisherAdpConfig]):
                     transaction.transaction_date
                     - timedelta(days=transaction.transaction_date.day)
                 )
-                comment += f', date={posting_date}'
+                comment += f', date:{posting_date}'
             p = Posting(account, amount,
                         comment=comment)
             transaction.add_posting(p)
