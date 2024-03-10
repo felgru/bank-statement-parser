@@ -50,11 +50,11 @@ class AbnAmroPdfParser(PdfParser[AbnAmroConfig]):
         self.new_balance = Balance(meta.new_balance, meta.date)
 
     @property
-    def total_debit(self) -> Decimal:
+    def total_debit(self) -> Decimal:  # type: ignore[override]
         return self.first_page_metadata.total_amount_debit
 
     @property
-    def total_credit(self) -> Decimal:
+    def total_credit(self) -> Decimal:  # type: ignore[override]
         return self.first_page_metadata.total_amount_credit
 
     def parse_metadata(self) -> BankStatementMetadata:

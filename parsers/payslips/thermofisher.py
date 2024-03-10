@@ -437,8 +437,10 @@ class ThermoFisherAdpPdfParser(Parser[ThermoFisherAdpConfig]):
         for item in self.main_table:
             assert item.code is not None
             if item.code == '/550':  # Nettoloon
-                assert nettoloon is None, 'Nettoloon given twice.'
+                if nettoloon is not None:
+                    raise ThermoFisherPdfParserError('Nettoloon given twice.')
                 nettoloon = item.uitbetaling
+                assert nettoloon is not None
                 nettoloon_difference \
                         = (nettoloon
                            + sum(p.amount for p in transaction.postings))
