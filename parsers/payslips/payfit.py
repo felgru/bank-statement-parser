@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2019–2023 Felix Gruber <felgru@posteo.net>
+# SPDX-FileCopyrightText: 2019–2024 Felix Gruber <felgru@posteo.net>
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
@@ -31,7 +31,7 @@ class PayfitConfig(GenericParserConfig):
         'deductible social taxes': 'expenses:taxes:social:deductible',
         'meal vouchers': 'expenses:food:meal_vouchers',
         'transport reimbursement': 'expenses:reimbursable:transportation',
-        'nonreimbursed transport': 'expenses:transportation:public transportation',
+        'nonreimbursed transport': 'expenses:transportation:public transport',
         'source tax': 'expenses:taxes:income:deducted at source',
     }
 
@@ -342,7 +342,7 @@ class PayfitItemParser:
                             -transportation_total),
                     Posting(self.accounts['nonreimbursed transport'],
                             transportation_remaining,
-                            comment='nonreimbursed public transportation fees')
+                            comment='nonreimbursed public transport fees')
                    ]
         m = re.search(r'Remboursement de notes de frais *(\d[ \d]*,\d\d)',
                       self.transactions_text)
