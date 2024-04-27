@@ -313,7 +313,7 @@ def json_to_ledger_main(args: argparse.Namespace) -> None:
         # This is a false positive as the PaymentJSON in the
         # TransactionItemJSON has a 'merchant' key.
         merchant: Optional[MerchantJSON] = \
-                transaction.get('merchant')  # type: ignore
+                transaction.get('merchant')  # type: ignore[assignment]
         if merchant is not None:
             description = merchant['name']
         else:
@@ -338,7 +338,7 @@ def print_recharges_main(args: argparse.Namespace) -> None:
 
 
 def plot_payment_times_main(args: argparse.Namespace) -> None:
-    import matplotlib.pyplot as plt  # type: ignore
+    import matplotlib.pyplot as plt  # type: ignore[import-untyped]
     all_transactions = load_json_transactions(args.json_file)
     dates: list[datetime.date] = []
     hours: list[float] = []

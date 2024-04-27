@@ -68,7 +68,7 @@ def load_accounts(config_file: Path | None,
 def create_config_parser() -> configparser.ConfigParser:
     config = configparser.ConfigParser(interpolation=None)
     # Don't convert keys to lower case.
-    config.optionxform = lambda option: option  # type: ignore
+    config.optionxform = lambda optionstr: optionstr  # type: ignore[method-assign]
     return config
 
 
@@ -173,7 +173,7 @@ class Parser(Generic[CT], metaclass=ABCMeta):
     @classmethod
     def config_type(cls) -> type[CT]:
         import typing
-        for base in cls.__orig_bases__:  # type: ignore # mypy doesn't seem to know __orig_bases__
+        for base in cls.__orig_bases__:  # type: ignore[attr-defined] # mypy doesn't seem to know __orig_bases__
             args = typing.get_args(base)
             if not args:
                 continue

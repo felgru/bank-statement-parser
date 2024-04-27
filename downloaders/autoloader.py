@@ -66,7 +66,7 @@ class Downloaders(dict[str, Website]):
     def _downloader_of_authenticator(authenticator: type[Authenticator],
                                      ) -> type[Downloader]:
         import typing
-        for base in authenticator.__orig_bases__:  # type: ignore # mypy doesn't seem to know __orig_bases__
+        for base in authenticator.__orig_bases__:  # type: ignore[attr-defined] # mypy doesn't seem to know __orig_bases__
             args = typing.get_args(base)
             if not args:
                 continue
