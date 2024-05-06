@@ -13,9 +13,14 @@ from .abnamro import (
     AbnAmroTsvRow,
     AbnAmroTsvRowParser,
     DescriptionParser,
+    parse_balance,
 )
 
 DEFAULT_ACCOUNTS = AbnAmroConfig.DEFAULT_ACCOUNTS
+
+
+def test_parse_positive_balance() -> None:
+    assert parse_balance("1.200,00       +/CREDIT") == Decimal(1200)
 
 
 def test_parsing_sepa_overboeking() -> None:

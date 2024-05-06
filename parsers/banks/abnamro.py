@@ -634,8 +634,9 @@ def parse_amount(a: str) -> Decimal:
 
 
 def parse_balance(a: str) -> Decimal:
-    """ parse a balance like -1.200,00 +/CREDIT """
+    """ parse a balance like 1.200,00 +/CREDIT """
     amount, _, sign = a.partition(' ')
+    sign = sign.lstrip()
     assert sign[0] in {'+', '-'}
     return parse_amount(sign[0] + amount)
 
