@@ -13,13 +13,16 @@ def parse_payment_provider(t):
     meta = t.metadata
     store = meta['store']
     payment_provider, star, store_ = store.partition('*')
+    payment_provider = payment_provider.rstrip()
     if not star:
-        if store.startswith('CCV '):
-            payment_provider = 'CCV'
-            store_ = store.removeprefix('CCV ')
+        # This only seems to be on old bank statements
+        for payment_provider in ('CCV', 'SumUp'):
+            if store.startswith(payment_provider + ' '):
+                store_ = store.removeprefix(payment_provider + ' ')
+                break
         else:
             return store, meta
-    if payment_provider in {'CCV', 'Zettle_', 'PAY.nl'}:
+    if payment_provider in {'CCV', 'Zettle_', 'PAY.nl', 'SumUp'}:
         meta = dict(meta)
         store = store_
         meta['store'] = store

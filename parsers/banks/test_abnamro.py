@@ -288,6 +288,62 @@ def test_parsing_bea_transaction_with_pay_nl_prefix() -> None:
     assert m['location'] == 'LOCATION'
 
 
+def test_parsing_bea_transaction_with_sumup_prefix() -> None:
+    description = ["BEA, Betaalpas",
+                   "SumUp *My example store,PAS123",
+                   "NR:123ABC, 01.01.24/12.23",
+                   "LOCATION"]
+
+    parser = DescriptionParser(currency='EUR',
+                               accounts=DEFAULT_ACCOUNTS)
+    transaction = parser.parse(
+            description=description,
+            bookdate=date(2024, 1, 1),
+            value_date=date(2024, 1, 1),
+            amount=Decimal("1.23"),
+            )
+    cleaner = TransactionCleaner(AbnAmroPdfParser.cleaning_rules)
+    transaction = cleaner.clean(transaction)
+    assert transaction.description == 'My example store'
+    m = transaction.metadata
+    assert m['transaction_type'] == 'BEA'
+    assert m['payment_provider'] == 'SumUp'
+    assert m['store'] == 'My example store'
+    assert m['pas_nr'] == '123'
+    assert m['NR'] == '123ABC'
+    assert m['date'] == date(2024, 1, 1)
+    assert m['time'] == '12:23'
+    assert m['location'] == 'LOCATION'
+
+
+def test_parsing_bea_transaction_with_old_sumup_prefix() -> None:
+    description = ["BEA, Betaalpas",
+                   "SumUp My example store,PAS123",
+                   "NR:123ABC  01.01.22/12.23",
+                   "LOCATION"]
+
+    parser = DescriptionParser(currency='EUR',
+                               accounts=DEFAULT_ACCOUNTS)
+    transaction = parser.parse(
+            description=description,
+            bookdate=date(2022, 1, 1),
+            value_date=date(2022, 1, 1),
+            amount=Decimal("1.23"),
+            )
+    cleaner = TransactionCleaner(AbnAmroPdfParser.cleaning_rules)
+    transaction = cleaner.clean(transaction)
+    assert transaction.description == 'My example store'
+    m = transaction.metadata
+    assert m['transaction_type'] == 'BEA'
+    assert m['payment_provider'] == 'SumUp'
+    assert m['store'] == 'My example store'
+    assert m['pas_nr'] == '123'
+    assert m['NR'] == '123ABC'
+    assert m['date'] == date(2022, 1, 1)
+    assert m['time'] == '12:23'
+    assert m['location'] == 'LOCATION'
+
+
 def test_parsing_bea_transaction_with_comma_after_nr() -> None:
     """Test new BEA format.
 
