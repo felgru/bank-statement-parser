@@ -661,9 +661,11 @@ class AbnAmroTsvParser(CleaningParser[AbnAmroConfig]):
         self._raw_transactions = AbnAmroTsvRow.read_rows_from_file(tsv_file)
 
     def parse_metadata(self) -> BankStatementMetadata:
+        account_numbers = sorted(set(t.account for t in self._raw_transactions))
         start_date = min(t.date1 for t in self._raw_transactions)
         end_date   = max(t.date1 for t in self._raw_transactions)
         return BankStatementMetadata(
+                account_number=", ".join(account_numbers),
                 start_date=start_date,
                 end_date=end_date,
                )
