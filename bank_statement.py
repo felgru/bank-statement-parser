@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2019–2022 Felix Gruber <felgru@posteo.net>
+# SPDX-FileCopyrightText: 2019–2022, 2024 Felix Gruber <felgru@posteo.net>
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
@@ -21,29 +21,25 @@ class BankStatement:
     def write_ledger(self, outfile: TextIO) -> None:
         if self.old_balance is not None:
             date = self._format_date(self.old_balance.date)
-            print('; old balance{}: {} €\n'.format(date,
-                                                   self.old_balance.balance),
+            print(f'; old balance{date}: {self.old_balance.balance} €\n',
                   file=outfile)
         for t in self.transactions:
             print(t.format_as_ledger_transaction(), file=outfile)
         if self.new_balance is not None:
             date = self._format_date(self.new_balance.date)
-            print('; new balance{}: {} €'.format(date,
-                                                 self.new_balance.balance),
+            print(f'; new balance{date}: {self.new_balance.balance} €',
                   file=outfile)
 
     def write_raw(self, outfile: TextIO) -> None:
         if self.old_balance is not None:
             date = self._format_date(self.old_balance.date)
-            print('old balance{}: {} €\n'.format(date,
-                                                 self.old_balance.balance),
+            print(f'old balance{date}: {self.old_balance.balance} €\n',
                   file=outfile)
         for transaction in self.transactions:
             print(f'{transaction!r}\n', file=outfile)
         if self.new_balance is not None:
             date = self._format_date(self.new_balance.date)
-            print('new balance{}: {} €'.format(date,
-                                               self.new_balance.balance),
+            print(f'new balance{date}: {self.new_balance.balance} €',
                   file=outfile)
 
     @staticmethod
