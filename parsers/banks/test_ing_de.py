@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2022 Felix Gruber <felgru@posteo.net>
+# SPDX-FileCopyrightText: 2022–2024 Felix Gruber <felgru@posteo.net>
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
@@ -186,6 +186,27 @@ def test_parsing_exchange_fee_transaction_without_rate() -> None:
     assert external_value_date is None
     assert metadata == {
         'ARN_number': 'ARN12345678901234567890123',
+        'card_number': '4546 XXXX XXXX 1234',
+        'fee_type': 'AUSLANDSEINSATZENTGELT',
+        'type': 'Entgelt',
+    }
+
+
+def test_parsing_exchange_fee_transaction_without_rate_and_broken_arn() -> None:
+    description = (
+        "VISA\n"
+        "VISA 4546 XXXX XXXX 1234 AUSLANDSEINSATZENTGELT VISA CARD\n"
+        "(DEBITKARTE) ARN00000000000000000000000"
+    )
+    description, external_value_date, metadata \
+            = parse_transaction('Entgelt',
+                                description,
+                                date(2023, 1, 31),
+                                )
+    assert description == 'VISA Auslandseinsatzentgelt'
+    assert external_value_date is None
+    assert metadata == {
+        'ARN_number': 'ARN00000000000000000000000',
         'card_number': '4546 XXXX XXXX 1234',
         'fee_type': 'AUSLANDSEINSATZENTGELT',
         'type': 'Entgelt',

@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2019–2023 Felix Gruber <felgru@posteo.net>
+# SPDX-FileCopyrightText: 2019–2024 Felix Gruber <felgru@posteo.net>
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
@@ -290,7 +290,7 @@ def parse_transaction(transaction_type: str,
         description = lines[0] + ' | ' + ' '.join(lines[1:])
     elif transaction_type == 'Entgelt':
         # fee
-        if (description.startswith('VISA ')
+        if (description.startswith('VISA')
                 and 'AUSLANDSEINSATZENTGELT' in description):
             # card exchange fee
             lines = description.split('\n')
@@ -310,6 +310,8 @@ def parse_transaction(transaction_type: str,
                 raise RuntimeError(f'ARN pattern didn\'t match {lines[-1]!r}.')
             metadata['ARN_number'] = m.group(1)
             description = ' '.join(lines[:-2])
+            if description == 'VISA':
+                description += " Auslandseinsatzentgelt"
         elif 'Kontofuehrungsentgelt ' in description:
             metadata['fee_type'] = 'KONTOFUEHRUNGSENTGELT'
             description \
