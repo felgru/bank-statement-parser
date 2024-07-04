@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2022–2023 Felix Gruber <felgru@posteo.net>
+# SPDX-FileCopyrightText: 2022–2024 Felix Gruber <felgru@posteo.net>
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
@@ -22,7 +22,7 @@ def parse_payment_provider(t):
                 break
         else:
             return store, meta
-    if payment_provider in {'CCV', 'Zettle_', 'PAY.nl', 'SumUp'}:
+    if payment_provider in {'BCK', 'CCV', 'Zettle_', 'PAY.nl', 'SumUp'}:
         meta = dict(meta)
         store = store_
         meta['store'] = store
