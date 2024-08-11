@@ -82,6 +82,7 @@ class ThermoFisherAdpConfig(BaseParserConfig):
         '1110': 'income:salary',          # Salaris
         # bonus payments
         '365Z': 'income:salary:holiday allowance',  # Holiday Allowance
+        '3624': 'income:salary:holiday allowance',  # Vakantiegeld
         '3640': 'income:salary:bonus',  # B-Incentive Comp (AIP)
         '3660': 'income:salary:bonus',  # 13de Maand
         # taxes
