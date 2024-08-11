@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2022–2023 Felix Gruber <felgru@posteo.net>
+# SPDX-FileCopyrightText: 2022–2024 Felix Gruber <felgru@posteo.net>
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
@@ -341,7 +341,7 @@ class HistoryPage:
             assert isinstance(transactions, Tag)
             page_info = transactions.find('span', class_='page-info')
             assert isinstance(page_info, Tag)
-            m = re.search('\(\s*(\d+)\s*transacties', page_info.text)
+            m = re.search(r'\(\s*(\d+)\s*transacties', page_info.text)
             assert m is not None
             num_transactions = int(m.group(1))
             if num_transactions > 0:
