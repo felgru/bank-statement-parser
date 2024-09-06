@@ -295,7 +295,7 @@ class TableIterator:
 
         # Find table end.
         table_end_pattern = re.compile(f'^ +{total_keyword}'
-                                       r' (€ *\d+,\d\d ?-?)$',
+                                       r' +(€ *\d+,\d\d ?-?)$',
                                        flags=re.MULTILINE)
         m = table_end_pattern.search(page_content, pos=body_start)
         if m is None:
@@ -420,8 +420,11 @@ def parse_amount(s: str) -> Decimal:
 
 def parse_date(d: str, *, separator: str = '-') -> date:
     # Dutch inverse ISO format
-    day, month, year = d.split(separator)
-    return date(int(year), int(month), int(day))
+    try:
+        day, month, year = d.split(separator)
+        return date(int(year), int(month), int(day))
+    except ValueError as e:
+        raise ValueError(f'Could not parse date {d!r}.') from e
 
 
 def parse_daterange(d: str) -> tuple[date, date]:
