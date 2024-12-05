@@ -311,6 +311,8 @@ class DescriptionParser:
               bookdate: date,
               value_date: date,
               amount: Decimal) -> BaseTransaction:
+        if description[0] == "":
+            description = description[1:]
         transaction_type = description[0]
         if transaction_type == 'SEPA iDEAL':
             return self._parse_from_keywords(transaction_type,
