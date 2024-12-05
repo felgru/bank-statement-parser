@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2022–2023 Felix Gruber <felgru@posteo.net>
+# SPDX-FileCopyrightText: 2022–2024 Felix Gruber <felgru@posteo.net>
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
@@ -16,18 +16,23 @@ def merge_dateranges(dateranges: list[tuple[date, date]]) -> None:
 
 
 def parse_date_relative_to(d: str, ref_d: date) -> date:
-    day = int(d[:2])
-    month = int(d[3:5])
-    year = ref_d.year
-    dd = date(year, month, day)
-    half_a_year = timedelta(days=356/2)
-    diff = dd - ref_d
-    if abs(diff) > half_a_year:
-        if diff < timedelta(days=0):
-            dd = date(year + 1, month, day)
-        else:
-            dd = date(year - 1, month, day)
-    return dd
+    try:
+        day = int(d[:2])
+        month = int(d[3:5])
+        year = ref_d.year
+        dd = date(year, month, day)
+        half_a_year = timedelta(days=356/2)
+        diff = dd - ref_d
+        if abs(diff) > half_a_year:
+            if diff < timedelta(days=0):
+                dd = date(year + 1, month, day)
+            else:
+                dd = date(year - 1, month, day)
+        return dd
+    except ValueError as e:
+        raise ValueError(
+            f"Could not parse date {d!r} relative to {ref_d}."
+        ) from e
 
 
 def end_of_month(d: date) -> date:

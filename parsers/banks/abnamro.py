@@ -84,7 +84,8 @@ class AbnAmroPdfParser(PdfParser[AbnAmroConfig]):
                 self.pdf_pages,
                 date=meta.date,
                 currency=meta.currency,
-                accounts=accounts)
+                accounts=accounts,
+                new_format=meta.new_format)
 
     def check_transactions_consistency(self,
                                        transactions: list[BaseTransaction],
@@ -113,19 +114,22 @@ class AbnAmroPdfParser(PdfParser[AbnAmroConfig]):
 
 class FirstPageMetadata:
     def __init__(self, page: str):
-        m = re.search(r'Account \(in ([A-Z]+)\) +(BIC)', page)
+        m = re.search(r'Account( Type)? \(in (?P<currency>[A-Z]+)\) +(?P<BIC>BIC)',
+                      page)
         assert m is not None
+        # new bank statement format as of November 2024.
+        self.new_format = bool(m.group(1))
         self.bank_address, self.customer_address = \
                 self._parse_addresses(page[:m.start()])
-        self.currency = m.group(1)
+        self.currency = m.group('currency')
         line_start = m.end() + 1
         line_end = page.index('\n', line_start)
-        bic_start = line_start + m.start(2) - m.start()
+        bic_start = line_start + m.start('BIC') - m.start()
         self.account_type = page[m.end() + 1:bic_start].strip().lower()
         self.bic = page[bic_start:line_end].strip()
         d, line_end = self._parse_line_with_header(
                 page,
-                r'(Account number +) (IBAN +) (Date +) (No of pages)'
+                r' *(Account number +) (IBAN +) (Date +) (No of pages)'
                 r' +(Page) +(Stmt no)\n',
                 line_end,
                 )
@@ -137,7 +141,7 @@ class FirstPageMetadata:
         self.stmt_no = int(d['stmt_no'])
         d, line_end = self._parse_line_with_header(
                 page,
-                r'(Previous balance +) (New balance +)'
+                r' *(Previous balance +) (New balance +)'
                 r' (Total amount debit +) (Total amount credit)\n',
                 line_end,
                 )
@@ -148,11 +152,15 @@ class FirstPageMetadata:
 
     @staticmethod
     def _parse_addresses(text: str) -> tuple[str, str]:
-        m = re.search('Statement of account\n+', text,
+        m = re.search('Statement of ([Aa])ccount\n+', text,
                       flags=re.MULTILINE)
         assert m is not None
+        new_format = m.group(1) == 'A'
         addresses_start = m.end()
-        m = re.compile(r'(  +)').search(text, addresses_start)
+        if new_format:
+            m = re.compile(r' +ABN AMRO( +)').search(text, addresses_start)
+        else:
+            m = re.compile(r'(  +)').search(text, addresses_start)
         assert m is not None
         customer_address_offset = m.end(1) - addresses_start
         bank_address = []
@@ -189,8 +197,10 @@ class FirstPageMetadata:
 class MainTableIterator:
     def __init__(self, pdf_pages: list[str], *,
                  date: date, currency: str,
-                 accounts: dict[str, str]):
-        self.lines = PeekableIterator(MainTableLines(pdf_pages))
+                 accounts: dict[str, str],
+                 new_format: bool):
+        self.lines = PeekableIterator(
+            MainTableLines(pdf_pages, has_margin_text=new_format))
         self.date = date
         self.description_parser = DescriptionParser(
                 currency=currency,
@@ -556,14 +566,15 @@ class DescriptionParser:
 
 
 class MainTableLines:
-    def __init__(self, pdf_pages: list[str]):
+    def __init__(self, pdf_pages: list[str], *, has_margin_text: bool):
         self.pdf_pages = pdf_pages
+        self.has_margin_text = has_margin_text
         self._set_page(0)
 
     def _set_page(self, page: int) -> None:
-        header = re.compile(r'^(Bookdate) +(Description +)'
+        header = re.compile(r'^ *(Bookdate) +(Description +)'
                             r' (Amount debit +) (Amount credit)\n'
-                            r'\(Value date\)$',
+                            r' *\(Value date\)$',
                             flags=re.MULTILINE)
         m = header.search(self.pdf_pages[page])
         if m is None:
@@ -582,6 +593,7 @@ class MainTableLines:
         self.spans: dict[str, slice] = spans
         body_start = m.end() + 1
         self.lines = self.pdf_pages[page][body_start:].split('\n')
+        self.margin_size = m.start(1) - m.start()
         self.current_page = page
         self.current_line = 0
 
@@ -596,6 +608,18 @@ class MainTableLines:
                 self._set_page(self.current_page + 1)
         line = self.lines[self.current_line]
         self.current_line += 1
+        if self.has_margin_text and line[:self.margin_size].strip():
+            line = self.lines[self.current_line]
+            self.current_line += 1
+            while line[:self.margin_size].strip():
+                # Skip margin text
+                line = self.lines[self.current_line]
+                self.current_line += 1
+            # Margin text is followed by 4 blank lines, but blank lines
+            # are ignored anyways in the following code.
+        if self.has_margin_text and line.strip() == 'DIG':
+            # last line on page; skip
+            line = ''
         if line:
             return MainTableLine(
                     bookdate=line[self.spans['bookdate']].strip(),
@@ -617,8 +641,11 @@ class MainTableLine:
 
 def parse_date(d: str, *, separator: str = '-') -> date:
     # Dutch inverse ISO format
-    day, month, year = d.split(separator)
-    return date(int(year), int(month), int(day))
+    try:
+        day, month, year = d.split(separator)
+        return date(int(year), int(month), int(day))
+    except ValueError as e:
+        raise ValueError(f"Could not parse date {d!r}") from e
 
 
 def parse_short_year_date(d: str) -> date:
