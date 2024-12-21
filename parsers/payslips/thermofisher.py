@@ -106,6 +106,7 @@ class ThermoFisherAdpConfig(BaseParserConfig):
         # misc bookkeeping
         '3212': 'expenses:reimbursable:misc',  # Flex Select- Holiday
         '3644': 'expenses:reimbursable:misc',  # Kopen vakantiedagen
+        '3646': 'income:salary:misc',          # Flex. Benefit uitkering
     }
     salary_balancing_account: str
     accounts: dict[str, str]
