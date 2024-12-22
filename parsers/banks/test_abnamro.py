@@ -13,6 +13,8 @@ from .abnamro import (
     AbnAmroTsvRow,
     AbnAmroTsvRowParser,
     DescriptionParser,
+    MainTableLine,
+    MainTableLines,
     parse_balance,
 )
 
@@ -100,6 +102,32 @@ def test_parsing_sepa_overboeking_without_omschrijving_or_kenmerk() -> None:
     assert m['BIC'] == "ABNANL2A"
     assert m['Naam'] == "J Doe"
     assert 'Omschrijving' not in m
+
+
+def test_parsing_sepa_overboeking_with_empty_first_line() -> None:
+    description = ["",
+                   "SEPA Overboeking",
+                   "IBAN: NL11ABNA1234567890",
+                   "BIC: ABNANL2A",
+                   "Naam: J Doe",
+                   "Omschrijving: xyz"]
+
+    parser = DescriptionParser(currency='EUR',
+                               accounts=DEFAULT_ACCOUNTS)
+    transaction = parser.parse(
+            description=description,
+            bookdate=date(2022, 1, 1),
+            value_date=date(2022, 1, 1),
+            amount=Decimal("1.23"),
+            )
+    omschrijving = "xyz"
+    assert transaction.description == omschrijving
+    m = transaction.metadata
+    assert m['transaction_type'] == "SEPA Overboeking"
+    assert m['IBAN'] == "NL11ABNA1234567890"
+    assert m['BIC'] == "ABNANL2A"
+    assert m['Naam'] == "J Doe"
+    assert m['Omschrijving'] == omschrijving
 
 
 def test_parsing_old_bea_transaction() -> None:
@@ -603,6 +631,349 @@ def test_parsing_interest() -> None:
         "see your interest note for more",
         "information",
     ])
+
+
+def test_main_table_lines_old_format() -> None:
+    test_pages = ["""
+                                                             Statement of account
+First page
+metadata header
+
+Account (in EUR)                           BIC
+PERSONAL ACCOUNT                           ABNANL2A
+Account number               IBAN                     Date                            No of pages     Page   Stmt no
+12.34.56.789                 NL12ABNA0123456789       31-10-2024                      2               001    10
+Previous balance             New balance              Total amount debit              Total amount credit
+1.234,56        +/CREDIT     1.234,56     +/CREDIT    1.234,56                        1.234,56
+Bookdate       Description                            Amount debit                    Amount credit
+(Value date)
+14-10          SEPA Periodieke overb.                                      1.234,56
+(14-10)        IBAN: NL12ABNA0987654321
+               BIC: ABNANL2A
+               Naam: I EMAND
+               Omschrijving: omschrijving
+13-10          SEPA iDEAL                                                      1,23
+(13-10)        IBAN: NL12ABNA0987654321
+               BIC: ABNANL2A
+               Naam: I EMAND
+               Omschrijving: abcde
+
+""",
+"""
+                                                               Statement of account
+
+Account (in EUR)                       Account number   Date                        No of pages     Page   Stmt no
+PERSONAL ACCOUNT                       12.34.56.789     31-10-2024                  2               002    10
+Bookdate       Description                              Amount debit                Amount credit
+(Value date)
+               Kenmerk: 13-10-2024 12:34 abcde
+01-10          SEPA Incasso algemeen doorlopend                              1,23
+(01-10)        Incassant: NL01ABC123456
+               Naam: SOME COMPANY
+               Machtiging: XY-12345-Z
+               IBAN: NL12ABNA0987654321
+               Kenmerk: abcde-12345
+"""]
+    table = MainTableLines(test_pages, has_margin_text=False)
+    assert list(table) == [
+        MainTableLine(
+            bookdate='14-10',
+            description='SEPA Periodieke overb.',
+            amount_debit='1.234,56',
+            amount_credit='',
+        ),
+        MainTableLine(
+            bookdate='(14-10)',
+            description='IBAN: NL12ABNA0987654321',
+            amount_debit='',
+            amount_credit='',
+        ),
+        MainTableLine(
+            bookdate='',
+            description='BIC: ABNANL2A',
+            amount_debit='',
+            amount_credit='',
+        ),
+        MainTableLine(
+            bookdate='',
+            description='Naam: I EMAND',
+            amount_debit='',
+            amount_credit='',
+        ),
+        MainTableLine(
+            bookdate='',
+            description='Omschrijving: omschrijving',
+            amount_debit='',
+            amount_credit='',
+        ),
+        MainTableLine(
+            bookdate='13-10',
+            description='SEPA iDEAL',
+            amount_debit='1,23',
+            amount_credit='',
+        ),
+        MainTableLine(
+            bookdate='(13-10)',
+            description='IBAN: NL12ABNA0987654321',
+            amount_debit='',
+            amount_credit='',
+        ),
+        MainTableLine(
+            bookdate='',
+            description='BIC: ABNANL2A',
+            amount_debit='',
+            amount_credit='',
+        ),
+        MainTableLine(
+            bookdate='',
+            description='Naam: I EMAND',
+            amount_debit='',
+            amount_credit='',
+        ),
+        MainTableLine(
+            bookdate='',
+            description='Omschrijving: abcde',
+            amount_debit='',
+            amount_credit='',
+        ),
+        MainTableLine(
+            bookdate='',
+            description='Kenmerk: 13-10-2024 12:34 abcde',
+            amount_debit='',
+            amount_credit='',
+        ),
+        MainTableLine(
+            bookdate='01-10',
+            description='SEPA Incasso algemeen doorlopend',
+            amount_debit='1,23',
+            amount_credit='',
+        ),
+        MainTableLine(
+            bookdate='(01-10)',
+            description='Incassant: NL01ABC123456',
+            amount_debit='',
+            amount_credit='',
+        ),
+        MainTableLine(
+            bookdate='',
+            description='Naam: SOME COMPANY',
+            amount_debit='',
+            amount_credit='',
+        ),
+        MainTableLine(
+            bookdate='',
+            description='Machtiging: XY-12345-Z',
+            amount_debit='',
+            amount_credit='',
+        ),
+        MainTableLine(
+            bookdate='',
+            description='IBAN: NL12ABNA0987654321',
+            amount_debit='',
+            amount_credit='',
+        ),
+        MainTableLine(
+            bookdate='',
+            description='Kenmerk: abcde-12345',
+            amount_debit='',
+            amount_credit='',
+        ),
+    ]
+
+
+def test_main_table_lines_new_format() -> None:
+    test_pages = ["""
+                                                                                               Statement of Account
+
+                         First page
+                         metadata header
+
+
+                         Account Type (in EUR)                              BIC
+                         PERSONAL ACCOUNT                                   ABNANL2A
+                         Account number                    IBAN                        Date                                 No of pages           Page       Stmt no
+                         12.34.56.789                      NL12ABNA0123456789          29-11-2024                           2                     1          011
+
+                         Previous balance                  New balance                 Total amount debit                   Total amount credit
+                         1.234,56 +/CREDIT                 1.234,56 +/CREDIT           1.234,56                             1.234,56
+
+
+                         Bookdate           Description                                                      Amount debit                                Amount credit
+                         (Value date)
+                         14-11              SEPA Periodieke overb.                                              1.234,56
+                         (14-11)            IBAN: NL12ABNA0987654321
+                                            BIC: ABNANL2A
+                                            Naam: I EMAND
+                                            Omschrijving: omschrijving
+VAT nr. NL123456789B01
+ABN AMRO Bank.N.V.
+
+
+
+
+                         13-11              SEPA iDEAL                                                           1,23
+C. of C nr. 12345678
+
+
+
+
+                         (13-11)            IBAN: NL12ABNA0987654321
+
+
+                                             DIG
+
+""",
+"""
+                         Account Type (in EUR)                             Account number   Date                        No of pages   Page        Stmt no
+                         PERSONAL ACCOUNT                                  12.34.56.789     29-11-2024                  2             2           011
+
+
+
+                         Bookdate          Description                                                   Amount debit                        Amount credit
+                         (Value date)
+                                           BIC: ABNANL2A
+                                           Naam: I EMAND
+                                           Omschrijving: abcde
+                                           Kenmerk: 13-11-2024 12:34 abcde
+                         01-11             SEPA Incasso algemeen doorlopend                                      1,23
+VAT nr. NL123456789B01
+
+
+
+
+                         (01-11)
+ABN AMRO Bank.N.V.
+
+
+
+
+
+                                           Incassant: NL01ABC123456
+C. of C nr. 12345678
+
+
+
+
+
+                                           Naam: SOME COMPANY
+                                           Machtiging: XY-12345-Z
+                                           IBAN: NL12ABNA0987654321
+                                           Kenmerk: abcde-12345
+
+                                             DIG
+
+"""]
+    table = MainTableLines(test_pages, has_margin_text=True)
+    assert list(table) == [
+        MainTableLine(
+            bookdate='14-11',
+            description='SEPA Periodieke overb.',
+            amount_debit='1.234,56',
+            amount_credit='',
+        ),
+        MainTableLine(
+            bookdate='(14-11)',
+            description='IBAN: NL12ABNA0987654321',
+            amount_debit='',
+            amount_credit='',
+        ),
+        MainTableLine(
+            bookdate='',
+            description='BIC: ABNANL2A',
+            amount_debit='',
+            amount_credit='',
+        ),
+        MainTableLine(
+            bookdate='',
+            description='Naam: I EMAND',
+            amount_debit='',
+            amount_credit='',
+        ),
+        MainTableLine(
+            bookdate='',
+            description='Omschrijving: omschrijving',
+            amount_debit='',
+            amount_credit='',
+        ),
+        MainTableLine(
+            bookdate='13-11',
+            description='SEPA iDEAL',
+            amount_debit='1,23',
+            amount_credit='',
+        ),
+        MainTableLine(
+            bookdate='(13-11)',
+            description='IBAN: NL12ABNA0987654321',
+            amount_debit='',
+            amount_credit='',
+        ),
+        MainTableLine(
+            bookdate='',
+            description='BIC: ABNANL2A',
+            amount_debit='',
+            amount_credit='',
+        ),
+        MainTableLine(
+            bookdate='',
+            description='Naam: I EMAND',
+            amount_debit='',
+            amount_credit='',
+        ),
+        MainTableLine(
+            bookdate='',
+            description='Omschrijving: abcde',
+            amount_debit='',
+            amount_credit='',
+        ),
+        MainTableLine(
+            bookdate='',
+            description='Kenmerk: 13-11-2024 12:34 abcde',
+            amount_debit='',
+            amount_credit='',
+        ),
+        MainTableLine(
+            bookdate='01-11',
+            description='SEPA Incasso algemeen doorlopend',
+            amount_debit='1,23',
+            amount_credit='',
+        ),
+        MainTableLine(
+            bookdate='(01-11)',
+            description='',
+            amount_debit='',
+            amount_credit='',
+        ),
+        MainTableLine(
+            bookdate='',
+            description='Incassant: NL01ABC123456',
+            amount_debit='',
+            amount_credit='',
+        ),
+        MainTableLine(
+            bookdate='',
+            description='Naam: SOME COMPANY',
+            amount_debit='',
+            amount_credit='',
+        ),
+        MainTableLine(
+            bookdate='',
+            description='Machtiging: XY-12345-Z',
+            amount_debit='',
+            amount_credit='',
+        ),
+        MainTableLine(
+            bookdate='',
+            description='IBAN: NL12ABNA0987654321',
+            amount_debit='',
+            amount_credit='',
+        ),
+        MainTableLine(
+            bookdate='',
+            description='Kenmerk: abcde-12345',
+            amount_debit='',
+            amount_credit='',
+        ),
+    ]
 
 
 def test_tsv_parsing_sepa_incasso_transaction() -> None:
