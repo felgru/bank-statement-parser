@@ -1,9 +1,10 @@
-# SPDX-FileCopyrightText: 2022–2024 Felix Gruber <felgru@posteo.net>
+# SPDX-FileCopyrightText: 2022–2025 Felix Gruber <felgru@posteo.net>
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 from datetime import date
 from decimal import Decimal
+from pathlib import Path
 
 from transaction import MultiTransaction
 from transaction_sanitation import TransactionCleaner
@@ -19,6 +20,15 @@ from .abnamro import (
 )
 
 DEFAULT_ACCOUNTS = AbnAmroConfig.DEFAULT_ACCOUNTS
+
+
+def load_test_data_pages(name: str, num_pages: int) -> list[str]:
+    data_dir = Path(__file__).parent / "test_data/abnamro"
+    test_pages = []
+    for i in range(1, num_pages + 1):
+        with open(data_dir / f"{name}_page{i}") as f:
+            test_pages.append(f.read())
+    return test_pages
 
 
 def test_parse_positive_balance() -> None:
@@ -634,46 +644,7 @@ def test_parsing_interest() -> None:
 
 
 def test_main_table_lines_old_format() -> None:
-    test_pages = ["""
-                                                             Statement of account
-First page
-metadata header
-
-Account (in EUR)                           BIC
-PERSONAL ACCOUNT                           ABNANL2A
-Account number               IBAN                     Date                            No of pages     Page   Stmt no
-12.34.56.789                 NL12ABNA0123456789       31-10-2024                      2               001    10
-Previous balance             New balance              Total amount debit              Total amount credit
-1.234,56        +/CREDIT     1.234,56     +/CREDIT    1.234,56                        1.234,56
-Bookdate       Description                            Amount debit                    Amount credit
-(Value date)
-14-10          SEPA Periodieke overb.                                      1.234,56
-(14-10)        IBAN: NL12ABNA0987654321
-               BIC: ABNANL2A
-               Naam: I EMAND
-               Omschrijving: omschrijving
-13-10          SEPA iDEAL                                                      1,23
-(13-10)        IBAN: NL12ABNA0987654321
-               BIC: ABNANL2A
-               Naam: I EMAND
-               Omschrijving: abcde
-
-""",
-"""
-                                                               Statement of account
-
-Account (in EUR)                       Account number   Date                        No of pages     Page   Stmt no
-PERSONAL ACCOUNT                       12.34.56.789     31-10-2024                  2               002    10
-Bookdate       Description                              Amount debit                Amount credit
-(Value date)
-               Kenmerk: 13-10-2024 12:34 abcde
-01-10          SEPA Incasso algemeen doorlopend                              1,23
-(01-10)        Incassant: NL01ABC123456
-               Naam: SOME COMPANY
-               Machtiging: XY-12345-Z
-               IBAN: NL12ABNA0987654321
-               Kenmerk: abcde-12345
-"""]
+    test_pages = load_test_data_pages("main_table_lines_old_format", 2)
     table = MainTableLines(test_pages, has_margin_text=False)
     assert list(table) == [
         MainTableLine(
@@ -782,87 +753,7 @@ Bookdate       Description                              Amount debit            
 
 
 def test_main_table_lines_new_format() -> None:
-    test_pages = ["""
-                                                                                               Statement of Account
-
-                         First page
-                         metadata header
-
-
-                         Account Type (in EUR)                              BIC
-                         PERSONAL ACCOUNT                                   ABNANL2A
-                         Account number                    IBAN                        Date                                 No of pages           Page       Stmt no
-                         12.34.56.789                      NL12ABNA0123456789          29-11-2024                           2                     1          011
-
-                         Previous balance                  New balance                 Total amount debit                   Total amount credit
-                         1.234,56 +/CREDIT                 1.234,56 +/CREDIT           1.234,56                             1.234,56
-
-
-                         Bookdate           Description                                                      Amount debit                                Amount credit
-                         (Value date)
-                         14-11              SEPA Periodieke overb.                                              1.234,56
-                         (14-11)            IBAN: NL12ABNA0987654321
-                                            BIC: ABNANL2A
-                                            Naam: I EMAND
-                                            Omschrijving: omschrijving
-VAT nr. NL123456789B01
-ABN AMRO Bank.N.V.
-
-
-
-
-                         13-11              SEPA iDEAL                                                           1,23
-C. of C nr. 12345678
-
-
-
-
-                         (13-11)            IBAN: NL12ABNA0987654321
-
-
-                                             DIG
-
-""",
-"""
-                         Account Type (in EUR)                             Account number   Date                        No of pages   Page        Stmt no
-                         PERSONAL ACCOUNT                                  12.34.56.789     29-11-2024                  2             2           011
-
-
-
-                         Bookdate          Description                                                   Amount debit                        Amount credit
-                         (Value date)
-                                           BIC: ABNANL2A
-                                           Naam: I EMAND
-                                           Omschrijving: abcde
-                                           Kenmerk: 13-11-2024 12:34 abcde
-                         01-11             SEPA Incasso algemeen doorlopend                                      1,23
-VAT nr. NL123456789B01
-
-
-
-
-                         (01-11)
-ABN AMRO Bank.N.V.
-
-
-
-
-
-                                           Incassant: NL01ABC123456
-C. of C nr. 12345678
-
-
-
-
-
-                                           Naam: SOME COMPANY
-                                           Machtiging: XY-12345-Z
-                                           IBAN: NL12ABNA0987654321
-                                           Kenmerk: abcde-12345
-
-                                             DIG
-
-"""]
+    test_pages = load_test_data_pages("main_table_lines_new_format", 2)
     table = MainTableLines(test_pages, has_margin_text=True)
     assert list(table) == [
         MainTableLine(
