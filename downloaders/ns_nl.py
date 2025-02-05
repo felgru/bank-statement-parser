@@ -343,6 +343,7 @@ class NederlandseSpoorwegenApi:
     CARDS_API = f'{API_BASE}/mijnns-card-coupling-api/cards'
     MIJNNS_INVOICE_API = f'{API_BASE}/mijnns-invoice-api'
     OMNI_TRANSACTION_API = f'{API_BASE}/omni-transaction-api'
+    MIJNNS_TRANSACTIONS_API = f'{API_BASE}/mijnns-sap-proxy/sap-comit-transactions'
     OMNI_OVCP_API = f'{API_BASE}/omni-ovcp-api/ovcp'
 
     def __init__(self, session: requests.Session, auth_headers: dict):
@@ -779,32 +780,24 @@ class NederlandseSpoorwegenApi:
                        JOURNEYs for departure/arrival station.
         """
         # TODO: How do I know how many pages there are?
-        query = []
+        query = [
+            "token_identifier=engraved_id",
+            f"token_value={card}",
+        ]
         if offset is not None:
-            query.append(f'offset={offset}')
+            query.append(f'transaction_offset={offset}')
         if limit is not None:
-            query.append(f'limit={limit}')
-        local_tz = ZoneInfo('Europe/Amsterdam')
+            query.append(f'max_number_of_transactions={limit}')
         if start_date is not None:
-            # Create a time string like '2022-11-03T23:00:00.000Z'.
-            dt = datetime.combine(start_date,
-                                  time(0, 0, tzinfo=local_tz)) \
-                         .astimezone(ZoneInfo('UTC')) \
-                         .replace(tzinfo=None) \
-                         .isoformat(timespec='milliseconds') + 'Z'
-            query.append(f'startDate={dt}')
+            query.append(f'after_date={start_date:%Y%m%d}')
         if end_date is not None:
-            # Create a time string like '2022-11-11T22:59:59.999Z'.
-            dt = datetime.combine(end_date,
-                                  time(23, 59, 59, 999000, tzinfo=local_tz)) \
-                         .astimezone(ZoneInfo('UTC')) \
-                         .replace(tzinfo=None) \
-                         .isoformat(timespec='milliseconds') + 'Z'
-            query.append(f'endDate={dt}')
+            # TODO: This has not been tested. "before_date" is a guess.
+            query.append(f'before_date={end_date:%Y%m%d}')
         if source is not None:
+            raise NotImplementedError("source not implemented")
             query += f'&transactionSource={source}'
         res = self.session.get(
-                self.OMNI_TRANSACTION_API + f'/ovcp/{card}/transaction'
+                self.MIJNNS_TRANSACTIONS_API + f'/overview'
                 + f'?{"&".join(query)}',
                 headers=self.authorization_headers,
                 )
