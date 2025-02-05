@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2022–2023 Felix Gruber <felgru@posteo.net>
+# SPDX-FileCopyrightText: 2022–2025 Felix Gruber <felgru@posteo.net>
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
@@ -341,7 +341,7 @@ class NederlandseSpoorwegenApi:
     OAUTH_BASE = 'https://loginapi.ns.nl/oauth'
     API_BASE = 'https://gateway.apiportal.ns.nl'
     CARDS_API = f'{API_BASE}/mijnns-card-coupling-api/cards'
-    OMNI_INVOICE_API = f'{API_BASE}/omni-invoice-api'
+    MIJNNS_INVOICE_API = f'{API_BASE}/mijnns-invoice-api'
     OMNI_TRANSACTION_API = f'{API_BASE}/omni-transaction-api'
     OMNI_OVCP_API = f'{API_BASE}/omni-ovcp-api/ovcp'
 
@@ -980,7 +980,7 @@ class NederlandseSpoorwegenApi:
           * type: e.g. 'SUBSCRIPTIONS', or 'REST'.
           * amount: An int representing the amount in Euro cents.
         """
-        res = self.session.get(self.OMNI_INVOICE_API
+        res = self.session.get(self.MIJNNS_INVOICE_API
                                + '/next-invoice-cost-overview',
                                headers=self.authorization_headers)
         res.raise_for_status()
@@ -994,10 +994,11 @@ class NederlandseSpoorwegenApi:
         * date: An ISO 8601 date.
         * amount: A str representing the amount in Euro cents.
         * currency: An ISO 4217 currency code. (probably always "EUR")
-        * status: Always "PAID" in my tests.
+        * status: "PAID" or " NOT_PAID" in my tests.
+        * hasTransactions: A boolean.
         * downloadIsAvailable: A boolean.
         """
-        res = self.session.get(self.OMNI_INVOICE_API + '/invoice',
+        res = self.session.get(self.MIJNNS_INVOICE_API + '/invoice',
                                headers=self.authorization_headers)
         res.raise_for_status()
         return res.json()
@@ -1010,7 +1011,7 @@ class NederlandseSpoorwegenApi:
 
         This returns a bytes object containing PDF data.
         """
-        res = self.session.get(self.OMNI_INVOICE_API + f'/invoice/{id}',
+        res = self.session.get(self.MIJNNS_INVOICE_API + f'/invoice/{id}',
                                headers=self.authorization_headers)
         res.raise_for_status()
         return res.content
