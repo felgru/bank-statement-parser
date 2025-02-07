@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2019–2024 Felix Gruber <felgru@posteo.net>
+# SPDX-FileCopyrightText: 2019–2025 Felix Gruber <felgru@posteo.net>
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
@@ -357,12 +357,13 @@ def parse_card_metadata(metadata_pattern: re.Match[str],
     purchase_date = parse_date_relative_to(m.group(3), operation_date)
     rest = m.group(1) + m.group(4)
     if card_transaction_type in ('BARGELDAUSZAHLUNG', 'KAUFUMSATZ'):
-        m = re.search(r'^(.*) KURS (\d+,\d+) (\d+,\d\d) \d{6}$', rest)
+        # As of January 2025, a decimal point is used instead of a comma.
+        m = re.search(r'^(.*) KURS (\d+[,.]\d+) (\d+[,.]\d\d) \d{6}$', rest)
         if m is not None: # Transaction in foreign currency
             metadata.update(parse_location(m.group(1)))
             metadata.update(dict(
-                    exchange_rate = parse_amount(m.group(2)),
-                    foreign_amount = parse_amount(m.group(3)),
+                    exchange_rate = parse_dot_or_comma_amount(m.group(2)),
+                    foreign_amount = parse_dot_or_comma_amount(m.group(3)),
                     ))
         else:
             m = re.search(r'^(.*?)( \d{6}|)$', rest)
@@ -557,3 +558,8 @@ def parse_amount(a: str) -> Decimal:
     """ parse a decimal amount like -1.200,00 """
     a = a.replace('.', '').replace(',', '.')
     return Decimal(a)
+
+
+def parse_dot_or_comma_amount(a: str) -> Decimal:
+    """ parse a decimal amount like -12.00 or -12,00 """
+    return Decimal(a.replace(',', '.'))

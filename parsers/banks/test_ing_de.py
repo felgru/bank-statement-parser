@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2022–2024 Felix Gruber <felgru@posteo.net>
+# SPDX-FileCopyrightText: 2022–2025 Felix Gruber <felgru@posteo.net>
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
@@ -48,6 +48,30 @@ def test_parsing_foreign_visa_card_transaction() -> None:
         'exchange_rate': Decimal('1.1234567'),
         'foreign_amount': Decimal('12.34'),
         'location': 'MONTREAL',
+        'type': 'Lastschrift',
+    }
+
+
+def test_parsing_foreign_visa_card_transaction_new() -> None:
+    description = (
+        "VISA NAME OF SHOP\n"
+        "NR XXXX 1234 OXFORD GB KURS 1.1234567 KAUFUMSATZ 23.01 12.34\n"
+        "123456 ARN12345678901234567890123")
+    description, external_value_date, metadata \
+            = parse_transaction('Lastschrift',
+                                description,
+                                date(2025, 1, 31),
+                                )
+    assert description == 'VISA NAME OF SHOP'
+    assert external_value_date == date(2025, 1, 23)
+    assert metadata == {
+        'ARN_number': 'ARN12345678901234567890123',
+        'NR_number': 'NR XXXX 1234',
+        'card_transaction_type': 'KAUFUMSATZ',
+        'country': 'GB',
+        'exchange_rate': Decimal('1.1234567'),
+        'foreign_amount': Decimal('12.34'),
+        'location': 'OXFORD',
         'type': 'Lastschrift',
     }
 
