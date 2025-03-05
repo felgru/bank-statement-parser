@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2022–2024 Felix Gruber <felgru@posteo.net>
+# SPDX-FileCopyrightText: 2022–2025 Felix Gruber <felgru@posteo.net>
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
@@ -76,6 +76,10 @@ class AbnAmroPdfParser(PdfParser[AbnAmroConfig]):
     def parse_raw(self, accounts: dict[str, str]) -> BankStatement:
         transactions = list(self._iter_main_table(accounts))
         transactions.reverse()
+        # Need to sort because of that tax return info/interest transaction
+        # that appears first on the statement even if the date is not at the
+        # end of the month.
+        transactions.sort(key=lambda t: t.transaction_date)
         return BankStatement(transactions, self.old_balance, self.new_balance)
 
     def _iter_main_table(self, accounts: dict[str, str]) -> MainTableIterator:
@@ -237,8 +241,13 @@ class MainTableIterator:
         except StopIteration:
             raise AbnAmroPdfParserError(
                     'Transaction with missing second line.') from None
-        value_date = parse_date_relative_to(line.bookdate.strip('()'),
-                                            self.date)
+        valuedate_str = line.bookdate.strip('()')
+        value_date = (
+            parse_date_relative_to(valuedate_str, self.date)
+            # Seen for interest payment.
+            if valuedate_str != '00-00'
+            else bookdate
+        )
         # second line can be empty except for value date if we're at
         # the end of the page. We filter out those empty description lines.
         if line.description:
@@ -363,6 +372,12 @@ class DescriptionParser:
                                         bookdate=bookdate,
                                         value_date=value_date,
                                         amount=amount)
+        elif transaction_type.startswith('FOR TAX RETURN'):
+            # Used instead of INTEREST since 2025.
+            return self._parse_new_interest(description,
+                                            bookdate=bookdate,
+                                            value_date=value_date,
+                                            amount=amount)
         else:
             raise AbnAmroPdfParserError(
                     f'Unknown transaction type: {transaction_type}\n'
@@ -558,6 +573,34 @@ class DescriptionParser:
                 )
         assert bookdate == value_date
         descr = f"{interest_type} {d['period_start']} to {d['period_end']}"
+        return Transaction(account=self.account,
+                           description=descr,
+                           transaction_date=bookdate,
+                           value_date=value_date,
+                           amount=amount,
+                           currency=self.currency,
+                           metadata=d)
+
+    def _parse_new_interest(self,
+                            description: list[str],
+                            *,
+                            bookdate: date,
+                            value_date: date,
+                            amount: Decimal,
+                            ) -> Transaction:
+        comment = '\n'.join(description)
+        m = re.search(r'Interest received in (\d{4}):', comment)
+        if m is None:
+            raise AbnAmroPdfParserError(
+                f'Could not parse year of interest transaction:\n{comment}.'
+            )
+        d = dict[str, Any](
+                transaction_type='INTEREST',
+                year=int(m.group(1)),
+                block_comment=comment,
+                )
+        assert value_date == bookdate  # Or actually "(00-00)".
+        descr = f"Interest received in {d['year']}"
         return Transaction(account=self.account,
                            description=descr,
                            transaction_date=bookdate,

@@ -629,7 +629,7 @@ def test_parsing_interest() -> None:
             )
     interest_type = "CREDIT INTEREST"
     assert transaction.description == \
-            f"CREDIT INTEREST 2022-04-01 to 2022-06-30"
+            "CREDIT INTEREST 2022-04-01 to 2022-06-30"
     m = transaction.metadata
     assert m['transaction_type'] == "INTEREST"
     assert m['interest_type'] == interest_type
@@ -640,6 +640,34 @@ def test_parsing_interest() -> None:
         "visit www.abnamro.nl/interest",
         "see your interest note for more",
         "information",
+    ])
+
+
+
+def test_parsing_new_interest() -> None:
+    description = ["FOR TAX RETURN 2024 SEE",
+                   "WWW.ABNAMRO.NL/JAAROVERZICHT",
+                   "Interest received in 2024:",
+                   "EUR            0,00",
+                   ]
+
+    parser = DescriptionParser(currency='EUR',
+                               accounts=DEFAULT_ACCOUNTS)
+    transaction = parser.parse(
+            description=description,
+            bookdate=date(2025, 2, 4),
+            value_date=date(2025, 2, 4),
+            amount=Decimal("0.00"),
+            )
+    assert transaction.description == "Interest received in 2024"
+    m = transaction.metadata
+    assert m['transaction_type'] == "INTEREST"
+    assert m['year'] == 2024
+    assert m['block_comment'] == "\n".join([
+        "FOR TAX RETURN 2024 SEE",
+        "WWW.ABNAMRO.NL/JAAROVERZICHT",
+        "Interest received in 2024:",
+        "EUR            0,00",
     ])
 
 
